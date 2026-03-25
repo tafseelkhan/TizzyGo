@@ -32,7 +32,7 @@ import {
   brandsData,
   staticBannerData,
   rotatingBannerItems,
-} from './Common/data/images';
+} from './Common/Data/images';
 import { Product as ProductType } from '../../types/HomeTypes';
 import { AuthUtils } from '../../services/HomeService';
 import { useTheme } from '../../contexts/theme/ThemeContext';

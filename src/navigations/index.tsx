@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import TizzyGo from '../screens/animations/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
-import HomeScreen from '../screens/Home/HomeScreen';
+import HomeScreen from '../screens/home/HomeScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
