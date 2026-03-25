@@ -1,4 +1,4 @@
-// app/index.tsx (Home Page) - Pure React Native Version with Fixed Types
+// app/index.tsx (Home Page) - Updated with Color from SafeArea
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -20,6 +20,8 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Banner from './BannerHome';
 import CategoryGrid from './CategoryGridHome';
 import Header from './HeaderHome';
@@ -36,8 +38,47 @@ import {
 import { Product as ProductType } from '../../types/HomeTypes';
 import { AuthUtils } from '../../services/HomeService';
 import { useTheme } from '../../contexts/theme/ThemeContext';
+import { colors } from '../../colors/styles'; // Import colors mapping
 
-// ✅ FIXED: Define the complete Product interface that matches what ProductGrid expects
+// Color Helper Function
+const getColorGradient = (colorName: string | null): string[] => {
+  if (!colorName) return ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'];
+  
+  const foundColor = colors.find(c => c.name === colorName.toUpperCase());
+  return foundColor ? foundColor.hexValues : ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'];
+};
+
+// API Base URL
+const API_BASE_URL = 'http://172.20.10.12:5000';
+
+// Fetch user color from API
+const fetchUserColor = async (userId: string, token: string): Promise<string | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/fav/color`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    
+    if (data.success && data.data.color) {
+      await AsyncStorage.setItem('userColor', data.data.color);
+      return data.data.color;
+    }
+    
+    const cachedColor = await AsyncStorage.getItem('userColor');
+    return cachedColor || null;
+  } catch (error) {
+    console.error('Error fetching user color:', error);
+    const cachedColor = await AsyncStorage.getItem('userColor');
+    return cachedColor || null;
+  }
+};
+
+// Interfaces
 interface FullProduct {
   _id: string;
   title: string;
@@ -55,21 +96,19 @@ interface FullProduct {
   }>;
   averageRating?: number;
   reviewCount?: number;
-  images?: string[]; // ✅ Added missing property
-  seller?: any; // ✅ Added missing property
-  likes?: number; // ✅ Added missing property
-  comments?: any[]; // ✅ Added missing property
-  createdAt?: string; // ✅ Added missing property
-  updatedAt?: string; // ✅ Added missing property
+  images?: string[];
+  seller?: any;
+  likes?: number;
+  comments?: any[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// ✅ FIXED: Define the GridProduct interface that matches ProductGrid's expected type
 interface GridProduct {
   productId: string;
   fullProduct: FullProduct;
 }
 
-// ✅ FIXED: API Product interface
 interface ApiProduct {
   _id: string;
   title: string;
@@ -109,6 +148,7 @@ interface RotatingBannerProps {
   height?: 'small' | 'medium' | 'large' | 'full';
   showIndicators?: boolean;
   showNavigation?: boolean;
+  onLayout?: (event: any) => void;
 }
 
 interface CustomImageProps {
@@ -186,6 +226,7 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
   height = 'large',
   showIndicators = true,
   showNavigation = true,
+  onLayout,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -247,7 +288,10 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
   if (!items.length) return null;
 
   return (
-    <View style={[styles.bannerContainer, { height: heightValues[height] }]}>
+    <View 
+      style={[styles.bannerContainer, { height: heightValues[height] }]}
+      onLayout={onLayout}
+    >
       {items.map((item, index) => (
         <View
           key={item.id}
@@ -449,9 +493,7 @@ const StaticBanner: React.FC<StaticBannerProps> = ({
 
 const HomeScreen: React.FC = () => {
   const [products, setProducts] = useState<GridProduct[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<ProductType | null>(
-    null,
-  );
+  const [selectedProduct, setSelectedProduct] = useState<ProductType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
@@ -461,6 +503,9 @@ const HomeScreen: React.FC = () => {
   const [isStoriesFullScreen, setIsStoriesFullScreen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [storiesRefreshing, setStoriesRefreshing] = useState(false);
+  const [bannerHeight, setBannerHeight] = useState(0);
+  const [userColor, setUserColor] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const route = useRoute();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -469,6 +514,31 @@ const HomeScreen: React.FC = () => {
 
   const { isDark, theme } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+
+  // Get gradient colors based on user's favorite color
+  const gradientColors = getColorGradient(userColor);
+
+  // Fetch user color on mount
+  useEffect(() => {
+    const loadUserColor = async () => {
+      try {
+        // Get user ID and token from AsyncStorage
+        const token = await AsyncStorage.getItem('userToken');
+        const storedUserId = await AsyncStorage.getItem('userId');
+        
+        if (token && storedUserId) {
+          setUserId(storedUserId);
+          const color = await fetchUserColor(storedUserId, token);
+          setUserColor(color);
+        }
+      } catch (error) {
+        console.error('Error loading user color:', error);
+      }
+    };
+    
+    loadUserColor();
+  }, []);
 
   const handleGlobalRefresh = useCallback(async () => {
     try {
@@ -505,7 +575,6 @@ const HomeScreen: React.FC = () => {
     return await AuthUtils.checkAuthAndRedirect();
   };
 
-  // ✅ FIXED: Convert API products to GridProduct format with all required fields
   const convertToGridProducts = (apiProducts: ApiProduct[]): GridProduct[] => {
     return apiProducts.map(apiProduct => ({
       productId: apiProduct._id,
@@ -523,12 +592,12 @@ const HomeScreen: React.FC = () => {
         variants: apiProduct.variants,
         averageRating: apiProduct.averageRating,
         reviewCount: apiProduct.reviewCount,
-        images: apiProduct.images || [], // ✅ Added missing field
-        seller: apiProduct.seller || null, // ✅ Added missing field
-        likes: apiProduct.likes || 0, // ✅ Added missing field
-        comments: apiProduct.comments || [], // ✅ Added missing field
-        createdAt: apiProduct.createdAt || new Date().toISOString(), // ✅ Added missing field
-        updatedAt: apiProduct.updatedAt || new Date().toISOString(), // ✅ Added missing field
+        images: apiProduct.images || [],
+        seller: apiProduct.seller || null,
+        likes: apiProduct.likes || 0,
+        comments: apiProduct.comments || [],
+        createdAt: apiProduct.createdAt || new Date().toISOString(),
+        updatedAt: apiProduct.updatedAt || new Date().toISOString(),
       },
     }));
   };
@@ -613,7 +682,6 @@ const HomeScreen: React.FC = () => {
     }
   }, [productId]);
 
-  // ✅ FIXED: Filter products based on category
   const filteredProducts = useCallback((): GridProduct[] => {
     if (selectedCategory.toLowerCase().trim() === 'all') {
       return products;
@@ -626,102 +694,123 @@ const HomeScreen: React.FC = () => {
   }, [products, selectedCategory]);
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark ? '#0F172A' : '#f9fafb',
-        },
-      ]}
-    >
+    <>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={isDark ? '#0F172A' : '#f9fafb'}
+        backgroundColor="transparent"
+        translucent={true}
       />
-
-      <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      <Header
-        location={location}
-        setLocation={setLocation}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        selectedCategory={selectedCategory}
-        handleCategoryClick={handleCategoryClick}
-        disableScrollEffect={isStoriesFullScreen}
-        onRefresh={handleGlobalRefresh}
-        refreshing={refreshing}
-        scrollY={scrollY}
+      
+      {/* Main Background Gradient - Starts from top of screen (includes safe area) */}
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            top: 0,
+            bottom: 0,
+          },
+        ]}
       />
-
-      <Animated.ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleGlobalRefresh}
-            colors={isDark ? ['#7DD3FC'] : ['#3b82f6']}
-            tintColor={isDark ? '#7DD3FC' : '#3b82f6'}
-            title="Pull to refresh..."
-            titleColor={isDark ? '#94A3B8' : '#3b82f6'}
-          />
-        }
+      
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: 'transparent',
+          },
+        ]}
       >
-        <View style={styles.scrollContent}>
-          <View style={styles.storiesContainer}>
-            <ProductStories
-              onRefresh={handleStoriesRefresh}
-              onStoryEnd={() => setIsStoriesFullScreen(false)}
-              onStoryChange={() => setIsStoriesFullScreen(true)}
+        <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+
+        <Header
+          location={location}
+          setLocation={setLocation}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          selectedCategory={selectedCategory}
+          handleCategoryClick={handleCategoryClick}
+          disableScrollEffect={isStoriesFullScreen}
+          onRefresh={handleGlobalRefresh}
+          refreshing={refreshing}
+          scrollY={scrollY}
+        />
+
+        <Animated.ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleGlobalRefresh}
+              colors={isDark ? ['#7DD3FC'] : ['#3b82f6']}
+              tintColor={isDark ? '#7DD3FC' : '#3b82f6'}
+              title="Pull to refresh..."
+              titleColor={isDark ? '#94A3B8' : '#3b82f6'}
             />
+          }
+        >
+          <View style={[styles.scrollContent, { paddingTop: insets.top + 100 }]}>
+            <View style={styles.storiesContainer}>
+              <ProductStories
+                onRefresh={handleStoriesRefresh}
+                onStoryEnd={() => setIsStoriesFullScreen(false)}
+                onStoryChange={() => setIsStoriesFullScreen(true)}
+              />
+            </View>
+
+            <View style={styles.bannerWrapper}>
+              <RotatingBanner 
+                items={rotatingBannerItems}
+                onLayout={(event) => {
+                  setBannerHeight(event.nativeEvent.layout.height);
+                }}
+              />
+            </View>
+
+            <CategoryGrid />
+
+            <Banner productsCount={products.length} />
+
+            <View style={{ flex: 1, zIndex: 99 }}>
+              <ProductGrid
+                products={filteredProducts()}
+                isLoading={isLoading}
+                userId="userId123"
+              />
+            </View>
+
+            <View style={styles.staticBannerWrapper}>
+              <StaticBanner
+                text={staticBannerData.text}
+                image={staticBannerData.image}
+              />
+            </View>
+
+            <Footer />
           </View>
-
-          <View style={styles.bannerWrapper}>
-            <RotatingBanner items={rotatingBannerItems} />
-          </View>
-
-          <CategoryGrid />
-
-          <Banner productsCount={products.length} />
-
-          <View style={{ flex: 1, zIndex: 99 }}>
-            <ProductGrid
-              products={filteredProducts()}
-              isLoading={isLoading}
-              userId="userId123"
-            />
-          </View>
-
-          <View style={styles.staticBannerWrapper}>
-            <StaticBanner
-              text={staticBannerData.text}
-              image={staticBannerData.image}
-            />
-          </View>
-
-          <Footer />
-        </View>
-      </Animated.ScrollView>
-    </View>
+        </Animated.ScrollView>
+      </View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 160,
+    paddingBottom: 20,
   },
   storiesContainer: {
     paddingHorizontal: 16,

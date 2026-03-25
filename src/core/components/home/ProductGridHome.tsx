@@ -509,7 +509,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     return (
       <View style={[
         styles.errorContainer,
-        { backgroundColor: isDark ? '#0F172A' : '#f8fafc' }
+        { backgroundColor: isDark ? '#00000000' : '#00000000' }
       ]}>
         <LottieView
           source={nofoundAnimation}
@@ -797,7 +797,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#00000000",
   },
   scrollView: {
     flex: 1,
@@ -1286,7 +1286,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#00000000',
     padding: 20,
   },
   errorAnimation: {

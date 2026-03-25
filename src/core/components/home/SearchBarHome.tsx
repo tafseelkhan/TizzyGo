@@ -15,14 +15,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import LinearGradient from 'react-native-linear-gradient';
 import { APIs } from '../../services/HomeService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../contexts/theme/ThemeContext';
+import FilterDropdown from './Common/FilterDropDownHome';
+import CartButton from './CartButtonHome';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -30,7 +29,7 @@ const { width: screenWidth } = Dimensions.get('window');
 type RootStackParamList = {
   ProductDetail: { id: string; category: string };
   Search: { q: string };
-  // Add other screens as needed
+  CartScreen: undefined;
 };
 
 type NavigationProps = NativeStackNavigationProp<RootStackParamList>;
@@ -58,12 +57,6 @@ interface RecentSearch {
   createdAt: string;
 }
 
-type Category = {
-  name: string;
-  backendName: string;
-  icon: React.ReactElement;
-};
-
 interface SearchBarProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -71,50 +64,38 @@ interface SearchBarProps {
   userId: string;
   handleCategoryClick: (category: string) => void;
   isMobile: boolean;
-  isDark?: boolean;
+  isDark?: boolean; // ✅ isDark property already defined
 }
 
-// Define styles first
+// Define styles first - REMOVED GLASS EFFECT, ADDED SOLID COLOR
 const createStyles = (isDark: boolean) =>
   StyleSheet.create({
-    container: {
-      position: 'relative',
+    mainContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
       marginBottom: 16,
     },
-    gradientBackground: {
-      position: 'absolute',
-      top: -2,
-      left: -2,
-      right: -2,
-      bottom: -2,
-      backgroundColor: 'transparent',
-      borderRadius: 16,
-      opacity: 0.2,
+    searchWrapper: {
+      flex: 8,
+      left: 15,
+      position: 'relative',
     },
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? '#2D3748' : 'white',
+      backgroundColor: isDark ? '#2D3748' : '#FFFFFF',
       borderRadius: 16,
-      paddingHorizontal: 16,
-      shadowColor: isDark ? '#000' : '#000',
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      shadowOpacity: 0.1,
-      shadowRadius: 3.84,
-      elevation: 5,
-      borderWidth: 1,
-      borderColor: isDark ? '#4B5563' : '#f3f4f6',
+      paddingHorizontal: 28,
     },
     searchIcon: {
       marginRight: 12,
     },
     searchInput: {
       flex: 1,
-      paddingVertical: 16,
-      fontSize: 16,
+      paddingVertical: 14,
+      fontSize: 13,
+      fontWeight: 400,
       color: isDark ? '#F1F5F9' : '#1f2937',
     },
     clearButton: {
@@ -129,7 +110,7 @@ const createStyles = (isDark: boolean) =>
       left: 0,
       right: 0,
       marginTop: 8,
-      backgroundColor: isDark ? '#2D3748' : 'white',
+      backgroundColor: isDark ? '#2D3748' : '#FFFFFF',
       borderRadius: 16,
       shadowColor: isDark ? '#000' : '#000',
       shadowOffset: {
@@ -141,7 +122,8 @@ const createStyles = (isDark: boolean) =>
       elevation: 8,
       maxHeight: 400,
       borderWidth: 1,
-      borderColor: isDark ? '#4B5563' : '#f3f4f6',
+      borderColor: isDark ? '#4B5563' : '#E5E7EB',
+      zIndex: 1000,
     },
     suggestionsScrollView: {
       maxHeight: 400,
@@ -149,7 +131,7 @@ const createStyles = (isDark: boolean) =>
     section: {
       padding: 16,
       borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#4B5563' : '#f3f4f6',
+      borderBottomColor: isDark ? '#4B5563' : '#F3F4F6',
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -195,7 +177,7 @@ const createStyles = (isDark: boolean) =>
       gap: 12,
       padding: 8,
       borderRadius: 8,
-      backgroundColor: isDark ? '#374151' : '#f9fafb',
+      backgroundColor: isDark ? '#374151' : '#F9FAFB',
     },
     productImage: {
       width: 40,
@@ -206,7 +188,7 @@ const createStyles = (isDark: boolean) =>
       width: 40,
       height: 40,
       borderRadius: 8,
-      backgroundColor: isDark ? '#4B5563' : '#f3f4f6',
+      backgroundColor: isDark ? '#4B5563' : '#F3F4F6',
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -230,7 +212,7 @@ const createStyles = (isDark: boolean) =>
     },
     viewAllButton: {
       padding: 12,
-      backgroundColor: isDark ? '#374151' : '#f0fdfa',
+      backgroundColor: isDark ? '#374151' : '#F0FDFA',
       borderRadius: 12,
       alignItems: 'center',
       marginTop: 8,
@@ -269,7 +251,7 @@ const createStyles = (isDark: boolean) =>
       gap: 12,
       padding: 12,
       borderRadius: 12,
-      backgroundColor: isDark ? '#374151' : '#f9fafb',
+      backgroundColor: isDark ? '#374151' : '#F9FAFB',
     },
     searchText: {
       flex: 1,
@@ -281,7 +263,7 @@ const createStyles = (isDark: boolean) =>
       padding: 8,
     },
     searchCount: {
-      backgroundColor: isDark ? '#4B5563' : '#f3f4f6',
+      backgroundColor: isDark ? '#4B5563' : '#F3F4F6',
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 12,
@@ -298,157 +280,20 @@ const createStyles = (isDark: boolean) =>
       gap: 8,
       padding: 12,
       borderRadius: 12,
-      backgroundColor: isDark ? '#374151' : '#f9fafb',
+      backgroundColor: isDark ? '#374151' : '#F9FAFB',
     },
     viewMoreText: {
       fontSize: 14,
       fontWeight: '500',
       color: isDark ? '#7DD3FC' : '#0d9488',
     },
-    categoriesGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    categoryButton: {
+    // Action buttons container
+    actionButtons: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      padding: 12,
-      borderRadius: 12,
-      backgroundColor: isDark ? '#374151' : '#f8fafc',
-      flex: 1,
-      minWidth: (screenWidth - 64) / 3 - 16,
-      maxWidth: (screenWidth - 64) / 2 - 16,
-    },
-    categoryButtonSelected: {
-      backgroundColor: isDark ? '#0D9488' : '#0d9488',
-    },
-    categoryText: {
-      fontSize: 12,
-      fontWeight: '500',
-      color: isDark ? '#D1D5DB' : '#374151',
-      flex: 1,
-    },
-    categoryTextSelected: {
-      color: 'white',
-    },
-    categoryIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
   });
-
-// ✅ Fix: Explicit typing for categoriesData
-interface CategoryData {
-  name: string;
-  iconName: string;
-  color: string[];
-}
-
-const categoriesData: CategoryData[] = [
-  { name: 'Cars', iconName: 'car', color: ['#3b82f6', '#06b6d4'] },
-  { name: 'Mobiles', iconName: 'smartphone', color: ['#8b5cf6', '#ec4899'] },
-  { name: 'Properties', iconName: 'business', color: ['#f97316', '#ef4444'] },
-  { name: 'Electronics', iconName: 'devices', color: ['#22c55e', '#14b8a6'] },
-  { name: 'Furniture', iconName: 'chair', color: ['#eab308', '#f97316'] },
-  { name: 'Bikes', iconName: 'motorcycle', color: ['#ef4444', '#ec4899'] },
-  { name: 'Fashion', iconName: 'tshirt', color: ['#ec4899', '#f43f5e'] },
-  { name: 'Sports', iconName: 'basketball', color: ['#6366f1', '#8b5cf6'] },
-  { name: 'Pets', iconName: 'paw', color: ['#f59e0b', '#eab308'] },
-  { name: 'Jobs', iconName: 'work', color: ['#10b981', '#22c55e'] },
-  { name: 'Services', iconName: 'build', color: ['#6b7280', '#3b82f6'] },
-  { name: 'Real Estate', iconName: 'home', color: ['#f43f5e', '#ef4444'] },
-];
-
-function getCategoryIcon(
-  iconName: string,
-  size: number = 20,
-  isDark: boolean = false,
-) {
-  const iconColor = isDark ? '#F1F5F9' : 'white';
-  switch (iconName) {
-    case 'car':
-      return <Ionicons name="car-outline" size={size} color={iconColor} />;
-    case 'smartphone':
-      return (
-        <Ionicons name="phone-portrait-outline" size={size} color={iconColor} />
-      );
-    case 'business':
-      return <Ionicons name="business-outline" size={size} color={iconColor} />;
-    case 'devices':
-      return (
-        <MaterialIcons name="devices-other" size={size} color={iconColor} />
-      );
-    case 'chair':
-      return <MaterialIcons name="chair" size={size} color={iconColor} />;
-    case 'motorcycle':
-      return <MaterialIcons name="two-wheeler" size={size} color={iconColor} />;
-    case 'tshirt':
-      return <Ionicons name="shirt-outline" size={size} color={iconColor} />;
-    case 'basketball':
-      return (
-        <Ionicons name="basketball-outline" size={size} color={iconColor} />
-      );
-    case 'paw':
-      return <Ionicons name="paw-outline" size={size} color={iconColor} />;
-    case 'work':
-      return (
-        <Ionicons name="briefcase-outline" size={size} color={iconColor} />
-      );
-    case 'build':
-      return <Ionicons name="build-outline" size={size} color={iconColor} />;
-    case 'home':
-      return <Ionicons name="home-outline" size={size} color={iconColor} />;
-    default:
-      return <Ionicons name="bag-outline" size={size} color={iconColor} />;
-  }
-}
-
-// Function to create categories with theme support
-const createCategories = (isDark: boolean) => {
-  const styles = createStyles(isDark);
-  const baseCategories: Category[] = [
-    {
-      name: 'All',
-      backendName: 'all',
-      icon: (
-        <View
-          style={[
-            styles.categoryIcon,
-            { backgroundColor: isDark ? '#0D9488' : '#0d9488' },
-          ]}
-        >
-          <Ionicons
-            name="bag-outline"
-            size={20}
-            color={isDark ? '#F1F5F9' : 'white'}
-          />
-        </View>
-      ),
-    },
-  ];
-
-  const themeCategories: Category[] = categoriesData.map(cat => ({
-    name: cat.name,
-    backendName: cat.name.toLowerCase().replace(/\s+/g, '_'),
-    icon: (
-      <LinearGradient
-        colors={cat.color}
-        style={styles.categoryIcon}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        {getCategoryIcon(cat.iconName, 20, isDark)}
-      </LinearGradient>
-    ),
-  }));
-
-  return [...baseCategories, ...themeCategories];
-};
 
 const SearchBar: React.FC<SearchBarProps> = ({
   searchQuery,
@@ -457,9 +302,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
   userId,
   handleCategoryClick,
   isMobile,
-  isDark: parentIsDark,
+  isDark: propIsDark, // ✅ Rename to avoid conflict
 }) => {
-  // ✅ Fixed: Properly typed navigation
   const navigation = useNavigation<NavigationProps>();
 
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
@@ -469,21 +313,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [showAllPopular, setShowAllPopular] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(-20));
-  const searchRef = useRef<View>(null);
 
   // Get theme from ThemeContext
   const themeContext = useTheme();
-  const isDark =
-    parentIsDark !== undefined ? parentIsDark : themeContext?.isDark || false;
-
-  // Create styles based on theme
+  // ✅ Fix: Use propIsDark instead of parentIsDark
+  const isDark = propIsDark !== undefined ? propIsDark : themeContext?.isDark || false;
   const styles = createStyles(isDark);
-
-  // Create categories based on theme
-  const categories = createCategories(isDark);
 
   // Animation for suggestions
   useEffect(() => {
@@ -520,18 +357,15 @@ const SearchBar: React.FC<SearchBarProps> = ({
   const fetchRecentSearches = async () => {
     try {
       const data = await APIs.getRecentSearches();
-      console.log('🔍 Recent searches API response:', data);
-
       if (Array.isArray(data)) {
         setRecentSearches(data);
       } else if (data && Array.isArray(data.searches)) {
         setRecentSearches(data.searches);
       } else {
-        console.warn('⚠️ Unexpected response format:', data);
         setRecentSearches([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching recent searches:', error);
+      console.error('Error fetching recent searches:', error);
       setRecentSearches([]);
     }
   };
@@ -557,25 +391,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (showSearchSuggestions) {
-      const fetchPopularSearches = async () => {
-        try {
-          const data = await APIs.getPopularSearches();
-          const limitedSearches = (data.searches || []).slice(0, 7);
-          const shuffledSearches = [...limitedSearches].sort(
-            () => Math.random() - 0.5,
-          );
-          setPopularSearches(shuffledSearches);
-        } catch (error) {
-          console.error('Error fetching popular searches:', error);
-        }
-      };
-      fetchPopularSearches();
-    }
-  }, [showSearchSuggestions]);
-
-  const handleSearch = async (query: string, category?: string) => {
+  const handleSearch = async (query: string) => {
     setSearchQuery(query);
 
     if (query.length === 0) {
@@ -585,13 +401,10 @@ const SearchBar: React.FC<SearchBarProps> = ({
       return;
     }
 
-    if (query.length > 2 || category) {
+    if (query.length > 2) {
       try {
         setSearchLoading(true);
-        const results = await APIs.searchProducts(
-          query,
-          category || selectedCategory,
-        );
+        const results = await APIs.searchProducts(query);
 
         if (results.success) {
           setSearchResults(results.results || []);
@@ -624,8 +437,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
         setRecentSearches([]);
         setShowAllRecent(false);
       }
-    } catch (error: any) {
-      console.error('Error clearing recent searches:', error.message || error);
+    } catch (error) {
+      console.error('Error clearing recent searches:', error);
     }
   };
 
@@ -641,30 +454,19 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   const handlePopularSearchClick = (query: string) => {
     setSearchQuery(query);
-    setSelectedCategory('');
     handleSearch(query);
     setShowSearchSuggestions(false);
   };
 
   const handleRecentSearchClick = (query: string) => {
     setSearchQuery(query);
-    setSelectedCategory('');
     handleSearch(query);
-    setShowSearchSuggestions(false);
-  };
-
-  const handleCategorySelect = (categoryName: string) => {
-    setSelectedCategory(categoryName);
-    setSearchQuery(categoryName);
-    handleCategoryClick(categoryName);
-    handleSearch(categoryName, categoryName);
     setShowSearchSuggestions(false);
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
     setSearchResults([]);
-    setSelectedCategory('');
     setShowSearchSuggestions(true);
     if (onSearchResults) {
       onSearchResults([]);
@@ -672,7 +474,6 @@ const SearchBar: React.FC<SearchBarProps> = ({
     fetchRecentSearches();
   };
 
-  // ✅ Fixed: Navigation without type assertions
   const navigateToProduct = (product: any) => {
     navigation.navigate('ProductDetail', {
       id: product._id,
@@ -690,21 +491,10 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   const getProductImageUrl = (images: any[]): string => {
     if (!images || images.length === 0) return '';
-
     const firstImage = images[0];
-
-    if (typeof firstImage === 'string') {
-      return firstImage;
-    }
-
-    if (firstImage && firstImage.urls && firstImage.urls.length > 0) {
-      return firstImage.urls[0];
-    }
-
-    if (firstImage && firstImage.url) {
-      return firstImage.url;
-    }
-
+    if (typeof firstImage === 'string') return firstImage;
+    if (firstImage && firstImage.urls && firstImage.urls.length > 0) return firstImage.urls[0];
+    if (firstImage && firstImage.url) return firstImage.url;
     return '';
   };
 
@@ -724,16 +514,12 @@ const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   const getDisplayedRecentSearches = () => {
-    if (showAllRecent) {
-      return recentSearches;
-    }
+    if (showAllRecent) return recentSearches;
     return recentSearches.slice(0, 8);
   };
 
   const getDisplayedPopularSearches = () => {
-    if (showAllPopular) {
-      return popularSearches;
-    }
+    if (showAllPopular) return popularSearches;
     return popularSearches.slice(0, 3);
   };
 
@@ -749,13 +535,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
           </View>
           <View style={styles.resultsContainer}>
             {searchResults.map(categoryResult => (
-              <View
-                key={categoryResult.category}
-                style={styles.categorySection}
-              >
-                <Text style={styles.categoryTitle}>
-                  {categoryResult.category}
-                </Text>
+              <View key={categoryResult.category} style={styles.categorySection}>
+                <Text style={styles.categoryTitle}>{categoryResult.category}</Text>
                 <View style={styles.productsList}>
                   {categoryResult.products.slice(0, 3).map(product => {
                     const imageUrl = getProductImageUrl(product.images);
@@ -766,34 +547,21 @@ const SearchBar: React.FC<SearchBarProps> = ({
                         onPress={() => navigateToProduct(product)}
                       >
                         {imageUrl ? (
-                          <Image
-                            source={{ uri: imageUrl }}
-                            style={styles.productImage}
-                            onError={() => console.log('Image load error')}
-                          />
+                          <Image source={{ uri: imageUrl }} style={styles.productImage} />
                         ) : (
                           <View style={styles.productImagePlaceholder}>
-                            <Ionicons
-                              name="bag-outline"
-                              size={20}
-                              color={isDark ? '#94A3B8' : '#9ca3af'}
-                            />
+                            <Ionicons name="bag-outline" size={20} color="#9ca3af" />
                           </View>
                         )}
                         <View style={styles.productInfo}>
                           <Text style={styles.productTitle} numberOfLines={1}>
                             {product.title}
                           </Text>
-                          <Text
-                            style={styles.productDescription}
-                            numberOfLines={1}
-                          >
+                          <Text style={styles.productDescription} numberOfLines={1}>
                             {product.description}
                           </Text>
                         </View>
-                        <Text style={styles.productPrice}>
-                          {formatPrice(product.price)}
-                        </Text>
+                        <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -804,9 +572,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           {getTotalProductsCount() > 5 && (
             <TouchableOpacity
               style={styles.viewAllButton}
-              onPress={() => {
-                navigateToSearch(searchQuery);
-              }}
+              onPress={() => navigateToSearch(searchQuery)}
             >
               <Text style={styles.viewAllButtonText}>View All Results</Text>
             </TouchableOpacity>
@@ -817,11 +583,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
       return (
         <View style={styles.section}>
           <View style={styles.noResultsContainer}>
-            <Ionicons
-              name="search-outline"
-              size={40}
-              color={isDark ? '#94A3B8' : '#9ca3af'}
-            />
+            <Ionicons name="search-outline" size={40} color="#9ca3af" />
             <Text style={styles.noResultsTitle}>No products found</Text>
             <Text style={styles.noResultsText}>
               Can't find "{searchQuery}"? Try a different search term
@@ -839,11 +601,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons
-                name="time-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#6b7280'}
-              />
+              <Ionicons name="time-outline" size={18} color="#6b7280" />
               <Text style={styles.sectionTitle}>Recent Searches</Text>
             </View>
             <TouchableOpacity onPress={handleClearAllRecentSearches}>
@@ -857,11 +615,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
                   style={styles.searchButton}
                   onPress={() => handleRecentSearchClick(search.query)}
                 >
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={isDark ? '#94A3B8' : '#6b7280'}
-                  />
+                  <Ionicons name="time-outline" size={16} color="#6b7280" />
                   <Text style={styles.searchText} numberOfLines={1}>
                     {search.query}
                   </Text>
@@ -870,11 +624,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
                   style={styles.removeButton}
                   onPress={() => handleRemoveRecentSearch(search.id)}
                 >
-                  <Ionicons
-                    name="close"
-                    size={16}
-                    color={isDark ? '#94A3B8' : '#6b7280'}
-                  />
+                  <Ionicons name="close" size={16} color="#6b7280" />
                 </TouchableOpacity>
               </View>
             ))}
@@ -885,15 +635,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
               onPress={() => setShowAllRecent(!showAllRecent)}
             >
               <Text style={styles.viewMoreText}>
-                {showAllRecent
-                  ? 'View Less'
-                  : `View More (${recentSearches.length - 8} more)`}
+                {showAllRecent ? 'View Less' : `View More (${recentSearches.length - 8} more)`}
               </Text>
-              <Ionicons
-                name={showAllRecent ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={isDark ? '#7DD3FC' : '#0d9488'}
-              />
+              <Ionicons name={showAllRecent ? 'chevron-up' : 'chevron-down'} size={16} color="#0d9488" />
             </TouchableOpacity>
           )}
         </View>
@@ -908,11 +652,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons
-                name="trending-up-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#6b7280'}
-              />
+              <Ionicons name="trending-up-outline" size={18} color="#6b7280" />
               <Text style={styles.sectionTitle}>Popular Searches</Text>
             </View>
           </View>
@@ -923,18 +663,12 @@ const SearchBar: React.FC<SearchBarProps> = ({
                 style={styles.searchButton}
                 onPress={() => handlePopularSearchClick(search.query)}
               >
-                <Ionicons
-                  name="trending-up-outline"
-                  size={16}
-                  color={isDark ? '#94A3B8' : '#6b7280'}
-                />
+                <Ionicons name="trending-up-outline" size={16} color="#6b7280" />
                 <Text style={styles.searchText} numberOfLines={1}>
                   {search.query}
                 </Text>
                 <View style={styles.searchCount}>
-                  <Text style={styles.searchCountText}>
-                    {search.count} searches
-                  </Text>
+                  <Text style={styles.searchCountText}>{search.count} searches</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -945,15 +679,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
               onPress={() => setShowAllPopular(!showAllPopular)}
             >
               <Text style={styles.viewMoreText}>
-                {showAllPopular
-                  ? 'View Less'
-                  : `View More (${popularSearches.length - 3} more)`}
+                {showAllPopular ? 'View Less' : `View More (${popularSearches.length - 3} more)`}
               </Text>
-              <Ionicons
-                name={showAllPopular ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={isDark ? '#7DD3FC' : '#0d9488'}
-              />
+              <Ionicons name={showAllPopular ? 'chevron-up' : 'chevron-down'} size={16} color="#0d9488" />
             </TouchableOpacity>
           )}
         </View>
@@ -962,109 +690,72 @@ const SearchBar: React.FC<SearchBarProps> = ({
     return null;
   };
 
-  const renderQuickCategories = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Quick Categories</Text>
-      <View style={styles.categoriesGrid}>
-        {categories.slice(0, 6).map(category => (
-          <TouchableOpacity
-            key={category.name}
-            style={[
-              styles.categoryButton,
-              selectedCategory === category.name &&
-                styles.categoryButtonSelected,
-            ]}
-            onPress={() => handleCategorySelect(category.name)}
-          >
-            {category.icon}
-            <Text
-              style={[
-                styles.categoryText,
-                selectedCategory === category.name &&
-                  styles.categoryTextSelected,
-              ]}
-              numberOfLines={1}
-            >
-              {category.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
   return (
-    <View style={styles.container} ref={searchRef}>
-      {/* Gradient Background Effect */}
-      <View style={styles.gradientBackground} />
-
-      <View style={styles.searchContainer}>
-        <Ionicons
-          name="search"
-          size={20}
-          color={
-            searchLoading
-              ? isDark
-                ? '#7DD3FC'
-                : '#0d9488'
-              : isDark
-              ? '#94A3B8'
-              : '#6b7280'
-          }
-          style={styles.searchIcon}
-        />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="What are you looking for today? Search products...🔎"
-          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
-          value={searchQuery}
-          onChangeText={text => handleSearch(text)}
-          onFocus={handleSearchFocus}
-          onBlur={handleSearchBlur}
-        />
-        {searchQuery ? (
-          <TouchableOpacity
-            onPress={handleClearSearch}
-            style={styles.clearButton}
-          >
-            <Ionicons
-              name="close"
-              size={20}
-              color={isDark ? '#94A3B8' : '#6b7280'}
-            />
-          </TouchableOpacity>
-        ) : null}
-        {searchLoading && (
-          <ActivityIndicator
-            size="small"
-            color={isDark ? '#7DD3FC' : '#0d9488'}
-            style={styles.loadingIndicator}
+    <View style={styles.mainContainer}>
+      {/* Search Bar - Half Width */}
+      <View style={styles.searchWrapper}>
+        <View style={styles.searchContainer}>
+          <Ionicons
+            name="search"
+            size={20}
+            color={searchLoading ? (isDark ? '#7DD3FC' : '#0d9488') : (isDark ? '#94A3B8' : '#6b7280')}
+            style={styles.searchIcon}
           />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="What are you looking for..."
+            placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
+            value={searchQuery}
+            onChangeText={text => handleSearch(text)}
+            onFocus={handleSearchFocus}
+            onBlur={handleSearchBlur}
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+              <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#6b7280'} />
+            </TouchableOpacity>
+          ) : null}
+          {searchLoading && (
+            <ActivityIndicator
+              size="small"
+              color={isDark ? '#7DD3FC' : '#0d9488'}
+              style={styles.loadingIndicator}
+            />
+          )}
+        </View>
+
+        {showSearchSuggestions && (
+          <Animated.View
+            style={[
+              styles.suggestionsContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <ScrollView
+              style={styles.suggestionsScrollView}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {renderSearchResults()}
+              {renderRecentSearches()}
+              {renderPopularSearches()}
+            </ScrollView>
+          </Animated.View>
         )}
       </View>
 
-      {showSearchSuggestions && (
-        <Animated.View
-          style={[
-            styles.suggestionsContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <ScrollView
-            style={styles.suggestionsScrollView}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled={true}
-          >
-            {renderSearchResults()}
-            {renderRecentSearches()}
-            {renderPopularSearches()}
-            {renderQuickCategories()}
-          </ScrollView>
-        </Animated.View>
-      )}
+      {/* Action Buttons - Filter and Cart */}
+      <View style={styles.actionButtons}>
+        <FilterDropdown
+          selectedCategory=""
+          handleCategoryClick={handleCategoryClick}
+          isMobile={isMobile}
+        />
+        <CartButton userId={userId} />
+      </View>
     </View>
   );
 };

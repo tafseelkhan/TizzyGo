@@ -1,5 +1,5 @@
 // components/Header.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,26 @@ import {
   Dimensions,
   StyleSheet,
   StatusBar,
-} from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import LinearGradient from "react-native-linear-gradient";
-import LottieView from "lottie-react-native";
-import { useTheme } from "../../contexts/theme/ThemeContext";
+  Modal,
+  TextInput,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import LinearGradient from 'react-native-linear-gradient';
+import LottieView from 'lottie-react-native';
+import { useTheme } from '../../contexts/theme/ThemeContext';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Import your components
-import SearchBar from "./SearchBarHome";
-import FilterDropdown from "./Common/FilterDropDownHome";
-import CartButton from "./CartButtonHome";
+import SearchBar from './SearchBarHome';
+import FilterDropdown from './Common/FilterDropDownHome';
+import CartButton from './CartButtonHome';
 
 // Import Lottie animations
-const xaiAnimation = require("../../components/animations/lotties/Artificial Intelligence.json");
+const xaiAnimation = require('../../components/animations/lotties/Artificial Intelligence.json');
 
 interface SearchResult {
   category: string;
@@ -37,11 +43,13 @@ interface SearchResult {
   }>;
 }
 
-interface Announcement {
-  id: string;
-  message: string;
-  isActive: boolean;
-  type: string;
+interface LocationSuggestion {
+  description: string;
+  place_id: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
 }
 
 interface HeaderProps {
@@ -64,10 +72,25 @@ interface HeaderProps {
 
 // Define navigation param types
 type RootStackParamList = {
-  "/": undefined;
-  "/xai": undefined;
+  '/': undefined;
+  '/xai': undefined;
   [key: string]: any;
 };
+
+// Define geolocation types for web
+interface GeolocationPosition {
+  coords: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  };
+  timestamp: number;
+}
+
+interface GeolocationError {
+  code: number;
+  message: string;
+}
 
 const Header: React.FC<HeaderProps> = ({
   location,
@@ -78,7 +101,7 @@ const Header: React.FC<HeaderProps> = ({
   handleCategoryClick,
   onSearchResults,
   onRefresh,
-  userId = "default-user",
+  userId = 'default-user',
   disableScrollEffect = false,
   refreshing = false,
   showFilterButton = false,
@@ -87,28 +110,32 @@ const Header: React.FC<HeaderProps> = ({
   isDark: parentIsDark,
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
-  const [loadingAnnouncement, setLoadingAnnouncement] = useState(true);
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [searchLocationQuery, setSearchLocationQuery] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   // Get theme from ThemeContext (fallback to parent prop)
   const themeContext = useTheme();
-  const isDark = parentIsDark !== undefined ? parentIsDark : themeContext?.isDark || false;
+  const isDark =
+    parentIsDark !== undefined ? parentIsDark : themeContext?.isDark || false;
 
   // Theme-based colors
   const getThemeColors = () => {
     return {
-      headerBg: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      headerBg: isDark ? '#00000000' : '#00000000',
       textColor: isDark ? '#F1F5F9' : '#374151',
-      subtitleColor: isDark ? '#94A3B8' : '#6b7280',
-      logoColor: isDark ? '#7DD3FC' : 'rgba(0, 255, 213, 1)',
-      logoSubtitle: isDark ? '#7DD3FC' : 'rgba(0, 255, 255, 1)',
-      buttonBg: isDark ? '#2D3748' : 'white',
-      xaiButtonBg: isDark ? '#334155' : 'rgba(255, 255, 255, 0.5)',
-      buttonBorder: isDark ? '#4B5563' : 'rgba(255, 255, 255, 0.5)',
-      shadowColor: isDark ? '#000' : '#000',
-      announcementColors: isDark ? ['#0D9488', '#0891B2'] : ['#5EEAD4', '#38BDF8'],
+      locationBarBg: isDark ? '#1F2937' : '#F3F4F6',
+      locationTextColor: isDark ? '#F1F5F9' : '#374151',
+      modalBg: isDark ? '#1F2937' : '#FFFFFF',
+      inputBg: isDark ? '#374151' : '#F9FAFB',
+      inputBorder: isDark ? '#4B5563' : '#E5E7EB',
+      suggestionText: isDark ? '#F1F5F9' : '#374151',
+      suggestionSecondaryText: isDark ? '#9CA3AF' : '#6B7280',
     };
   };
 
@@ -120,48 +147,19 @@ const Header: React.FC<HeaderProps> = ({
   const translateY = scrollY.interpolate({
     inputRange: [0, headerHeight],
     outputRange: [0, -headerHeight],
-    extrapolate: "clamp",
+    extrapolate: 'clamp',
   });
 
   const opacity = scrollY.interpolate({
     inputRange: [0, headerHeight / 2, headerHeight],
     outputRange: [1, 0.5, 0],
-    extrapolate: "clamp",
+    extrapolate: 'clamp',
   });
 
   // Search active status track
   useEffect(() => {
     setIsSearchActive(searchQuery.length > 0 && hasSearchResults);
   }, [searchQuery, hasSearchResults]);
-
-  // Announcement API fetch
-  useEffect(() => {
-    const fetchAnnouncement = async () => {
-      try {
-        setLoadingAnnouncement(true);
-        const response = await fetch("/api/admin/announcement");
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.isActive) {
-            setAnnouncement(data);
-          }
-        }
-      } catch (error) {
-        console.error("Announcement fetch error:", error);
-        setAnnouncement({
-          id: "default",
-          message: "🚀 Free shipping on orders over $50! Limited time offer.",
-          isActive: true,
-          type: "info",
-        });
-      } finally {
-        setLoadingAnnouncement(false);
-      }
-    };
-
-    fetchAnnouncement();
-  }, []);
 
   // Scroll effect for background change
   useEffect(() => {
@@ -176,6 +174,159 @@ const Header: React.FC<HeaderProps> = ({
     };
   }, [scrollY, disableScrollEffect]);
 
+  // Google Places API search
+  const searchGooglePlaces = async (query: string) => {
+    if (!query.trim()) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    setLoadingLocations(true);
+    try {
+      // Replace with your actual Google Places API endpoint
+      const response = await fetch(
+        `/api/google-places/autocomplete?input=${encodeURIComponent(query)}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setLocationSuggestions(data.predictions || []);
+      } else {
+        console.error('Failed to fetch location suggestions');
+        setLocationSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching location suggestions:', error);
+      setLocationSuggestions([]);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  // Debounce location search
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchLocationQuery) {
+        searchGooglePlaces(searchLocationQuery);
+      } else {
+        setLocationSuggestions([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchLocationQuery]);
+
+  // Save selected location
+  const saveSelectedLocation = async (selectedLocation: LocationSuggestion) => {
+    setSavingLocation(true);
+    try {
+      // Get detailed address information
+      const detailsResponse = await fetch(
+        `/api/google-places/details?place_id=${selectedLocation.place_id}`
+      );
+      
+      if (detailsResponse.ok) {
+        const details = await detailsResponse.json();
+        const formattedAddress = details.result.formatted_address;
+        
+        // Call your post address API
+        const saveResponse = await fetch('/api/user/address', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            address: formattedAddress,
+            placeId: selectedLocation.place_id,
+            locationDetails: details.result,
+          }),
+        });
+
+        if (saveResponse.ok) {
+          setLocation(formattedAddress);
+          setLocationModalVisible(false);
+          setSearchLocationQuery('');
+          setLocationSuggestions([]);
+        } else {
+          console.error('Failed to save location');
+          Alert.alert('Error', 'Failed to save location. Please try again.');
+        }
+      } else {
+        // Fallback to using the description if details fetch fails
+        setLocation(selectedLocation.description);
+        setLocationModalVisible(false);
+        setSearchLocationQuery('');
+        setLocationSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Error saving location:', error);
+      // Fallback to using the description
+      setLocation(selectedLocation.description);
+      setLocationModalVisible(false);
+      setSearchLocationQuery('');
+      setLocationSuggestions([]);
+      Alert.alert('Error', 'Failed to save location. Please try again.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  // Get current location
+  const getCurrentLocation = () => {
+    if (Platform.OS === 'web') {
+      // Use globalThis with type assertion for web environment
+      const globalObj = globalThis as any;
+      
+      if (globalObj && globalObj.navigator && globalObj.navigator.geolocation) {
+        globalObj.navigator.geolocation.getCurrentPosition(
+          async (position: GeolocationPosition) => {
+            const { latitude, longitude } = position.coords;
+            // Reverse geocode to get address
+            try {
+              const response = await fetch(
+                `/api/google-places/reverse-geocode?lat=${latitude}&lng=${longitude}`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                const address = data.results[0]?.formatted_address || 'Current Location';
+                setLocation(address);
+                setLocationModalVisible(false);
+              } else {
+                setLocation('Current Location');
+                setLocationModalVisible(false);
+              }
+            } catch (error) {
+              console.error('Error getting address from coordinates:', error);
+              setLocation('Current Location');
+              setLocationModalVisible(false);
+            }
+          },
+          (error: GeolocationError) => {
+            console.error('Error getting current location:', error.message);
+            // Show user-friendly error message
+            Alert.alert(
+              'Location Error',
+              'Unable to get your location. Please enable location services or search manually.'
+            );
+          }
+        );
+      } else {
+        Alert.alert(
+          'Not Supported',
+          'Geolocation is not supported by your browser. Please search manually.'
+        );
+      }
+    } else if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      // For React Native mobile platforms, you'd use a library like @react-native-community/geolocation
+      console.log('Mobile geolocation would be implemented here');
+      Alert.alert(
+        'Coming Soon',
+        'Location services will be available soon. Please search manually for now.'
+      );
+    }
+  };
+
   // Filter button show/hide logic
   const shouldShowFilterButton = showFilterButton && isSearchActive;
 
@@ -183,261 +334,198 @@ const Header: React.FC<HeaderProps> = ({
     ? [styles.scrolledHeader, { backgroundColor: themeColors.headerBg }]
     : styles.normalHeader;
 
-  const { width } = Dimensions.get("window");
+  const { width } = Dimensions.get('window');
 
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[
-        styles.header,
-        headerBackground,
-        {
-          transform: [{ translateY: disableScrollEffect ? 0 : translateY }],
-          opacity: disableScrollEffect ? 1 : opacity,
-        },
-      ]}
-    >
-      {/* Status Bar Background for Mobile */}
-      {Platform.OS !== "web" && width < 1024 && (
-        <View style={[styles.statusBarBackground, { 
-          backgroundColor: isDark ? '#0F172A' : 'white' 
-        }]}>
-          <StatusBar
-            barStyle={isDark ? "light-content" : "dark-content"}
-            translucent
-            backgroundColor="transparent"
+    <>
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.header,
+          headerBackground,
+          {
+            transform: [{ translateY: disableScrollEffect ? 0 : translateY }],
+            opacity: disableScrollEffect ? 1 : opacity,
+          },
+        ]}
+      >
+        {/* Status Bar Background for Mobile */}
+        {Platform.OS !== 'web' && width < 1024 && (
+          <View
+            style={[
+              styles.statusBarBackground,
+              {
+                backgroundColor: isDark ? '#0F172A' : 'white',
+              },
+            ]}
+          >
+            <StatusBar
+              barStyle={isDark ? 'light-content' : 'dark-content'}
+              translucent
+              backgroundColor="transparent"
+            />
+          </View>
+        )}
+
+        {/* Location Bar - Replaces Announcement */}
+        <TouchableOpacity
+          onPress={() => setLocationModalVisible(true)}
+          activeOpacity={0.8}
+          style={[
+            styles.locationBar,
+            {
+              backgroundColor: themeColors.locationBarBg,
+              marginTop:
+                Platform.OS !== 'web' && width < 1024
+                  ? Platform.OS === 'ios'
+                    ? 44
+                    : StatusBar.currentHeight
+                  : 0,
+            },
+          ]}
+        >
+          <View style={styles.locationBarContent}>
+            <Icon name="location-on" size={20} color={isDark ? '#F1F5F9' : '#374151'} />
+            <View style={styles.locationTextContainer}>
+              <Text style={[styles.locationLabel, { color: themeColors.locationTextColor }]}>
+                Delivery to:
+              </Text>
+              <Text 
+                style={[styles.locationAddress, { color: themeColors.locationTextColor }]}
+                numberOfLines={1}
+              >
+                {location || 'Select your location'}
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={isDark ? '#F1F5F9' : '#374151'} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Mobile Search Bar */}
+        <View style={styles.mobileSearchContainer}>
+          <SearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onSearchResults={onSearchResults}
+            userId={userId}
+            handleCategoryClick={handleCategoryClick}
+            isMobile={true}
+            isDark={isDark}
           />
         </View>
-      )}
+      </Animated.View>
 
-      {/* Announcement Bar */}
-      {!loadingAnnouncement && announcement && (
-        <LinearGradient
-          colors={themeColors.announcementColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.announcementBar}
-        >
-          <Text style={styles.announcementText}>{announcement.message}</Text>
-        </LinearGradient>
-      )}
-
-      {loadingAnnouncement && (
-        <View style={[styles.loadingAnnouncement, { 
-          backgroundColor: isDark ? '#4B5563' : '#cbd5e1' 
-        }]}>
-          <Text style={[styles.announcementText, { 
-            color: isDark ? '#E5E7EB' : 'white' 
-          }]}>
-            Loading announcement...
-          </Text>
-        </View>
-      )}
-
-      {/* Main Header Content */}
-      <View style={styles.mainHeader}>
-        {/* Desktop/Layout for larger screens */}
-        <View style={styles.desktopHeader}>
-          {/* Logo Section */}
-          <TouchableOpacity
-            style={styles.logoContainer}
-            onPress={() => navigation.navigate("/")}
-          >
-            <View style={styles.logoWrapper}>
-              <View style={[
-                styles.logoBackground, 
-                { 
-                  backgroundColor: themeColors.buttonBg,
-                  borderColor: themeColors.buttonBg,
-                  shadowColor: themeColors.shadowColor,
-                }
-              ]}>
-                <Image
-                  source={require("../../../assets/images/tizzy-logo.jpg")}
-                  style={styles.logoImage}
-                  resizeMode="cover"
-                />
-              </View>
-            </View>
-            <View style={styles.logoTextContainer}>
-              <Text style={[styles.logoTitle, { color: themeColors.logoColor }]}>
-                TizzyGo
+      {/* Location Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={locationModalVisible}
+        onRequestClose={() => setLocationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: themeColors.modalBg }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.locationTextColor }]}>
+                Select Delivery Location
               </Text>
-              <Text
-                style={[
-                  styles.logoSubtitle, 
-                  isScrolled && styles.hiddenSubtitle,
-                  { color: themeColors.subtitleColor }
-                ]}
-              >
-                Shop Smarter, Live Better❤️
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <SearchBar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              onSearchResults={onSearchResults}
-              userId={userId}
-              handleCategoryClick={handleCategoryClick}
-              isMobile={false}
-              isDark={isDark}
-            />
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            {/* XAI Button - Hide when search active */}
-            {!isSearchActive && (
               <TouchableOpacity
-                style={[
-                  styles.aiButton, 
-                  { 
-                    backgroundColor: themeColors.xaiButtonBg,
-                    shadowColor: themeColors.shadowColor,
-                  }
-                ]}
-                onPress={() => navigation.navigate("/xai")}
+                onPress={() => setLocationModalVisible(false)}
+                style={styles.closeButton}
               >
-                <View style={[
-                  styles.lottieContainer,
-                  { backgroundColor: 'transparent' }
-                ]}>
-                  <LottieView
-                    source={xaiAnimation}
-                    autoPlay
-                    loop
-                    style={styles.lottieAnimation}
-                  />
-                </View>
+                <Icon name="close" size={24} color={themeColors.locationTextColor} />
               </TouchableOpacity>
-            )}
+            </View>
 
-            {/* Cart Button - Hide when search active */}
-            {!isSearchActive && (
-              <CartButton 
-                userId={userId} 
+            {/* Search Input */}
+            <View style={[styles.searchInputContainer, { 
+              backgroundColor: themeColors.inputBg,
+              borderColor: themeColors.inputBorder,
+            }]}>
+              <Icon name="search" size={20} color={themeColors.suggestionSecondaryText} />
+              <TextInput
+                style={[styles.searchInput, { color: themeColors.locationTextColor }]}
+                placeholder="Search for area, street, or landmark..."
+                placeholderTextColor={themeColors.suggestionSecondaryText}
+                value={searchLocationQuery}
+                onChangeText={setSearchLocationQuery}
               />
-            )}
-
-            {/* Filter Button - Show only when search active and has results */}
-            {shouldShowFilterButton && (
-              <FilterDropdown
-                selectedCategory={selectedCategory}
-                handleCategoryClick={handleCategoryClick}
-                isMobile={false}
-              />
-            )}
-          </View>
-        </View>
-
-        {/* Mobile Header */}
-        <View style={styles.mobileHeader}>
-          {/* Top Mobile Bar */}
-          <View style={styles.mobileTopBar}>
-            {/* Logo */}
-            <TouchableOpacity
-              style={styles.mobileLogoContainer}
-              onPress={() => navigation.navigate("/")}
-            >
-              <View style={[
-                styles.mobileLogo, 
-                { 
-                  backgroundColor: themeColors.buttonBg,
-                  shadowColor: themeColors.shadowColor,
-                }
-              ]}>
-                <Image
-                  source={require("../../../assets/images/tizzy-logo.jpg")}
-                  style={styles.mobileLogoImage}
-                  resizeMode="cover"
-                />
-              </View>
-              <View style={styles.mobileLogoText}>
-                <Text style={[styles.mobileLogoTitle, { color: themeColors.logoSubtitle }]}>
-                  TizzyGo
-                </Text>
-                <Text
-                  style={[
-                    styles.mobileLogoSubtitle,
-                    isScrolled && styles.hiddenSubtitle,
-                    { color: themeColors.subtitleColor }
-                  ]}
-                >
-                  Shop Smarter❤️
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Mobile Action Buttons */}
-            <View style={styles.mobileActions}>
-              {/* XAI Button - Hide when search active */}
-              {!isSearchActive && (
-                <TouchableOpacity
-                  style={[
-                    styles.mobileAiButton, 
-                    { 
-                      backgroundColor: themeColors.xaiButtonBg,
-                      borderColor: themeColors.buttonBorder,
-                      shadowColor: themeColors.shadowColor,
-                    }
-                  ]}
-                  onPress={() => navigation.navigate("/xai")}
-                >
-                  <View style={[
-                    styles.mobileLottieContainer,
-                    { backgroundColor: 'transparent' }
-                  ]}>
-                    <LottieView
-                      source={xaiAnimation}
-                      autoPlay
-                      loop
-                      style={styles.mobileLottie}
-                    />
-                  </View>
+              {searchLocationQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchLocationQuery('')}>
+                  <Icon name="clear" size={20} color={themeColors.suggestionSecondaryText} />
                 </TouchableOpacity>
               )}
-
-              {/* Cart Button - Hide when search active */}
-              {!isSearchActive && (
-                <CartButton 
-                  userId={userId} 
-                />
-              )}
-
-              {/* Filter Button - Show only when search active and has results */}
-              {shouldShowFilterButton && (
-                <FilterDropdown
-                  selectedCategory={selectedCategory}
-                  handleCategoryClick={handleCategoryClick}
-                  isMobile={true}
-                />
-              )}
             </View>
-          </View>
 
-          {/* Mobile Search Bar */}
-          <View style={styles.mobileSearchContainer}>
-            <SearchBar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              onSearchResults={onSearchResults}
-              userId={userId}
-              handleCategoryClick={handleCategoryClick}
-              isMobile={true}
-              isDark={isDark}
-            />
+            {/* Current Location Button */}
+            <TouchableOpacity
+              style={styles.currentLocationButton}
+              onPress={getCurrentLocation}
+            >
+              <Icon name="my-location" size={20} color={isDark ? '#F1F5F9' : '#374151'} />
+              <Text style={[styles.currentLocationText, { color: themeColors.locationTextColor }]}>
+                Use current location
+              </Text>
+            </TouchableOpacity>
+
+            {/* Suggestions List */}
+            {loadingLocations ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={isDark ? '#F1F5F9' : '#374151'} />
+                <Text style={[styles.loadingText, { color: themeColors.suggestionSecondaryText }]}>
+                  Searching locations...
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={locationSuggestions}
+                keyExtractor={(item) => item.place_id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.suggestionItem}
+                    onPress={() => saveSelectedLocation(item)}
+                    disabled={savingLocation}
+                  >
+                    <Icon name="location-on" size={20} color={themeColors.suggestionSecondaryText} />
+                    <View style={styles.suggestionTextContainer}>
+                      <Text style={[styles.suggestionMainText, { color: themeColors.suggestionText }]}>
+                        {item.structured_formatting?.main_text || item.description}
+                      </Text>
+                      {item.structured_formatting?.secondary_text && (
+                        <Text style={[styles.suggestionSecondaryText, { color: themeColors.suggestionSecondaryText }]}>
+                          {item.structured_formatting.secondary_text}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  searchLocationQuery.length > 0 ? (
+                    <View style={styles.emptyContainer}>
+                      <Text style={[styles.emptyText, { color: themeColors.suggestionSecondaryText }]}>
+                        No locations found. Try searching with a different term.
+                      </Text>
+                    </View>
+                  ) : null
+                }
+              />
+            )}
+
+            {savingLocation && (
+              <View style={styles.savingOverlay}>
+                <ActivityIndicator size="large" color={isDark ? '#F1F5F9' : '#374151'} />
+                <Text style={[styles.savingText, { color: themeColors.locationTextColor }]}>
+                  Saving location...
+                </Text>
+              </View>
+            )}
           </View>
         </View>
-      </View>
-    </Animated.View>
+      </Modal>
+    </>
   );
 };
 
-const { width, height } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   header: {
@@ -451,85 +539,88 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   statusBarBackground: {
-    height: Platform.OS === "ios" ? 44 : StatusBar.currentHeight,
-    backgroundColor: "white",
-    width: "100%",
-    position: "absolute",
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
+    backgroundColor: 'white',
+    width: '100%',
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 9999,
   },
   normalHeader: {
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   scrolledHeader: {
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  announcementBar: {
+  locationBar: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginTop:
-      Platform.OS !== "web" && width < 1024
-        ? Platform.OS === "ios"
+      Platform.OS !== 'web' && width < 1024
+        ? Platform.OS === 'ios'
           ? 44
           : StatusBar.currentHeight
         : 0,
   },
-  loadingAnnouncement: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "#cbd5e1",
-    marginTop:
-      Platform.OS !== "web" && width < 1024
-        ? Platform.OS === "ios"
-          ? 44
-          : StatusBar.currentHeight
-        : 0,
+  locationBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  announcementText: {
-    color: "white",
+  locationTextContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationLabel: {
     fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: '600',
+  },
+  locationAddress: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
   },
   mainHeader: {
     paddingHorizontal: 16,
     paddingTop: 0,
   },
   desktopHeader: {
-    display: width >= 1024 ? "flex" : "none",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    display: width >= 1024 ? 'flex' : 'none',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 16,
     gap: 24,
   },
   mobileHeader: {
-    display: width >= 1024 ? "none" : "flex",
+    display: width >= 1024 ? 'none' : 'flex',
     paddingVertical: 8,
   },
   logoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     flexShrink: 0,
   },
   logoWrapper: {
-    position: "relative",
+    position: 'relative',
   },
   logoBackground: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    shadowColor: "#000",
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
@@ -537,22 +628,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   logoImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   logoTextContainer: {
-    flexDirection: "column",
+    flexDirection: 'column',
     minWidth: 0,
   },
   logoTitle: {
     fontSize: 32,
-    fontWeight: "bold",
-    fontFamily: "billabong",
+    fontWeight: 'bold',
+    fontFamily: 'billabong',
     letterSpacing: 1,
   },
   logoSubtitle: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   hiddenSubtitle: {
     opacity: 0,
@@ -566,14 +657,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   actionButtons: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   aiButton: {
     padding: 8,
     borderRadius: 16,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -592,14 +683,14 @@ const styles = StyleSheet.create({
     height: 40,
   },
   mobileTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingBottom: 8,
   },
   mobileLogoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     flexShrink: 0,
   },
@@ -607,40 +698,40 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   mobileLogoImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   mobileLogoText: {
-    flexDirection: "column",
+    flexDirection: 'column',
   },
   mobileLogoTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    fontFamily: "billabong",
+    fontWeight: 'bold',
+    fontFamily: 'billabong',
   },
   mobileLogoSubtitle: {
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   mobileActions: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   mobileAiButton: {
     padding: 8,
     borderRadius: 12,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -661,9 +752,117 @@ const styles = StyleSheet.create({
   },
   mobileSearchContainer: {
     paddingBottom: 8,
+    marginBottom: 180,
   },
   mobileLocationContainer: {
     paddingBottom: 67,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.9,
+    minHeight: height * 0.5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 16,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    fontSize: 16,
+  },
+  currentLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    gap: 8,
+  },
+  currentLocationText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    gap: 12,
+  },
+  suggestionTextContainer: {
+    flex: 1,
+  },
+  suggestionMainText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  savingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+  },
+  savingText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

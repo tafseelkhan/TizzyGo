@@ -89,7 +89,7 @@ const VIEWED_STORIES_KEY = 'viewedStories';
 // Local theme colors function
 const getLocalThemeColors = (isDark: boolean) => {
   return {
-    background: isDark ? '#0F172A' : '#FFFFFF',
+    background: isDark ? '#00000000' : '#00000000',
     text: isDark ? '#F8FAFC' : '#0F172A',
     primary: isDark ? '#3B82F6' : '#2563EB',
     secondary: isDark ? '#1E293B' : '#F1F5F9',

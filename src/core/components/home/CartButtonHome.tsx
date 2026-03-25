@@ -8,17 +8,16 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import LinearGradient from 'react-native-linear-gradient';
 import LottieView from "lottie-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { APIs } from "../../services/HomeService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from '../../contexts/theme/ThemeContext';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
-// Import Lottie animations
+// Import Lottie animation
 const cartAnimation = require("../../components/animations/lotties/Add to cart.json");
-const animationCart = require("../../components/animations/lotties/shop cart kdp.json");
 
 interface CartButtonProps {
   userId: string;
@@ -34,10 +33,8 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
   const { isDark } = useTheme();
   const [cartCount, setCartCount] = useState(0);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [currentCartAnimation, setCurrentCartAnimation] = useState(cartAnimation);
   const [scaleAnim] = useState(new Animated.Value(1));
   const [bounceAnim] = useState(new Animated.Value(1));
-  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     const fetchCartCount = async () => {
@@ -82,16 +79,14 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
   };
 
   const handlePressIn = () => {
-    setIsHovered(true);
     Animated.timing(scaleAnim, {
-      toValue: 0.9,
+      toValue: 0.92,
       duration: 100,
       useNativeDriver: true,
     }).start();
   };
 
   const handlePressOut = () => {
-    setIsHovered(false);
     Animated.timing(scaleAnim, {
       toValue: 1,
       duration: 100,
@@ -102,32 +97,22 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
   const handleCartPress = () => {
     navigation.navigate("CartScreen");
   };
-  
-  const handleCartAnimationFinish = () => {
-    setCurrentCartAnimation(
-      currentCartAnimation === cartAnimation ? animationCart : cartAnimation
-    );
+
+  // Get button background color based on theme
+  const getButtonBackgroundColor = () => {
+    return isDark ? '#00000000' : '#00000000';
   };
 
-  // Theme-based colors
-  const getGradientColors = () => {
-    if (isDark) {
-      return isHovered 
-        ? ["#1E293B", "#334155"] 
-        : ["#0F172A", "#1E293B"];
-    } else {
-      return isHovered 
-        ? ["#f0fdfa", "#e0f2fe"] 
-        : ["#f8fafc", "#ffffff"];
-    }
+  const getButtonBorderColor = () => {
+    return isDark ? '#4B5563' : '#E5E7EB';
   };
 
   const getBadgeBackgroundColor = () => {
-    return isDark ? "#0d9488" : "#0d9488"; // Same color for both themes
+    return '#0d9488'; // Teal color for badge
   };
 
-  const getBorderColor = () => {
-    return isDark ? "#1E293B" : "#f8fafc";
+  const getIconColor = () => {
+    return isDark ? '#F1F5F9' : '#1f2937';
   };
 
   return (
@@ -143,24 +128,21 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
           styles.button,
           {
             transform: [{ scale: scaleAnim }],
+            backgroundColor: getButtonBackgroundColor(),
+            borderColor: getButtonBorderColor(),
           },
         ]}
       >
-        <LinearGradient
-          colors={getGradientColors()}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+        {/* Cart Icon with Lottie Animation */}
+        <View style={styles.iconContainer}>
           <LottieView
-            source={currentCartAnimation}
+            source={cartAnimation}
             style={styles.lottie}
-            autoPlay
+            autoPlay={false}
             loop={false}
-            onAnimationFinish={handleCartAnimationFinish}
             resizeMode="cover"
           />
-        </LinearGradient>
+        </View>
 
         {/* Cart Count Badge */}
         {cartCount > 0 && (
@@ -170,7 +152,6 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
               {
                 transform: [{ scale: bounceAnim }],
                 backgroundColor: getBadgeBackgroundColor(),
-                borderColor: getBorderColor(),
               },
             ]}
           >
@@ -186,37 +167,29 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 8,
+    padding: 4,
   },
   button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-    overflow: "hidden",
-  },
-  gradient: {
-    width: "100%",
-    height: "100%",
+    width: 58,
+    height: 58,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 28,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
   },
   lottie: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
   },
   badge: {
     position: "absolute",
-    top: 4,
-    right: 4,
+    top: -4,
+    right: -4,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
@@ -224,7 +197,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#f8fafc",
+    borderColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -239,7 +212,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "bold",
     textAlign: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
 });
 

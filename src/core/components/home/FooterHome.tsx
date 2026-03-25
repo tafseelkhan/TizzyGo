@@ -105,7 +105,7 @@ const Footer = () => {
 
   return (
     <View style={[styles.container, { 
-      backgroundColor: isDark ? '#0F172A' : '#F8FAFC' 
+      backgroundColor: isDark ? '#00000000' : '#00000000' 
     }]}>
       <ScrollView 
         style={styles.footerScroll}
