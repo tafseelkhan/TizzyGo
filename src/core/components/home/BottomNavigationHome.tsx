@@ -93,7 +93,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     {
       id: 1,
       icon: 'storefront' as const,
-      name: 'Shop',
+      // name: 'Shop',
       action: () => {
         triggerLightHaptic();
         navigation.getParent()?.navigate('BottomNavigator', { screen: 'Seller' });
@@ -102,7 +102,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     {
       id: 2,
       icon: 'two-wheeler' as const,
-      name: 'Find Driver',
+      // name: 'Find Driver',
       action: () => {
         triggerLightHaptic();
         navigation.getParent()?.navigate('BottomNavigator', { screen: 'BookCab' });
@@ -111,7 +111,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     {
       id: 3,
       icon: 'directions-car' as const,
-      name: 'Renters',
+      // name: 'Renters',
       action: () => {
         triggerLightHaptic();
         navigation.getParent()?.navigate('BottomNavigator', { screen: 'Rentes' });
@@ -120,7 +120,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     {
       id: 4,
       icon: 'local-shipping' as const,
-      name: 'Shippings',
+      // name: 'Shippings',
       action: () => {
         triggerLightHaptic();
         navigation.getParent()?.navigate('BottomNavigator', { screen: 'Shippings' });
@@ -203,7 +203,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
   return (
     <View style={[
       styles.bottomNav, 
-      solidStyle,
+      solidStyle, 
       { 
         bottom: Math.max(insets.bottom, 16),
         left: Math.max(insets.left, 16),
@@ -230,11 +230,11 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               style={styles.navIconImage}
             />
           </View>
-          <Text style={[
+          {/* <Text style={[
             styles.navText,
             { color: themeColors.text },
             activeTab === 'home' && [styles.activeNavText, { color: themeColors.activeText }]
-          ]}>TizzyGo</Text>
+          ]}>TizzyGo</Text> */}
         </TouchableOpacity>
 
         {/* Chat Button */}
@@ -246,7 +246,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
           onPress={() => {
             triggerLightHaptic();
             setActiveTab('chat');
-            navigation.getParent()?.navigate('BottomNavigator', { screen: 'Chat' });
+            navigation.navigate('Chat');
           }}
         >
           <View style={styles.navIconContainer}>
@@ -255,11 +255,11 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               style={styles.navIconImage}
             />
           </View>
-          <Text style={[
+          {/* <Text style={[
             styles.navText,
             { color: themeColors.text },
             activeTab === 'chat' && [styles.activeNavText, { color: themeColors.activeText }]
-          ]}>Chat</Text>
+          ]}>Chat</Text> */}
         </TouchableOpacity>
 
         {/* Center Floating Action Button */}
@@ -275,7 +275,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
           >
             {actions.map((action, index) => (
               <Animated.View
-                key={action.name}
+              key={action.id} // Add this key prop
                 style={[
                   styles.speedDialAction,
                   {
@@ -299,9 +299,6 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
                     size={24} 
                     color={isDark ? '#0d9488' : '#0f766e'} 
                   />
-                  <Text style={[styles.speedDialText, { color: themeColors.speedDialText }]}>
-                    {action.name}
-                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             ))}
@@ -328,7 +325,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
           onPress={() => {
             triggerLightHaptic();
             setActiveTab('ads');
-            navigation.getParent()?.navigate('BottomNavigator', { screen: 'MyAds' });          
+            navigation.navigate('MyAds');      
           }}
         >
           <Icon 
@@ -339,11 +336,11 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               themeColors.text
             } 
           />
-          <Text style={[
+          {/* <Text style={[
             styles.navText,
             { color: themeColors.text },
             activeTab === 'ads' && [styles.activeNavText, { color: isDark ? '#F59E0B' : '#ea580c' }]
-          ]}>My Ads</Text>
+          ]}>My Ads</Text> */}
         </TouchableOpacity>
 
         {/* Profile Button */}
@@ -355,7 +352,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
           onPress={() => {
             triggerMediumHaptic();
             setActiveTab('profile');
-            navigation.getParent()?.navigate('BottomNavigator', { screen: 'Profile' });
+            navigation.navigate('Profile');
           }}
         >
           <Icon 
@@ -366,11 +363,11 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               themeColors.text
             } 
           />
-          <Text style={[
+          {/* <Text style={[
             styles.navText,
             { color: themeColors.text },
             activeTab === 'profile' && [styles.activeNavText, { color: isDark ? '#A78BFA' : '#7c3aed' }]
-          ]}>Profile</Text>
+          ]}>Profile</Text> */}
         </TouchableOpacity>
       </View>
     </View>
@@ -414,13 +411,6 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
-  navText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  activeNavText: {
-    fontWeight: '600',
-  },
   fabContainer: {
     position: 'relative',
     alignItems: 'center',
@@ -447,17 +437,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   speedDialButton: {
-    width: 72,
-    height: 72,
+    width: 52,
+    height: 52,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-  },
-  speedDialText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 });
 

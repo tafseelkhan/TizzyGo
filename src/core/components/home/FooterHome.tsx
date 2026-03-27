@@ -240,7 +240,7 @@ const Footer = () => {
               Made with
             </Text>
             <View style={[styles.heartContainer, { 
-              backgroundColor: isDark ? '#DC2626' : '#EF4444' 
+              backgroundColor: isDark ? '#fee2e2': '#ffe8e8'
             }]}>
               <Text style={styles.heart}>❤️</Text>
             </View>
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderTopWidth: 1,
-    marginBottom: 16,
+    marginBottom: 56,
   },
   copyrightText: {
     fontSize: 16,

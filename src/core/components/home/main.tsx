@@ -1,4 +1,4 @@
-// app/index.tsx (Home Page) - Updated with Color from SafeArea
+// app/index.tsx (Home Page) - Fixed with Full Theme Support
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -17,11 +17,19 @@ import {
   ImageStyle,
   ViewStyle,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import Banner from './BannerHome';
 import CategoryGrid from './CategoryGridHome';
 import Header from './HeaderHome';
@@ -38,43 +46,65 @@ import {
 import { Product as ProductType } from '../../types/HomeTypes';
 import { AuthUtils } from '../../services/HomeService';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { colors } from '../../colors/styles'; // Import colors mapping
-
-// Color Helper Function
-const getColorGradient = (colorName: string | null): string[] => {
-  if (!colorName) return ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'];
-  
-  const foundColor = colors.find(c => c.name === colorName.toUpperCase());
-  return foundColor ? foundColor.hexValues : ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'];
-};
+import { getColorHexValues, getPrimaryColor } from '../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://172.20.10.12:5000';
+const API_BASE_URL = 'http://192.168.42.121:5000';
 
-// Fetch user color from API
-const fetchUserColor = async (userId: string, token: string): Promise<string | null> => {
+// Helper function to get gradient colors based on user's favorite color AND theme
+const getColorGradient = (
+  colorName: string | null,
+  isDark: boolean,
+): string[] => {
+  if (!colorName) {
+    // Default gradient based on theme
+    if (isDark) {
+      return ['#0f172a', '#1e293b', '#0f172a'];
+    }
+    return ['#f9fafb', '#ffffff', '#ffffff'];
+  }
+
+  const hexValues = getColorHexValues(colorName, isDark);
+  return hexValues;
+};
+
+// Helper function to extract user ID from token
+const getUserIdFromToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) return null;
+
+    const decoded: any = jwtDecode(token);
+    return decoded.userId || decoded.id || decoded.sub || null;
+  } catch (error) {
+    console.error('Error extracting user ID from token:', error);
+    return null;
+  }
+};
+
+// Fetch user color from API with proper error handling and caching
+const fetchUserColor = async (token: string): Promise<string | null> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/fav/color`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
 
     const data = await response.json();
-    
-    if (data.success && data.data.color) {
-      await AsyncStorage.setItem('userColor', data.data.color);
-      return data.data.color;
+
+    if (data.success && data.data?.color) {
+      const colorName = data.data.color;
+      await AsyncStorage.setItem('userColor', colorName);
+      return colorName;
     }
-    
-    const cachedColor = await AsyncStorage.getItem('userColor');
-    return cachedColor || null;
+
+    return null;
   } catch (error) {
     console.error('Error fetching user color:', error);
-    const cachedColor = await AsyncStorage.getItem('userColor');
-    return cachedColor || null;
+    return null;
   }
 };
 
@@ -149,6 +179,7 @@ interface RotatingBannerProps {
   showIndicators?: boolean;
   showNavigation?: boolean;
   onLayout?: (event: any) => void;
+  isDark?: boolean;
 }
 
 interface CustomImageProps {
@@ -157,6 +188,7 @@ interface CustomImageProps {
   resizeMode?: ImageResizeMode;
   fallbackColor?: string;
   fallbackText?: string;
+  isDark?: boolean;
 }
 
 const CustomImage: React.FC<CustomImageProps> = ({
@@ -165,6 +197,7 @@ const CustomImage: React.FC<CustomImageProps> = ({
   resizeMode = 'cover',
   fallbackColor = '#3b82f6',
   fallbackText = 'Image',
+  isDark = false,
 }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -209,11 +242,14 @@ const CustomImage: React.FC<CustomImageProps> = ({
             {
               justifyContent: 'center',
               alignItems: 'center',
-              backgroundColor: '#f3f4f6',
+              backgroundColor: isDark ? '#1f2937' : '#f3f4f6',
             },
           ]}
         >
-          <ActivityIndicator size="small" color="#3b82f6" />
+          <ActivityIndicator
+            size="small"
+            color={isDark ? '#7DD3FC' : '#3b82f6'}
+          />
         </View>
       )}
     </>
@@ -227,6 +263,7 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
   showIndicators = true,
   showNavigation = true,
   onLayout,
+  isDark = false,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -288,7 +325,7 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
   if (!items.length) return null;
 
   return (
-    <View 
+    <View
       style={[styles.bannerContainer, { height: heightValues[height] }]}
       onLayout={onLayout}
     >
@@ -307,6 +344,7 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
             style={styles.bannerImage}
             resizeMode="cover"
             fallbackText={`Banner ${index + 1}`}
+            isDark={isDark}
           />
 
           <LinearGradient
@@ -398,6 +436,7 @@ interface StaticBannerProps {
   className?: string;
   ctaText?: string;
   ctaLink?: string;
+  isDark?: boolean;
 }
 
 const StaticBanner: React.FC<StaticBannerProps> = ({
@@ -409,6 +448,7 @@ const StaticBanner: React.FC<StaticBannerProps> = ({
   borderRadius = 'medium',
   ctaText = 'Explore Now',
   ctaLink = '/list/explore',
+  isDark = false,
 }) => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
@@ -459,6 +499,7 @@ const StaticBanner: React.FC<StaticBannerProps> = ({
           style={styles.staticBannerImage}
           resizeMode="cover"
           fallbackText="Banner"
+          isDark={isDark}
         />
       </View>
 
@@ -493,7 +534,9 @@ const StaticBanner: React.FC<StaticBannerProps> = ({
 
 const HomeScreen: React.FC = () => {
   const [products, setProducts] = useState<GridProduct[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<ProductType | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductType | null>(
+    null,
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
@@ -506,6 +549,7 @@ const HomeScreen: React.FC = () => {
   const [bannerHeight, setBannerHeight] = useState(0);
   const [userColor, setUserColor] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
 
   const route = useRoute();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -516,41 +560,64 @@ const HomeScreen: React.FC = () => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
-  // Get gradient colors based on user's favorite color
-  const gradientColors = getColorGradient(userColor);
+  // Get gradient based on user color AND theme
+  const gradientColors = getColorGradient(userColor, isDark);
 
-  // Fetch user color on mount
+  // Load user data on mount
   useEffect(() => {
-    const loadUserColor = async () => {
+    const loadUserData = async () => {
       try {
-        // Get user ID and token from AsyncStorage
-        const token = await AsyncStorage.getItem('userToken');
-        const storedUserId = await AsyncStorage.getItem('userId');
-        
-        if (token && storedUserId) {
-          setUserId(storedUserId);
-          const color = await fetchUserColor(storedUserId, token);
+        const token = await AsyncStorage.getItem('authToken');
+
+        if (token) {
+          const extractedUserId = await getUserIdFromToken();
+          if (extractedUserId) {
+            setUserId(extractedUserId);
+            await AsyncStorage.setItem('userId', extractedUserId);
+          }
+
+          const color = await fetchUserColor(token);
           setUserColor(color);
+        } else {
+          const cachedColor = await AsyncStorage.getItem('userColor');
+          setUserColor(cachedColor);
         }
       } catch (error) {
-        console.error('Error loading user color:', error);
+        console.error('Error loading user data:', error);
       }
     };
-    
-    loadUserColor();
+
+    loadUserData();
   }, []);
 
-  const handleGlobalRefresh = useCallback(async () => {
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Home screen focused, refreshing...');
+      refreshAllData();
+    }, []),
+  );
+
+  const refreshAllData = async () => {
     try {
       setRefreshing(true);
-      console.log('Refreshing home page...');
+      setStoriesRefreshing(true);
+
       await fetchProducts();
-      console.log('Home page refreshed successfully!');
+      setStoriesRefreshKey(prev => prev + 1);
+
+      console.log('All data refreshed successfully!');
     } catch (error) {
-      console.error('Global refresh error:', error);
+      console.error('Error refreshing all data:', error);
     } finally {
-      setRefreshing(false);
+      setTimeout(() => {
+        setRefreshing(false);
+        setStoriesRefreshing(false);
+      }, 1000);
     }
+  };
+
+  const handleGlobalRefresh = useCallback(async () => {
+    await refreshAllData();
   }, []);
 
   const handleStoriesRefresh = useCallback(async () => {
@@ -559,6 +626,7 @@ const HomeScreen: React.FC = () => {
       console.log('Refreshing stories...');
       await new Promise<void>(resolve => {
         setTimeout(() => {
+          setStoriesRefreshKey(prev => prev + 1);
           resolve();
         }, 1500);
       });
@@ -609,7 +677,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://172.20.10.12:5000/api/seller/forms/categories',
+        'http://192.168.42.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -643,7 +711,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://172.20.10.12:5000/api/seller/forms/categories',
+        'http://192.168.42.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
       if (data.success && Array.isArray(data.products)) {
@@ -700,8 +768,7 @@ const HomeScreen: React.FC = () => {
         backgroundColor="transparent"
         translucent={true}
       />
-      
-      {/* Main Background Gradient - Starts from top of screen (includes safe area) */}
+
       <LinearGradient
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
@@ -714,29 +781,26 @@ const HomeScreen: React.FC = () => {
           },
         ]}
       />
-      
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: 'transparent',
-          },
-        ]}
-      >
+
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
         <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        <Header
-          location={location}
-          setLocation={setLocation}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedCategory={selectedCategory}
-          handleCategoryClick={handleCategoryClick}
-          disableScrollEffect={isStoriesFullScreen}
-          onRefresh={handleGlobalRefresh}
-          refreshing={refreshing}
-          scrollY={scrollY}
-        />
+        {/* Header with higher zIndex to stay on top */}
+        <View style={[styles.headerWrapper, { zIndex: 10 }]}>
+          <Header
+            location={location}
+            setLocation={setLocation}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            selectedCategory={selectedCategory}
+            handleCategoryClick={handleCategoryClick}
+            disableScrollEffect={isStoriesFullScreen}
+            onRefresh={handleGlobalRefresh}
+            refreshing={refreshing}
+            scrollY={scrollY}
+            isDark={isDark}
+          />
+        </View>
 
         <Animated.ScrollView
           style={styles.scrollView}
@@ -754,12 +818,24 @@ const HomeScreen: React.FC = () => {
               tintColor={isDark ? '#7DD3FC' : '#3b82f6'}
               title="Pull to refresh..."
               titleColor={isDark ? '#94A3B8' : '#3b82f6'}
+              progressBackgroundColor={isDark ? '#1f2937' : '#ffffff'}
+              progressViewOffset={
+                Platform.OS === 'ios' ? insets.top + 100 : insets.top + 80
+              }
             />
           }
         >
-          <View style={[styles.scrollContent, { paddingTop: insets.top + 100 }]}>
-            <View style={styles.storiesContainer}>
+          <View
+            style={[styles.scrollContent, { paddingTop: insets.top + 100 }]}
+          >
+            <View
+              style={[
+                styles.storiesContainer,
+                { backgroundColor: 'transparent' },
+              ]}
+            >
               <ProductStories
+                key={storiesRefreshKey}
                 onRefresh={handleStoriesRefresh}
                 onStoryEnd={() => setIsStoriesFullScreen(false)}
                 onStoryChange={() => setIsStoriesFullScreen(true)}
@@ -767,13 +843,16 @@ const HomeScreen: React.FC = () => {
             </View>
 
             <View style={styles.bannerWrapper}>
-              <RotatingBanner 
+              <RotatingBanner
                 items={rotatingBannerItems}
-                onLayout={(event) => {
+                onLayout={event => {
                   setBannerHeight(event.nativeEvent.layout.height);
                 }}
+                isDark={isDark}
               />
             </View>
+
+            <BrandSlider brands={brandsData} />
 
             <CategoryGrid />
 
@@ -783,7 +862,9 @@ const HomeScreen: React.FC = () => {
               <ProductGrid
                 products={filteredProducts()}
                 isLoading={isLoading}
-                userId="userId123"
+                userId={userId || ''}
+                refreshTrigger={refreshing}
+                onRefresh={handleGlobalRefresh}
               />
             </View>
 
@@ -791,6 +872,7 @@ const HomeScreen: React.FC = () => {
               <StaticBanner
                 text={staticBannerData.text}
                 image={staticBannerData.image}
+                isDark={isDark}
               />
             </View>
 
@@ -805,6 +887,14 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: 'transparent',
   },
   scrollView: {
     flex: 1,

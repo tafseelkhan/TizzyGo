@@ -138,8 +138,8 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
           <LottieView
             source={cartAnimation}
             style={styles.lottie}
-            autoPlay={false}
-            loop={false}
+            autoPlay={true}
+            loop={true}
             resizeMode="cover"
           />
         </View>
@@ -185,6 +185,7 @@ const styles = StyleSheet.create({
   lottie: {
     width: 32,
     height: 32,
+    marginLeft: -30,
   },
   badge: {
     position: "absolute",

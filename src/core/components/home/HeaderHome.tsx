@@ -129,7 +129,7 @@ const Header: React.FC<HeaderProps> = ({
     return {
       headerBg: isDark ? '#00000000' : '#00000000',
       textColor: isDark ? '#F1F5F9' : '#374151',
-      locationBarBg: isDark ? '#1F2937' : '#F3F4F6',
+      locationBarBg: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
       locationTextColor: isDark ? '#F1F5F9' : '#374151',
       modalBg: isDark ? '#1F2937' : '#FFFFFF',
       inputBg: isDark ? '#374151' : '#F9FAFB',
@@ -355,7 +355,7 @@ const Header: React.FC<HeaderProps> = ({
             style={[
               styles.statusBarBackground,
               {
-                backgroundColor: isDark ? '#0F172A' : 'white',
+                backgroundColor: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
               },
             ]}
           >
@@ -385,7 +385,7 @@ const Header: React.FC<HeaderProps> = ({
           ]}
         >
           <View style={styles.locationBarContent}>
-            <Icon name="location-on" size={20} color={isDark ? '#F1F5F9' : '#374151'} />
+            <Icon name="my-location" size={15} color={isDark ? '#F1F5F9' : '#374151'} />
             <View style={styles.locationTextContainer}>
               <Text style={[styles.locationLabel, { color: themeColors.locationTextColor }]}>
                 Delivery to:
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
   },
   statusBarBackground: {
     height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
-    backgroundColor: 'white',
+    backgroundColor: '#00000000',
     width: '100%',
     position: 'absolute',
     top: 0,
@@ -760,7 +760,6 @@ const styles = StyleSheet.create({
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {

@@ -14,7 +14,7 @@ export const verifyToken = async (
       return { success: false };
     }
 
-    const res = await axios.get("http://172.20.10.12:5000/api/auth/check", {
+    const res = await axios.get("http://192.168.42.121:5000/api/auth/check", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -110,7 +110,7 @@ const fetchHandler = async (url: string, options: RequestInit) => {
 export const signup = async ({ identifier }: { identifier: string }) => {
   const formattedIdentifier = identifier.toLowerCase().trim();
   
-  return await fetchHandler('http://172.20.10.12:5000/api/auth/signup', {
+  return await fetchHandler('http://192.168.42.121:5000/api/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ identifier: formattedIdentifier }),
   });
@@ -128,7 +128,7 @@ export const verifySignup = async ({
 }) => {
   const formattedIdentifier = identifier.toLowerCase().trim();
   
-  const data = await fetchHandler('http://172.20.10.12:5000/api/auth/verify-signup', {
+  const data = await fetchHandler('http://192.168.42.121:5000/api/auth/verify-signup', {
     method: 'POST',
     body: JSON.stringify({ 
       identifier: formattedIdentifier, 
@@ -149,7 +149,7 @@ export const verifySignup = async ({
 export const login = async ({ identifier }: { identifier: string }) => {
   const formattedIdentifier = identifier.toLowerCase().trim();
 
-  return await fetchHandler('http://172.20.10.12:5000/api/auth/login', {
+  return await fetchHandler('http://192.168.42.121:5000/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ identifier: formattedIdentifier }),
   });
@@ -165,7 +165,7 @@ export const verifyLogin = async ({
 }) => {
   const formattedIdentifier = identifier.toLowerCase().trim();
 
-  const data = await fetchHandler('http://172.20.10.12:5000/api/auth/verify-login', {
+  const data = await fetchHandler('http://192.168.42.121:5000/api/auth/verify-login', {
     method: 'POST',
     body: JSON.stringify({ 
       identifier: formattedIdentifier, 
@@ -185,7 +185,7 @@ export const verifyLogin = async ({
 export const resendOtp = async ({ identifier }: { identifier: string }) => {
   const formattedIdentifier = identifier.toLowerCase().trim();
   
-  return await fetchHandler('http://172.20.10.12:5000/api/auth/resend-otp', {
+  return await fetchHandler('http://192.168.42.121:5000/api/auth/resend-otp', {
     method: 'POST',
     body: JSON.stringify({ identifier: formattedIdentifier }),
   });

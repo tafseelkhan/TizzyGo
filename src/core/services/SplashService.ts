@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API URL - Change this to your actual API URL
-const API_URL = 'http://172.20.10.12:5000';
+const API_URL = 'http://192.168.42.121:5000';
 
 // Interface for token verification response
 interface VerifyTokenResponse {

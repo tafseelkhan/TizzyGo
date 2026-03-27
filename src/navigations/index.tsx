@@ -5,12 +5,18 @@ import TizzyGo from '../screens/animations/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 import HomeScreen from '../screens/home/HomeScreen';
+import ProfileScreen from '../screens/profile/Profile';
+import EditProfileScreen from '../screens/profile/ProfileEdit';
+import SettingsScreen from '../screens/settings/Settings';
 
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Signup: undefined;
   Home: undefined;
+  Profile: undefined;
+  EditProfile: undefined;
+  Settings: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -26,6 +32,9 @@ export default function AppNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

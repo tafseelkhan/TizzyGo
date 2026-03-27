@@ -4,11 +4,12 @@ import { Alert, Platform } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 
 // Base URL - aapka local IP ya production URL
-const BASE_URL = 'http://172.20.10.12:5000';
-const CART_BASE_URL = 'http://172.20.10.12:5000';
+const BASE_URL = 'http://192.168.42.121:5000';
+const CART_BASE_URL = 'http://192.168.42.121:5000';
 
 // Internal API Key
-const INTERNAL_API_KEY = '23ebd585-0ff0-4750-8fd7-76bd88b57dbf8bf28ac1-a29a-43ad-b481-2c20ae04b455';
+const INTERNAL_API_KEY =
+  '23ebd585-0ff0-4750-8fd7-76bd88b57dbf8bf28ac1-a29a-43ad-b481-2c20ae04b455';
 
 // Navigation reference for handling redirects
 let navigationRef: any = null;
@@ -37,12 +38,15 @@ const getHeaders = async (includeAuth: boolean = true) => {
 // Error handler
 const handleError = (error: any, customMessage?: string) => {
   console.error(`❌ ${customMessage || 'API Error'}:`, error);
-  
+
   // Show alert for major errors (optional)
   if (customMessage?.includes('failed') || error.message?.includes('failed')) {
-    Alert.alert('Error', customMessage || error.message || 'Something went wrong');
+    Alert.alert(
+      'Error',
+      customMessage || error.message || 'Something went wrong',
+    );
   }
-  
+
   throw error;
 };
 
@@ -95,7 +99,7 @@ export const AuthUtils = {
       console.error('Get user data error:', error);
       return null;
     }
-  }
+  },
 };
 
 export const APIs = {
@@ -130,7 +134,7 @@ export const APIs = {
     try {
       const response = await fetch(`${BASE_URL}/api/search/popular`, {
         method: 'GET',
-        headers: await getHeaders(false), // No auth needed for popular searches
+        headers: await getHeaders(false),
       });
 
       if (!response.ok) throw new Error('Failed to fetch popular searches');
@@ -140,14 +144,15 @@ export const APIs = {
     }
   },
 
+  // ✅ Updated: Changed from /api/recent-search to /api/search/recent
   getRecentSearches: async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       console.log('Token from AsyncStorage:', token);
-      
+
       if (!token) throw new Error('No token found');
 
-      const response = await fetch(`${BASE_URL}/api/recent-search`, {
+      const response = await fetch(`${BASE_URL}/api/search/recent`, {
         method: 'GET',
         headers: await getHeaders(true),
       });
@@ -168,9 +173,10 @@ export const APIs = {
     }
   },
 
+  // ✅ Updated: Changed from /api/recent-search to /api/search/recent
   removeRecentSearch: async (id: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/recent-search/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/search/recent/${id}`, {
         method: 'DELETE',
         headers: await getHeaders(true),
       });
@@ -182,13 +188,14 @@ export const APIs = {
     }
   },
 
-  clearAllRecentSearches: async (): Promise<{ 
-    success: boolean; 
-    message?: string; 
-    deletedCount?: number 
+  // ✅ Updated: Changed from /api/recent-search/clear to /api/search/recent/clear/all
+  clearAllRecentSearches: async (): Promise<{
+    success: boolean;
+    message?: string;
+    deletedCount?: number;
   }> => {
     try {
-      const response = await fetch(`${BASE_URL}/api/recent-search/clear`, {
+      const response = await fetch(`${BASE_URL}/api/search/recent/clear/all`, {
         method: 'DELETE',
         headers: await getHeaders(true),
       });
@@ -291,19 +298,19 @@ export const APIUtils = {
 
   // ✅ FIXED: Retry mechanism with correct setTimeout typing
   retryApiCall: async <T>(
-    apiCall: () => Promise<T>, 
+    apiCall: () => Promise<T>,
     maxRetries: number = 3,
-    delay: number = 1000
+    delay: number = 1000,
   ): Promise<T> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await apiCall();
       } catch (error) {
         if (attempt === maxRetries) throw error;
-        
+
         console.log(`Retry attempt ${attempt} after ${delay}ms`);
         // ✅ FIXED: Using void instead of resolve parameter
-        await new Promise<void>((resolve) => {
+        await new Promise<void>(resolve => {
           setTimeout(() => {
             resolve();
           }, delay);
@@ -314,12 +321,13 @@ export const APIUtils = {
   },
 
   // Cache management
-  setCache: async (key: string, data: any, ttl: number = 300000) => { // 5 minutes default
+  setCache: async (key: string, data: any, ttl: number = 300000) => {
+    // 5 minutes default
     try {
       const cacheData = {
         data,
         timestamp: Date.now(),
-        ttl
+        ttl,
       };
       await AsyncStorage.setItem(`cache_${key}`, JSON.stringify(cacheData));
     } catch (error) {
@@ -357,7 +365,7 @@ export const APIUtils = {
     } catch (error) {
       console.error('Clear cache error:', error);
     }
-  }
+  },
 };
 
 // Enhanced API service with caching
@@ -365,7 +373,7 @@ export const CachedAPIs = {
   getPopularSearches: async () => {
     const cacheKey = 'popular_searches';
     const cached = await APIUtils.getCache(cacheKey);
-    
+
     if (cached) {
       console.log('✅ Returning cached popular searches');
       return cached;
@@ -379,7 +387,7 @@ export const CachedAPIs = {
   getLocations: async () => {
     const cacheKey = 'popular_locations';
     const cached = await APIUtils.getCache(cacheKey);
-    
+
     if (cached) {
       console.log('✅ Returning cached locations');
       return cached;
@@ -388,7 +396,7 @@ export const CachedAPIs = {
     const data = await APIs.getLocations();
     await APIUtils.setCache(cacheKey, data, 600000); // Cache for 10 minutes
     return data;
-  }
+  },
 };
 
 // Export everything

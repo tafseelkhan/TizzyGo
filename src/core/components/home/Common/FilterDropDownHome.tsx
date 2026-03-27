@@ -13,6 +13,7 @@ import {
 import LottieView from 'lottie-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { APIs } from '../../../services/HomeService';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 
@@ -78,9 +79,10 @@ const createStyles = (themeColors: any) =>
       alignItems: 'center',
       gap: 8,
     },
-    lottie: {
-      width: 32,
-      height: 32,
+    filter: {
+      height: 48,
+      width: 48,
+      marginBottom: -25,
     },
     filterButtonMobile: {
       paddingHorizontal: 12,
@@ -511,12 +513,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         onPress={() => setIsDropdownOpen(true)}
         activeOpacity={0.8}
       >
-        <LottieView
-          source={FilterAnimation}
-          style={styles.lottie}
-          autoPlay={false}
-          loop={false}
-          resizeMode="cover"
+        <Icon
+          name="filter"
+          size={25}
+          color="#000000"
+          style={styles.filter}
         />
         {appliedFiltersCount > 0 && (
           <View style={styles.filterCount}>

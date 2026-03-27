@@ -135,9 +135,9 @@ const CategoryGrid = () => {
     return {
       containerBg: 'transparent',
       titleColor: isDark ? '#F1F5F9' : '#1f2937',
-      glassBg: isDark ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.25)',
-      glassBorder: isDark ? 'rgba(51, 65, 85, 0.6)' : 'rgba(255, 255, 255, 0.4)',
-      shadowColor: isDark ? '#000' : '#000',
+      glassBg: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
+      glassBorder: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
+      shadowColor: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
       categoryNameColor: isDark ? '#CBD5E1' : '#374151',
     };
   };

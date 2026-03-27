@@ -1,869 +1,501 @@
-// Define the ColorItem type
+// colors.ts
+import { Appearance } from 'react-native';
+
+// Define the ColorItem interface
 export interface ColorItem {
   name: string;
-  hexValues: string[];
+  hexValues: {
+    light: string[];
+    dark: string[];
+  };
 }
 
-// Complete color mapping with arrays of hex values (only light shades, no dark)
+// Helper function to get current theme mode
+export const getCurrentThemeMode = (): 'light' | 'dark' => {
+  const colorScheme = Appearance.getColorScheme();
+  return colorScheme === 'dark' ? 'dark' : 'light';
+};
+
+// Complete color mapping with both light and dark mode support
 export const colors: ColorItem[] = [
   {
     name: 'TEAL',
-    hexValues: ['#a2ffec', '#c2fff2', '#e6fffa', '#ffffff'],
+    hexValues: {
+      light: ['#a2ffec', '#c2fff2', '#e6fffa', '#ffffff'],
+      dark: ['#4aa89a', '#5cbaac', '#6eccbe', '#80ded0'],
+    },
   },
   {
     name: 'BLUE',
-    hexValues: ['#e0f2fe', '#e6f3ff', '#f0f8ff', '#ffffff'],
+    hexValues: {
+      light: ['#e0f2fe', '#e6f3ff', '#f0f8ff', '#ffffff'],
+      dark: ['#6a8fc9', '#7ca1db', '#8eb3ed', '#a0c5ff'],
+    },
   },
   {
     name: 'RED',
-    hexValues: ['#fee2e2', '#ffe8e8', '#fff0f0', '#ffffff'],
+    hexValues: {
+      light: ['#fee2e2', '#ffe8e8', '#fff0f0', '#ffffff'],
+      dark: ['#e68080', '#f89292', '#ffa4a4', '#ffb6b6'],
+    },
   },
   {
     name: 'GREEN',
-    hexValues: ['#dcfce7', '#e6f9ed', '#f0fcf3', '#ffffff'],
+    hexValues: {
+      light: ['#dcfce7', '#e6f9ed', '#f0fcf3', '#ffffff'],
+      dark: ['#5aa56a', '#6cb77c', '#7ec98e', '#90dba0'],
+    },
   },
   {
     name: 'YELLOW',
-    hexValues: ['#fef9c3', '#fff9e6', '#fffcf0', '#ffffff'],
+    hexValues: {
+      light: ['#fef9c3', '#fff9e6', '#fffcf0', '#ffffff'],
+      dark: ['#e5c85a', '#f7da6c', '#ffec7e', '#fffe90'],
+    },
   },
   {
     name: 'ORANGE',
-    hexValues: ['#ffedd5', '#fff0e0', '#fff5ea', '#ffffff'],
+    hexValues: {
+      light: ['#ffedd5', '#fff0e0', '#fff5ea', '#ffffff'],
+      dark: ['#f5a15f', '#ffb371', '#ffc583', '#ffd795'],
+    },
   },
   {
     name: 'PURPLE',
-    hexValues: ['#f3e8ff', '#f5edff', '#faf5ff', '#ffffff'],
+    hexValues: {
+      light: ['#f3e8ff', '#f5edff', '#faf5ff', '#ffffff'],
+      dark: ['#b389e0', '#c59bf2', '#d7adff', '#e9bfff'],
+    },
   },
   {
     name: 'PINK',
-    hexValues: ['#fce7f3', '#ffe4f0', '#fff0f5', '#ffffff'],
+    hexValues: {
+      light: ['#fce7f3', '#ffe4f0', '#fff0f5', '#ffffff'],
+      dark: ['#e985b3', '#fb97c5', '#ffa9d7', '#ffbbe9'],
+    },
   },
   {
     name: 'BROWN',
-    hexValues: ['#f5e8e0', '#f8efe8', '#fcf5f0', '#ffffff'],
+    hexValues: {
+      light: ['#f5e8e0', '#f8efe8', '#fcf5f0', '#ffffff'],
+      dark: ['#cb8a5f', '#dd9c71', '#efae83', '#ffc095'],
+    },
   },
   {
     name: 'GRAY',
-    hexValues: ['#f3f4f6', '#f7f8f9', '#fafbfc', '#ffffff'],
+    hexValues: {
+      light: ['#f3f4f6', '#f7f8f9', '#fafbfc', '#ffffff'],
+      dark: ['#8b9aad', '#9dacbf', '#afbed1', '#c1d0e3'],
+    },
   },
   {
     name: 'BLACK',
-    hexValues: ['#e5e5e5', '#efefef', '#f5f5f5', '#ffffff'],
+    hexValues: {
+      light: ['#e5e5e5', '#efefef', '#f5f5f5', '#ffffff'],
+      dark: ['#5a5a5a', '#6c6c6c', '#7e7e7e', '#909090'],
+    },
   },
   {
     name: 'WHITE',
-    hexValues: ['#fafafa', '#fcfcfc', '#fefefe', '#ffffff'],
+    hexValues: {
+      light: ['#fafafa', '#fcfcfc', '#fefefe', '#ffffff'],
+      dark: ['#f9fafb', '#f3f4f6', '#e5e7eb', '#d1d5db'],
+    },
   },
   {
     name: 'CYAN',
-    hexValues: ['#cffafe', '#e0fcff', '#f0feff', '#ffffff'],
+    hexValues: {
+      light: ['#cffafe', '#e0fcff', '#f0feff', '#ffffff'],
+      dark: ['#6ac0dc', '#7cd2ee', '#8ee4ff', '#a0f6ff'],
+    },
   },
   {
     name: 'MAGENTA',
-    hexValues: ['#fae8ff', '#fceeff', '#fff5ff', '#ffffff'],
+    hexValues: {
+      light: ['#fae8ff', '#fceeff', '#fff5ff', '#ffffff'],
+      dark: ['#d685df', '#e897f1', '#faa9ff', '#ffbbff'],
+    },
   },
   {
     name: 'LIME',
-    hexValues: ['#ecfccb', '#f2fde0', '#f8fef0', '#ffffff'],
+    hexValues: {
+      light: ['#ecfccb', '#f2fde0', '#f8fef0', '#ffffff'],
+      dark: ['#9acd5f', '#acdf71', '#bef183', '#d0ff95'],
+    },
   },
   {
     name: 'MAROON',
-    hexValues: ['#fde5e5', '#ffefef', '#fff5f5', '#ffffff'],
+    hexValues: {
+      light: ['#fde5e5', '#ffefef', '#fff5f5', '#ffffff'],
+      dark: ['#e98595', '#fb97a7', '#ffa9b9', '#ffbbcb'],
+    },
   },
   {
     name: 'NAVY',
-    hexValues: ['#e0e7ff', '#ecf0ff', '#f5f8ff', '#ffffff'],
+    hexValues: {
+      light: ['#e0e7ff', '#ecf0ff', '#f5f8ff', '#ffffff'],
+      dark: ['#7a8cd5', '#8c9ee7', '#9eb0f9', '#b0c2ff'],
+    },
   },
   {
     name: 'OLIVE',
-    hexValues: ['#f5f5e6', '#f8f8ef', '#fbfbf5', '#ffffff'],
+    hexValues: {
+      light: ['#f5f5e6', '#f8f8ef', '#fbfbf5', '#ffffff'],
+      dark: ['#abab75', '#bdbd87', '#cfcf99', '#e1e1ab'],
+    },
   },
   {
     name: 'GOLD',
-    hexValues: ['#fef9c3', '#fff8e0', '#fffcf0', '#ffffff'],
+    hexValues: {
+      light: ['#fef9c3', '#fff8e0', '#fffcf0', '#ffffff'],
+      dark: ['#f5c55f', '#ffd771', '#ffe983', '#fffb95'],
+    },
   },
   {
     name: 'SILVER',
-    hexValues: ['#f9fafb', '#fbfcfd', '#fdfdfe', '#ffffff'],
+    hexValues: {
+      light: ['#f9fafb', '#fbfcfd', '#fdfdfe', '#ffffff'],
+      dark: ['#a5b4c4', '#b7c6d6', '#c9d8e8', '#dbeafa'],
+    },
   },
   {
     name: 'LAVENDER',
-    hexValues: ['#f5f0ff', '#f8f5ff', '#fcfaff', '#ffffff'],
+    hexValues: {
+      light: ['#f5f0ff', '#f8f5ff', '#fcfaff', '#ffffff'],
+      dark: ['#bd9cf0', '#cfaefe', '#e1c0ff', '#f3d2ff'],
+    },
   },
   {
     name: 'VIOLET',
-    hexValues: ['#f3e8ff', '#f7f0ff', '#fbf8ff', '#ffffff'],
+    hexValues: {
+      light: ['#f3e8ff', '#f7f0ff', '#fbf8ff', '#ffffff'],
+      dark: ['#c69dff', '#d8afff', '#eac1ff', '#fcd3ff'],
+    },
   },
   {
     name: 'INDIGO',
-    hexValues: ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'],
+    hexValues: {
+      light: ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'],
+      dark: ['#8f9ef5', '#a1b0ff', '#b3c2ff', '#c5d4ff'],
+    },
   },
   {
     name: 'CRIMSON',
-    hexValues: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
+    hexValues: {
+      light: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
+      dark: ['#f58da3', '#ff9fb5', '#ffb1c7', '#ffc3d9'],
+    },
   },
   {
     name: 'CORAL',
-    hexValues: ['#fff0ed', '#fff4f2', '#fffaf8', '#ffffff'],
+    hexValues: {
+      light: ['#fff0ed', '#fff4f2', '#fffaf8', '#ffffff'],
+      dark: ['#f5ab89', '#ffbd9b', '#ffcfad', '#ffe1bf'],
+    },
   },
   {
     name: 'SALMON',
-    hexValues: ['#fff0ef', '#fff4f3', '#fffaf9', '#ffffff'],
+    hexValues: {
+      light: ['#fff0ef', '#fff4f3', '#fffaf9', '#ffffff'],
+      dark: ['#f5ab99', '#ffbdab', '#ffcfbd', '#ffe1cf'],
+    },
   },
   {
     name: 'KHAKI',
-    hexValues: ['#fef9e6', '#fffaf0', '#fffcf5', '#ffffff'],
+    hexValues: {
+      light: ['#fef9e6', '#fffaf0', '#fffcf5', '#ffffff'],
+      dark: ['#d7d79f', '#e9e9b1', '#fbfbc3', '#ffffd5'],
+    },
   },
   {
     name: 'PLUM',
-    hexValues: ['#f9ebf9', '#fbf0fb', '#fdf5fd', '#ffffff'],
+    hexValues: {
+      light: ['#f9ebf9', '#fbf0fb', '#fdf5fd', '#ffffff'],
+      dark: ['#da9cf0', '#ecaeff', '#fec0ff', '#ffd2ff'],
+    },
   },
   {
     name: 'ORCHID',
-    hexValues: ['#faf0fa', '#fcf5fc', '#fefafe', '#ffffff'],
+    hexValues: {
+      light: ['#faf0fa', '#fcf5fc', '#fefafe', '#ffffff'],
+      dark: ['#ea9cf0', '#fcaeff', '#ffc0ff', '#ffd2ff'],
+    },
   },
   {
     name: 'TURQUOISE',
-    hexValues: ['#e0fffe', '#edffff', '#f5ffff', '#ffffff'],
+    hexValues: {
+      light: ['#e0fffe', '#edffff', '#f5ffff', '#ffffff'],
+      dark: ['#6ad9cd', '#7cebdf', '#8efdf1', '#a0ffff'],
+    },
   },
   {
     name: 'PEACH',
-    hexValues: ['#fff4ed', '#fff7f2', '#fffbf8', '#ffffff'],
+    hexValues: {
+      light: ['#fff4ed', '#fff7f2', '#fffbf8', '#ffffff'],
+      dark: ['#f5b58d', '#ffc79f', '#ffd9b1', '#ffebc3'],
+    },
   },
   {
     name: 'MINT',
-    hexValues: ['#e8f8f0', '#f0faf5', '#f8fdfa', '#ffffff'],
+    hexValues: {
+      light: ['#e8f8f0', '#f0faf5', '#f8fdfa', '#ffffff'],
+      dark: ['#6ad9cd', '#7cebdf', '#8efdf1', '#a0ffff'],
+    },
   },
   {
     name: 'IVORY',
-    hexValues: ['#fffff5', '#fffff8', '#fffffc', '#ffffff'],
+    hexValues: {
+      light: ['#fffff5', '#fffff8', '#fffffc', '#ffffff'],
+      dark: ['#a5a595', '#b7b7a7', '#c9c9b9', '#dbdbcb'],
+    },
   },
   {
     name: 'BEIGE',
-    hexValues: ['#fdfcf3', '#fefdf8', '#fffefc', '#ffffff'],
+    hexValues: {
+      light: ['#fdfcf3', '#fefdf8', '#fffefc', '#ffffff'],
+      dark: ['#bfbf9b', '#d1d1ad', '#e3e3bf', '#f5f5d1'],
+    },
   },
   {
     name: 'TAN',
-    hexValues: ['#faf6ef', '#fcf8f3', '#fefcf9', '#ffffff'],
+    hexValues: {
+      light: ['#faf6ef', '#fcf8f3', '#fefcf9', '#ffffff'],
+      dark: ['#e5b185', '#f7c397', '#ffd5a9', '#ffe7bb'],
+    },
   },
   {
     name: 'CHOCOLATE',
-    hexValues: ['#f5e8e0', '#f8efe8', '#fcf5f0', '#ffffff'],
+    hexValues: {
+      light: ['#f5e8e0', '#f8efe8', '#fcf5f0', '#ffffff'],
+      dark: ['#e59469', '#f7a67b', '#ffb88d', '#ffca9f'],
+    },
   },
   {
     name: 'SKYBLUE',
-    hexValues: ['#e0f7ff', '#eefbff', '#f5fdff', '#ffffff'],
+    hexValues: {
+      light: ['#e0f7ff', '#eefbff', '#f5fdff', '#ffffff'],
+      dark: ['#7abde7', '#8ccff9', '#9ee1ff', '#b0f3ff'],
+    },
   },
   {
     name: 'STEELBLUE',
-    hexValues: ['#e6f0ff', '#eff5ff', '#f5f9ff', '#ffffff'],
+    hexValues: {
+      light: ['#e6f0ff', '#eff5ff', '#f5f9ff', '#ffffff'],
+      dark: ['#8aabe9', '#9cbdfb', '#aecfff', '#c0e1ff'],
+    },
   },
   {
     name: 'LIGHTGREEN',
-    hexValues: ['#e8f9e8', '#f0fbf0', '#f8fdf8', '#ffffff'],
+    hexValues: {
+      light: ['#e8f9e8', '#f0fbf0', '#f8fdf8', '#ffffff'],
+      dark: ['#8dc58a', '#9fd79c', '#b1e9ae', '#c3fbc0'],
+    },
   },
   {
     name: 'AQUA',
-    hexValues: ['#e0ffff', '#edffff', '#f5ffff', '#ffffff'],
+    hexValues: {
+      light: ['#e0ffff', '#edffff', '#f5ffff', '#ffffff'],
+      dark: ['#7ae9f5', '#8cfbff', '#9effff', '#b0ffff'],
+    },
   },
   {
     name: 'AQUAMARINE',
-    hexValues: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
+    hexValues: {
+      light: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
+      dark: ['#6ae9cd', '#7cfbdf', '#8efff1', '#a0ffff'],
+    },
   },
   {
     name: 'AZURE',
-    hexValues: ['#e0f5ff', '#eef9ff', '#f5fcff', '#ffffff'],
+    hexValues: {
+      light: ['#e0f5ff', '#eef9ff', '#f5fcff', '#ffffff'],
+      dark: ['#7acaf9', '#8cdcff', '#9eeeff', '#b0ffff'],
+    },
   },
   {
     name: 'BISQUE',
-    hexValues: ['#fff5ea', '#fff8f0', '#fffcf8', '#ffffff'],
-  },
-  {
-    name: 'BLANCHEDALMOND',
-    hexValues: ['#fff5e6', '#fff8ef', '#fffcf7', '#ffffff'],
+    hexValues: {
+      light: ['#fff5ea', '#fff8f0', '#fffcf8', '#ffffff'],
+      dark: ['#f5cfaa', '#ffe1bc', '#fff3ce', '#ffffe0'],
+    },
   },
   {
     name: 'BURGUNDY',
-    hexValues: ['#ffe5ec', '#ffeff3', '#fff5f8', '#ffffff'],
+    hexValues: {
+      light: ['#ffe5ec', '#ffeff3', '#fff5f8', '#ffffff'],
+      dark: ['#f593a9', '#ffa5bb', '#ffb7cd', '#ffc9df'],
+    },
   },
   {
     name: 'CADETBLUE',
-    hexValues: ['#e6f0f2', '#eff5f7', '#f5fafc', '#ffffff'],
+    hexValues: {
+      light: ['#e6f0f2', '#eff5f7', '#f5fafc', '#ffffff'],
+      dark: ['#8ab5c8', '#9cc7da', '#aed9ec', '#c0ebfe'],
+    },
   },
   {
     name: 'CHARTREUSE',
-    hexValues: ['#f0ffe0', '#f5ffe8', '#fafff0', '#ffffff'],
+    hexValues: {
+      light: ['#f0ffe0', '#f5ffe8', '#fafff0', '#ffffff'],
+      dark: ['#bbde7a', '#cdf08c', '#dfff9e', '#f1ffb0'],
+    },
   },
   {
     name: 'CHERRY',
-    hexValues: ['#ffe5ec', '#ffeff3', '#fff5f8', '#ffffff'],
+    hexValues: {
+      light: ['#ffe5ec', '#ffeff3', '#fff5f8', '#ffffff'],
+      dark: ['#f593a9', '#ffa5bb', '#ffb7cd', '#ffc9df'],
+    },
   },
   {
     name: 'CHESTNUT',
-    hexValues: ['#f5e8e5', '#f8efec', '#fcf5f2', '#ffffff'],
+    hexValues: {
+      light: ['#f5e8e5', '#f8efec', '#fcf5f2', '#ffffff'],
+      dark: ['#f5ab89', '#ffbd9b', '#ffcfad', '#ffe1bf'],
+    },
   },
   {
     name: 'COBALT',
-    hexValues: ['#e0e8ff', '#eef2ff', '#f5f8ff', '#ffffff'],
+    hexValues: {
+      light: ['#e0e8ff', '#eef2ff', '#f5f8ff', '#ffffff'],
+      dark: ['#8a9ef5', '#9cb0ff', '#aec2ff', '#c0d4ff'],
+    },
   },
   {
     name: 'COPPER',
-    hexValues: ['#ffe8e0', '#fff0e8', '#fff8f0', '#ffffff'],
+    hexValues: {
+      light: ['#ffe8e0', '#fff0e8', '#fff8f0', '#ffffff'],
+      dark: ['#f5bf9a', '#ffd1ac', '#ffe3be', '#fff5d0'],
+    },
   },
   {
     name: 'CREAM',
-    hexValues: ['#ffffe0', '#ffffec', '#fffff5', '#ffffff'],
+    hexValues: {
+      light: ['#ffffe0', '#ffffec', '#fffff5', '#ffffff'],
+      dark: ['#e5e5aa', '#f7f7bc', '#ffffce', '#ffffe0'],
+    },
   },
   {
     name: 'DARKGREEN',
-    hexValues: ['#e5f5e5', '#eef8ee', '#f5fcf5', '#ffffff'],
+    hexValues: {
+      light: ['#e5f5e5', '#eef8ee', '#f5fcf5', '#ffffff'],
+      dark: ['#7ac57a', '#8cd78c', '#9ee99e', '#b0fbb0'],
+    },
   },
   {
     name: 'DENIM',
-    hexValues: ['#e5f0ff', '#eef5ff', '#f5faff', '#ffffff'],
+    hexValues: {
+      light: ['#e5f0ff', '#eef5ff', '#f5faff', '#ffffff'],
+      dark: ['#8aafef', '#9cc1ff', '#aed3ff', '#c0e5ff'],
+    },
   },
   {
     name: 'EBONY',
-    hexValues: ['#e5e5e0', '#efefe8', '#f5f5f0', '#ffffff'],
+    hexValues: {
+      light: ['#e5e5e0', '#efefe8', '#f5f5f0', '#ffffff'],
+      dark: ['#8a8a7a', '#9c9c8c', '#aeae9e', '#c0c0b0'],
+    },
   },
   {
     name: 'ECRU',
-    hexValues: ['#fefcf0', '#fffdf5', '#fffefa', '#ffffff'],
+    hexValues: {
+      light: ['#fefcf0', '#fffdf5', '#fffefa', '#ffffff'],
+      dark: ['#d0d0aa', '#e2e2bc', '#f4f4ce', '#ffffe0'],
+    },
   },
   {
     name: 'EGGPLANT',
-    hexValues: ['#f5e5f5', '#f8eef8', '#fcf5fc', '#ffffff'],
+    hexValues: {
+      light: ['#f5e5f5', '#f8eef8', '#fcf5fc', '#ffffff'],
+      dark: ['#cf9acf', '#e1ace1', '#f3bef3', '#ffd0ff'],
+    },
   },
   {
     name: 'EMERALD',
-    hexValues: ['#e0f8e8', '#eefcf0', '#f5fef8', '#ffffff'],
+    hexValues: {
+      light: ['#e0f8e8', '#eefcf0', '#f5fef8', '#ffffff'],
+      dark: ['#6cd8ab', '#7eeabd', '#90fccf', '#a2ffe1'],
+    },
   },
   {
     name: 'FUCHSIA',
-    hexValues: ['#ffe5ff', '#ffefff', '#fff5ff', '#ffffff'],
+    hexValues: {
+      light: ['#ffe5ff', '#ffefff', '#fff5ff', '#ffffff'],
+      dark: ['#f5a0f5', '#ffb2ff', '#ffc4ff', '#ffd6ff'],
+    },
   },
   {
     name: 'GINGER',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
+    hexValues: {
+      light: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
+      dark: ['#f5bf9a', '#ffd1ac', '#ffe3be', '#fff5d0'],
+    },
   },
   {
     name: 'GRAPE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'HEATHER',
-    hexValues: ['#f0e8f5', '#f5eff8', '#faf5fc', '#ffffff'],
-  },
-  {
-    name: 'HONEY',
-    hexValues: ['#fff5e0', '#fff8e8', '#fffcf0', '#ffffff'],
-  },
-  {
-    name: 'HOTPINK',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'JADE',
-    hexValues: ['#e0f8f0', '#eefcf5', '#f5fefa', '#ffffff'],
-  },
-  {
-    name: 'JASMINE',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'JET',
-    hexValues: ['#e0e0e0', '#ececec', '#f5f5f5', '#ffffff'],
-  },
-  {
-    name: 'KELP',
-    hexValues: ['#e8f0e0', '#f0f5e8', '#f8faf0', '#ffffff'],
-  },
-  {
-    name: 'LATTE',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'LEMON',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'LILAC',
-    hexValues: ['#f5e8ff', '#f8f0ff', '#fcf8ff', '#ffffff'],
-  },
-  {
-    name: 'MAHOGANY',
-    hexValues: ['#f5e5e0', '#f8ece8', '#fcf5f0', '#ffffff'],
-  },
-  {
-    name: 'MALACHITE',
-    hexValues: ['#e0ffe0', '#edffed', '#f5fff5', '#ffffff'],
-  },
-  {
-    name: 'MANDARIN',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'MANGO',
-    hexValues: ['#fff0d0', '#fff5e0', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'MAUVE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'MUSTARD',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'OCHRE',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'OLIVINE',
-    hexValues: ['#f0f5e0', '#f5f8e8', '#fafcf0', '#ffffff'],
-  },
-  {
-    name: 'ONYX',
-    hexValues: ['#e0e0e5', '#ececf0', '#f5f5f8', '#ffffff'],
-  },
-  {
-    name: 'OPAL',
-    hexValues: ['#e8f5ff', '#f0f8ff', '#f8fcff', '#ffffff'],
-  },
-  {
-    name: 'PEARL',
-    hexValues: ['#fff8f0', '#fffaf5', '#fffdfa', '#ffffff'],
-  },
-  {
-    name: 'PERIWINKLE',
-    hexValues: ['#e8e8ff', '#f0f0ff', '#f8f8ff', '#ffffff'],
-  },
-  {
-    name: 'PISTACHIO',
-    hexValues: ['#f0f8e8', '#f5faf0', '#fafdf8', '#ffffff'],
-  },
-  {
-    name: 'RASPBERRY',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'ROSE',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'RUBY',
-    hexValues: ['#ffe5e8', '#ffeff0', '#fff5f8', '#ffffff'],
-  },
-  {
-    name: 'RUST',
-    hexValues: ['#ffe8e0', '#fff0e8', '#fff8f0', '#ffffff'],
-  },
-  {
-    name: 'SAGE',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'SANDALWOOD',
-    hexValues: ['#f8f0e8', '#faf5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'SAPPHIRE',
-    hexValues: ['#e5f0ff', '#eef5ff', '#f5faff', '#ffffff'],
-  },
-  {
-    name: 'SCARLET',
-    hexValues: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
-  },
-  {
-    name: 'SEAFOAM',
-    hexValues: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
-  },
-  {
-    name: 'SEPIA',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'SIENNA',
-    hexValues: ['#f5e8e0', '#f8efe8', '#fcf5f0', '#ffffff'],
-  },
-  {
-    name: 'TANGERINE',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'TAUPE',
-    hexValues: ['#f5f0e8', '#f8f5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'THYME',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'TOPAZ',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'TUSCANY',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'ULTRAMARINE',
-    hexValues: ['#e5e8ff', '#eff0ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'VANILLA',
-    hexValues: ['#fff8e8', '#fffaf0', '#fffdf8', '#ffffff'],
-  },
-  {
-    name: 'VERMILION',
-    hexValues: ['#ffe8e5', '#fff0ec', '#fff8f5', '#ffffff'],
-  },
-  {
-    name: 'WHEAT',
-    hexValues: ['#fff5e0', '#fff8e8', '#fffcf0', '#ffffff'],
-  },
-  {
-    name: 'WISTERIA',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'ZINC',
-    hexValues: ['#f0f0f0', '#f5f5f5', '#fafafa', '#ffffff'],
-  },
-  {
-    name: 'ALMOND',
-    hexValues: ['#fff8f0', '#fffaf5', '#fffdfa', '#ffffff'],
-  },
-  {
-    name: 'AMBER',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'APRICOT',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'ARCTIC',
-    hexValues: ['#e8ffff', '#f0ffff', '#f8ffff', '#ffffff'],
-  },
-  {
-    name: 'BAMBOO',
-    hexValues: ['#f8f5e8', '#faf8f0', '#fcfcf8', '#ffffff'],
-  },
-  {
-    name: 'BRONZE',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'CAMELLIA',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'CINNAMON',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'CLAY',
-    hexValues: ['#f8f0e8', '#faf5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'COBALTBLUE',
-    hexValues: ['#e0e8ff', '#eef2ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'COFFEE',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'CORALPINK',
-    hexValues: ['#fff0ed', '#fff4f2', '#fffaf8', '#ffffff'],
-  },
-  {
-    name: 'DOVE',
-    hexValues: ['#f0f0f0', '#f5f5f5', '#fafafa', '#ffffff'],
-  },
-  {
-    name: 'FLAMINGO',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'FLINT',
-    hexValues: ['#f0f0f0', '#f5f5f5', '#fafafa', '#ffffff'],
-  },
-  {
-    name: 'FOREST',
-    hexValues: ['#e5f0e5', '#eef8ee', '#f5fcf5', '#ffffff'],
-  },
-  {
-    name: 'FUCHSIAPINK',
-    hexValues: ['#ffe5ff', '#ffefff', '#fff5ff', '#ffffff'],
-  },
-  {
-    name: 'GARNET',
-    hexValues: ['#ffe5e8', '#ffeff0', '#fff5f8', '#ffffff'],
-  },
-  {
-    name: 'GINGHAM',
-    hexValues: ['#fff5e8', '#fff8f0', '#fffcf8', '#ffffff'],
-  },
-  {
-    name: 'GLACIER',
-    hexValues: ['#e8ffff', '#f0ffff', '#f8ffff', '#ffffff'],
-  },
-  {
-    name: 'HARVEST',
-    hexValues: ['#fff5e0', '#fff8e8', '#fffcf0', '#ffffff'],
-  },
-  {
-    name: 'HAZEL',
-    hexValues: ['#f8f0e8', '#faf5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'HELIOTROPE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'HICKORY',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'HONEYDEW',
-    hexValues: ['#f0fff0', '#f5fff5', '#fafffa', '#ffffff'],
-  },
-  {
-    name: 'INDIGO BLUE',
-    hexValues: ['#eef2ff', '#f0f4ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'IRIS',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'IVY',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'JASPER',
-    hexValues: ['#ffe8e5', '#fff0ec', '#fff8f5', '#ffffff'],
-  },
-  {
-    name: 'JONQUIL',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'LAPIS',
-    hexValues: ['#e5e8ff', '#eff0ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'LARKSPUR',
-    hexValues: ['#e0e8ff', '#eef2ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'LAVENDERBLUE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'LAVENDERPINK',
-    hexValues: ['#f5e8ff', '#f8f0ff', '#fcf8ff', '#ffffff'],
-  },
-  {
-    name: 'LEMONGRASS',
-    hexValues: ['#f0f8e8', '#f5faf0', '#fafdf8', '#ffffff'],
-  },
-  {
-    name: 'LICHEN',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'LILYPAD',
-    hexValues: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
-  },
-  {
-    name: 'LINDEN',
-    hexValues: ['#f0f8e8', '#f5faf0', '#fafdf8', '#ffffff'],
-  },
-  {
-    name: 'LOBSTER',
-    hexValues: ['#ffe5e8', '#ffeff0', '#fff5f8', '#ffffff'],
-  },
-  {
-    name: 'MAGNOLIA',
-    hexValues: ['#fff8f0', '#fffaf5', '#fffdfa', '#ffffff'],
-  },
-  {
-    name: 'MALLOW',
-    hexValues: ['#f5e8ff', '#f8f0ff', '#fcf8ff', '#ffffff'],
-  },
-  {
-    name: 'MANDARINORANGE',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'MAPLE',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'MARIGOLD',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'MELON',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'MIMOSA',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'MISTYROSE',
-    hexValues: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
-  },
-  {
-    name: 'MOSS',
-    hexValues: ['#e8f0e0', '#f0f5e8', '#f8faf0', '#ffffff'],
-  },
-  {
-    name: 'MULBERRY',
-    hexValues: ['#f5e8ff', '#f8f0ff', '#fcf8ff', '#ffffff'],
-  },
-  {
-    name: 'MUSHROOM',
-    hexValues: ['#f8f0e8', '#faf5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'MYRTLE',
-    hexValues: ['#e0f8e8', '#eefcf0', '#f5fef8', '#ffffff'],
-  },
-  {
-    name: 'NARCISSUS',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'NECTARINE',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'OAK',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'OCEAN',
-    hexValues: ['#e0f0ff', '#eef5ff', '#f5faff', '#ffffff'],
-  },
-  {
-    name: 'OLIVEGREEN',
-    hexValues: ['#f0f5e0', '#f5f8e8', '#fafcf0', '#ffffff'],
-  },
-  {
-    name: 'ORCHIDPINK',
-    hexValues: ['#faf0fa', '#fcf5fc', '#fefafe', '#ffffff'],
-  },
-  {
-    name: 'PANSY',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'PAPAYA',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'PAPYRUS',
-    hexValues: ['#fff8f0', '#fffaf5', '#fffdfa', '#ffffff'],
-  },
-  {
-    name: 'PARROT',
-    hexValues: ['#e0ffe0', '#edffed', '#f5fff5', '#ffffff'],
-  },
-  {
-    name: 'PEACOCK',
-    hexValues: ['#e0ffff', '#edffff', '#f5ffff', '#ffffff'],
-  },
-  {
-    name: 'PEONY',
-    hexValues: ['#ffe5f0', '#ffeff5', '#fff5fa', '#ffffff'],
-  },
-  {
-    name: 'PEPPERMINT',
-    hexValues: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
-  },
-  {
-    name: 'PERIDOT',
-    hexValues: ['#f0ffe0', '#f5ffe8', '#fafff0', '#ffffff'],
-  },
-  {
-    name: 'PERSIMMON',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'PETROL',
-    hexValues: ['#e0f5f5', '#eefafa', '#f5fefe', '#ffffff'],
-  },
-  {
-    name: 'PINE',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'POPPY',
-    hexValues: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
-  },
-  {
-    name: 'PRIMROSE',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'QUARTZ',
-    hexValues: ['#f8f8ff', '#fafaff', '#fdfdfd', '#ffffff'],
-  },
-  {
-    name: 'RANUNCULUS',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'RHUBARB',
-    hexValues: ['#ffe5e8', '#ffeff0', '#fff5f8', '#ffffff'],
-  },
-  {
-    name: 'ROSEWOOD',
-    hexValues: ['#ffe5ec', '#ffeff3', '#fff5f8', '#ffffff'],
-  },
-  {
-    name: 'RUSSET',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'SAFFRON',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'SANDAL',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'SANDSTONE',
-    hexValues: ['#f8f0e8', '#faf5f0', '#fcfaf8', '#ffffff'],
-  },
-  {
-    name: 'SAPPHIREBLUE',
-    hexValues: ['#e5f0ff', '#eef5ff', '#f5faff', '#ffffff'],
-  },
-  {
-    name: 'SORREL',
-    hexValues: ['#f0e8e0', '#f5efe8', '#faf5f0', '#ffffff'],
-  },
-  {
-    name: 'SPRUCE',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'STONE',
-    hexValues: ['#f8f8f0', '#fafaf5', '#fdfdfa', '#ffffff'],
-  },
-  {
-    name: 'SUGAR',
-    hexValues: ['#fff8f0', '#fffaf5', '#fffdfa', '#ffffff'],
-  },
-  {
-    name: 'SUNFLOWER',
-    hexValues: ['#fff8c0', '#fffad0', '#fffde8', '#ffffff'],
-  },
-  {
-    name: 'SUNSET',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'TANGERINEORANGE',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'TARO',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'TEAK',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'TERRACOTTA',
-    hexValues: ['#fff0e5', '#fff5ec', '#fffaf5', '#ffffff'],
-  },
-  {
-    name: 'THISTLE',
-    hexValues: ['#f8f0ff', '#faf5ff', '#fdfaff', '#ffffff'],
-  },
-  {
-    name: 'THYME GREEN',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'TIGERLILY',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'TITANIUM',
-    hexValues: ['#f0f0f0', '#f5f5f5', '#fafafa', '#ffffff'],
-  },
-  {
-    name: 'TOMATO',
-    hexValues: ['#ffe5e5', '#ffefef', '#fff5f5', '#ffffff'],
-  },
-  {
-    name: 'TURF',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'TURMERIC',
-    hexValues: ['#fff0c0', '#fff5d0', '#fffae8', '#ffffff'],
-  },
-  {
-    name: 'ULTRAMARINEBLUE',
-    hexValues: ['#e5e8ff', '#eff0ff', '#f5f8ff', '#ffffff'],
-  },
-  {
-    name: 'UMBER',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'VALENCIA',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'VERDIGRIS',
-    hexValues: ['#e0fff0', '#edfff5', '#f5fffa', '#ffffff'],
-  },
-  {
-    name: 'VERONA',
-    hexValues: ['#e0f8ff', '#eefcff', '#f5feff', '#ffffff'],
-  },
-  {
-    name: 'VIOLETBLUE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'WALNUT',
-    hexValues: ['#f8f0e5', '#faf5ec', '#fcfaf5', '#ffffff'],
-  },
-  {
-    name: 'WISTERIAPURPLE',
-    hexValues: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
-  },
-  {
-    name: 'WOODLAND',
-    hexValues: ['#e8f0e5', '#f0f5ec', '#f8faf5', '#ffffff'],
-  },
-  {
-    name: 'XANTHIC',
-    hexValues: ['#fff8e0', '#fffae8', '#fffdf0', '#ffffff'],
-  },
-  {
-    name: 'YELLOWGREEN',
-    hexValues: ['#f0ffe0', '#f5ffe8', '#fafff0', '#ffffff'],
-  },
-  {
-    name: 'ZINNIA',
-    hexValues: ['#fff0e0', '#fff5e8', '#fffaf0', '#ffffff'],
-  },
-  {
-    name: 'ZIRCON',
-    hexValues: ['#f8f8ff', '#fafaff', '#fdfdfd', '#ffffff'],
+    hexValues: {
+      light: ['#f0e8ff', '#f5f0ff', '#faf8ff', '#ffffff'],
+      dark: ['#cf9af0', '#e1acff', '#f3beff', '#ffd0ff'],
+    },
   },
 ];
+
+// Helper function to get color hex values based on theme
+export const getColorHexValues = (
+  colorName: string | null,
+  isDark: boolean,
+): string[] => {
+  const theme = isDark ? 'dark' : 'light';
+
+  if (!colorName) {
+    // Return default gradient based on theme
+    if (isDark) {
+      return ['#3a4458', '#4a5568', '#3a4458'];
+    }
+    return ['#f9fafb', '#ffffff', '#ffffff'];
+  }
+
+  const colorMapping = colors.find(
+    color => color.name.toLowerCase() === colorName.toLowerCase(),
+  );
+
+  if (colorMapping && colorMapping.hexValues[theme]) {
+    return colorMapping.hexValues[theme];
+  }
+
+  // Return default gradient based on theme if color not found
+  if (isDark) {
+    return ['#3a4458', '#4a5568', '#3a4458'];
+  }
+  return ['#f9fafb', '#ffffff', '#ffffff'];
+};
+
+// Helper function to get primary color (first hex value) based on theme
+export const getPrimaryColor = (
+  colorName: string | null,
+  isDark: boolean,
+): string => {
+  const hexValues = getColorHexValues(colorName, isDark);
+  return hexValues[0] || (isDark ? '#3a4458' : '#f9fafb');
+};
+
+// Helper function to get secondary color based on theme
+export const getSecondaryColor = (
+  colorName: string | null,
+  isDark: boolean,
+): string => {
+  const hexValues = getColorHexValues(colorName, isDark);
+  return hexValues[1] || (isDark ? '#4a5568' : '#ffffff');
+};
+
+// Helper function to get tertiary color based on theme
+export const getTertiaryColor = (
+  colorName: string | null,
+  isDark: boolean,
+): string => {
+  const hexValues = getColorHexValues(colorName, isDark);
+  return hexValues[2] || (isDark ? '#3a4458' : '#ffffff');
+};
+
+// Export default color object
+export default colors;

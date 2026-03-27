@@ -58,7 +58,7 @@ const LikeComponent: React.FC<LikeComponentProps> = ({ productId }) => {
     }
 
     try {
-      const res = await fetch(`http://172.20.10.12:5000/api/likes/${productId}`, {
+      const res = await fetch(`http://192.168.42.121:5000/api/likes/${productId}`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -92,7 +92,7 @@ const LikeComponent: React.FC<LikeComponentProps> = ({ productId }) => {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://172.20.10.12:5000/api/likes', {
+      const res = await fetch('http://192.168.42.121:5000/api/likes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
