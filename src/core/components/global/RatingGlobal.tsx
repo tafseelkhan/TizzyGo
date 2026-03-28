@@ -1,5 +1,5 @@
 // components/RatingComponent.tsx
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -10,12 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-} from "react-native";
-import { jwtDecode } from "jwt-decode";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+} from 'react-native';
+import { jwtDecode } from 'jwt-decode';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
-import { useTheme } from "../../contexts/theme/ThemeContext";
+import { useTheme } from '../../contexts/theme/ThemeContext';
 
 // Types
 interface JwtPayload {
@@ -61,8 +61,12 @@ interface UserRating {
   images: ReviewImage[];
 }
 
+// ✅ FIXED: Added missing props
 interface RatingComponentProps {
   productId: string;
+  onRatingSubmit?: (rating: number, review: string) => Promise<void>;
+  initialRating?: number;
+  initialReview?: string;
 }
 
 const lightColors = {
@@ -92,15 +96,21 @@ const darkColors = {
 };
 
 // Import components
-import RatingSummary from "./ReviewSummaryGlobal";
-import ReviewList from "./ReviewListGlobal";
-import ReviewForm from "./ReviewFormGlobal";
-import * as api from "../../services/GlobalService";
+import RatingSummary from './ReviewSummaryGlobal';
+import ReviewList from './ReviewListGlobal';
+import ReviewForm from './ReviewFormGlobal';
+import * as api from '../../services/GlobalService';
 
-export default function RatingComponent({ productId }: RatingComponentProps) {
+// ✅ FIXED: Added new props with defaults
+export default function RatingComponent({
+  productId,
+  onRatingSubmit,
+  initialRating = 0,
+  initialReview = '',
+}: RatingComponentProps) {
   const { isDark } = useTheme();
   const colors = isDark ? darkColors : lightColors;
-  
+
   const [stats, setStats] = useState<RatingStats | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userRating, setUserRating] = useState<UserRating | null>(null);
@@ -120,11 +130,11 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
   useEffect(() => {
     const getAuthToken = async () => {
       try {
-        const token = await AsyncStorage.getItem("authToken");
+        const token = await AsyncStorage.getItem('authToken');
         if (token) {
           const decoded = jwtDecode<JwtPayload>(token);
           const userId = decoded.userId || decoded._id || decoded.id;
-          
+
           if (userId) {
             setCurrentUserId(userId);
           } else {
@@ -132,8 +142,8 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
           }
         }
       } catch (err) {
-        console.error("❌ JWT Decode Error:", err);
-        setError("Failed to authenticate user");
+        console.error('❌ JWT Decode Error:', err);
+        setError('Failed to authenticate user');
         setSnackbarOpen(true);
       }
     };
@@ -146,18 +156,18 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
       setLoadingStats(true);
       try {
         const statsData = await api.fetchStats(productId);
-        
+
         const transformedStats: RatingStats = {
           totalRatings: statsData.totalRatings || 0,
-          averageRating: statsData.averageRating?.toString() || "0",
-          percentage: statsData.percentage || "0",
+          averageRating: statsData.averageRating?.toString() || '0',
+          percentage: statsData.percentage || '0',
           distribution: statsData.distribution || [0, 0, 0, 0, 0],
           totalReviews: statsData.totalReviews || 0,
         };
         setStats(transformedStats);
       } catch (err: any) {
-        console.error("❌ Error fetching stats:", err);
-        setError("Failed to load rating statistics");
+        console.error('❌ Error fetching stats:', err);
+        setError('Failed to load rating statistics');
         setSnackbarOpen(true);
       } finally {
         setLoadingStats(false);
@@ -169,17 +179,20 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
   // Fetch reviews and user data when dialog opens
   useEffect(() => {
     if (!openReviewDialog) return;
-    
+
     const fetchReviews = async () => {
       setLoadingReviews(true);
       try {
-        const fetchedReviews = await api.fetchReviewsWithUserData(productId, page);
+        const fetchedReviews = await api.fetchReviewsWithUserData(
+          productId,
+          page,
+        );
         setReviews(fetchedReviews);
 
         // Find current user's review if exists
         if (currentUserId) {
           const currentReview = fetchedReviews.find(
-            (r: Review) => r.userId._id === currentUserId
+            (r: Review) => r.userId._id === currentUserId,
           );
           if (currentReview) {
             setUserRating({
@@ -193,14 +206,14 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
           }
         }
       } catch (err: any) {
-        console.error("❌ Error fetching reviews:", err);
-        setError("Failed to load reviews. Please try again.");
+        console.error('❌ Error fetching reviews:', err);
+        setError('Failed to load reviews. Please try again.');
         setSnackbarOpen(true);
       } finally {
         setLoadingReviews(false);
       }
     };
-    
+
     fetchReviews();
   }, [openReviewDialog, page, productId, currentUserId]);
 
@@ -216,12 +229,18 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
     setError(null);
   };
 
+  // ✅ FIXED: Modified handleSubmit to call onRatingSubmit prop
   const handleSubmit = async (submitData: any, reviewId?: string) => {
     setLoadingSubmit(true);
     try {
+      // ✅ Call the parent's onRatingSubmit if provided
+      if (onRatingSubmit) {
+        await onRatingSubmit(submitData.rating, submitData.review);
+      }
+
       const token = await api.getTokenFromStorage();
       if (!token) {
-        setError("Please login to submit a review");
+        setError('Please login to submit a review');
         setSnackbarOpen(true);
         return;
       }
@@ -240,7 +259,7 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
       // Update user rating
       if (currentUserId) {
         const currentReview = updatedReviews.find(
-          (r: Review) => r.userId._id === currentUserId
+          (r: Review) => r.userId._id === currentUserId,
         );
         if (currentReview) {
           setUserRating({
@@ -258,8 +277,8 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
       const statsData = await api.fetchStats(productId);
       const transformedStats: RatingStats = {
         totalRatings: statsData.totalRatings || 0,
-        averageRating: statsData.averageRating?.toString() || "0",
-        percentage: statsData.percentage || "0",
+        averageRating: statsData.averageRating?.toString() || '0',
+        percentage: statsData.percentage || '0',
         distribution: statsData.distribution || [0, 0, 0, 0, 0],
         totalReviews: statsData.totalReviews || 0,
       };
@@ -268,15 +287,18 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
       // Reset form
       handleCancel();
       setError(null);
-      
+
       Alert.alert(
-        "Success",
-        reviewId ? "Review updated successfully!" : "Review submitted successfully!",
-        [{ text: "OK" }]
+        'Success',
+        reviewId
+          ? 'Review updated successfully!'
+          : 'Review submitted successfully!',
+        [{ text: 'OK' }],
       );
     } catch (err: any) {
-      console.error("❌ Error submitting review:", err);
-      const errorMessage = err.response?.data?.error || err.message || "Failed to submit review";
+      console.error('❌ Error submitting review:', err);
+      const errorMessage =
+        err.response?.data?.error || err.message || 'Failed to submit review';
       setError(errorMessage);
       setSnackbarOpen(true);
     } finally {
@@ -290,25 +312,25 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
       try {
         const token = await api.getTokenFromStorage();
         if (!token) {
-          setError("Please login to delete a review");
+          setError('Please login to delete a review');
           setSnackbarOpen(true);
           return;
         }
 
         Alert.alert(
-          "Delete Review",
-          "Are you sure you want to delete this review?",
+          'Delete Review',
+          'Are you sure you want to delete this review?',
           [
-            { text: "Cancel", style: "cancel" },
+            { text: 'Cancel', style: 'cancel' },
             {
-              text: "Delete",
-              style: "destructive",
+              text: 'Delete',
+              style: 'destructive',
               onPress: async () => {
                 try {
                   await api.deleteReview(reviewId);
-                  
-                  setReviews((prevReviews) =>
-                    prevReviews.filter((r) => r._id !== reviewId)
+
+                  setReviews(prevReviews =>
+                    prevReviews.filter(r => r._id !== reviewId),
                   );
                   if (userRating && userRating._id === reviewId) {
                     setUserRating(null);
@@ -318,34 +340,35 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
                   const statsData = await api.fetchStats(productId);
                   const transformedStats: RatingStats = {
                     totalRatings: statsData.totalRatings || 0,
-                    averageRating: statsData.averageRating?.toString() || "0",
-                    percentage: statsData.percentage || "0",
+                    averageRating: statsData.averageRating?.toString() || '0',
+                    percentage: statsData.percentage || '0',
                     distribution: statsData.distribution || [0, 0, 0, 0, 0],
                     totalReviews: statsData.totalReviews || 0,
                   };
                   setStats(transformedStats);
-                  
+
                   setError(null);
-                  Alert.alert("Success", "Review deleted successfully!");
+                  Alert.alert('Success', 'Review deleted successfully!');
                 } catch (deleteError) {
-                  console.error("❌ Error deleting review:", deleteError);
-                  setError("Failed to delete review");
+                  console.error('❌ Error deleting review:', deleteError);
+                  setError('Failed to delete review');
                   setSnackbarOpen(true);
                 }
-              }
-            }
-          ]
+              },
+            },
+          ],
         );
       } catch (err: any) {
-        console.error("❌ Error in delete process:", err);
-        const errorMessage = err.response?.data?.error || err.message || "Failed to delete review";
+        console.error('❌ Error in delete process:', err);
+        const errorMessage =
+          err.response?.data?.error || err.message || 'Failed to delete review';
         setError(errorMessage);
         setSnackbarOpen(true);
       } finally {
         setLoadingDelete(false);
       }
     },
-    [productId, userRating]
+    [productId, userRating],
   );
 
   const hideSnackbar = () => {
@@ -354,10 +377,10 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
   };
 
   const buttonText = userRating
-    ? "View Your Review"
+    ? 'View Your Review'
     : reviews.length > 0
-    ? "View Reviews"
-    : "Rate & Review";
+    ? 'View Reviews'
+    : 'Rate & Review';
 
   return (
     <View style={styles.container}>
@@ -367,7 +390,7 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
         style={styles.starButton}
       >
         <Image
-          source={require("../../../assets/images/star-logo.png")}
+          source={require('../../../assets/images/star-logo.png')}
           style={styles.starImage}
         />
       </TouchableOpacity>
@@ -378,12 +401,22 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
         animationType="slide"
         onRequestClose={() => setOpenReviewDialog(false)}
       >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.modalContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           {/* Header */}
-          <View style={[styles.modalHeader, { 
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border 
-          }]}>
+          <View
+            style={[
+              styles.modalHeader,
+              {
+                backgroundColor: colors.card,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               Customer Reviews
             </Text>
@@ -395,7 +428,7 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
+          <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -408,7 +441,12 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
               ) : stats ? (
                 <RatingSummary stats={stats} />
               ) : (
-                <Text style={[styles.noDataText, { color: colors.text, opacity: 0.8 }]}>
+                <Text
+                  style={[
+                    styles.noDataText,
+                    { color: colors.text, opacity: 0.8 },
+                  ]}
+                >
                   No rating statistics available
                 </Text>
               )}
@@ -417,22 +455,39 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
             {/* Rate & Review Button */}
             <TouchableOpacity
               onPress={handlePlaceholderClick}
-              disabled={loadingStats || loadingReviews || loadingSubmit || loadingDelete}
+              disabled={
+                loadingStats || loadingReviews || loadingSubmit || loadingDelete
+              }
               style={[
                 styles.reviewButton,
                 {
                   borderColor: colors.primary,
                   backgroundColor: colors.card,
-                  opacity: (loadingStats || loadingReviews || loadingSubmit || loadingDelete) ? 0.6 : 1,
-                }
+                  opacity:
+                    loadingStats ||
+                    loadingReviews ||
+                    loadingSubmit ||
+                    loadingDelete
+                      ? 0.6
+                      : 1,
+                },
               ]}
             >
-              {loadingStats || loadingReviews || loadingSubmit || loadingDelete ? (
+              {loadingStats ||
+              loadingReviews ||
+              loadingSubmit ||
+              loadingDelete ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <>
-                  <MaterialIcon name="star-border" size={20} color={colors.primary} />
-                  <Text style={[styles.reviewButtonText, { color: colors.primary }]}>
+                  <MaterialIcon
+                    name="star-border"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.reviewButtonText, { color: colors.primary }]}
+                  >
                     {buttonText}
                   </Text>
                 </>
@@ -448,7 +503,7 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
                   {
                     backgroundColor: colors.card,
                     borderColor: colors.border,
-                  }
+                  },
                 ]}
               >
                 <Icon name="create-outline" size={20} color={colors.text} />
@@ -469,7 +524,9 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
             {loadingReviews ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.text }]}>Loading reviews...</Text>
+                <Text style={[styles.loadingText, { color: colors.text }]}>
+                  Loading reviews...
+                </Text>
               </View>
             ) : reviews.length > 0 ? (
               <ReviewList
@@ -479,11 +536,20 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
               />
             ) : (
               <View style={styles.noReviewsContainer}>
-                <Icon name="chatbubble-outline" size={48} color={colors.border} />
+                <Icon
+                  name="chatbubble-outline"
+                  size={48}
+                  color={colors.border}
+                />
                 <Text style={[styles.noReviewsText, { color: colors.text }]}>
                   No reviews yet
                 </Text>
-                <Text style={[styles.noReviewsSubtext, { color: colors.text, opacity: 0.7 }]}>
+                <Text
+                  style={[
+                    styles.noReviewsSubtext,
+                    { color: colors.text, opacity: 0.7 },
+                  ]}
+                >
                   Be the first to review this product!
                 </Text>
               </View>
@@ -493,51 +559,77 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
             {!loadingReviews && reviews.length > 0 && (
               <View style={styles.paginationContainer}>
                 <TouchableOpacity
-                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  onPress={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1 || loadingReviews}
                   style={[
                     styles.paginationButton,
                     {
-                      borderColor: page === 1 || loadingReviews ? colors.border : colors.primary,
-                      backgroundColor: page === 1 || loadingReviews ? colors.card : colors.background,
-                    }
+                      borderColor:
+                        page === 1 || loadingReviews
+                          ? colors.border
+                          : colors.primary,
+                      backgroundColor:
+                        page === 1 || loadingReviews
+                          ? colors.card
+                          : colors.background,
+                    },
                   ]}
                 >
-                  <Text style={[
-                    styles.paginationButtonText,
-                    {
-                      color: page === 1 || loadingReviews ? colors.text : colors.primary,
-                      opacity: page === 1 || loadingReviews ? 0.5 : 1,
-                    }
-                  ]}>
+                  <Text
+                    style={[
+                      styles.paginationButtonText,
+                      {
+                        color:
+                          page === 1 || loadingReviews
+                            ? colors.text
+                            : colors.primary,
+                        opacity: page === 1 || loadingReviews ? 0.5 : 1,
+                      },
+                    ]}
+                  >
                     Previous
                   </Text>
                 </TouchableOpacity>
-                
-                <View style={[styles.pageIndicator, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.pageIndicatorText}>
-                    Page {page}
-                  </Text>
+
+                <View
+                  style={[
+                    styles.pageIndicator,
+                    { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Text style={styles.pageIndicatorText}>Page {page}</Text>
                 </View>
-                
+
                 <TouchableOpacity
-                  onPress={() => setPage((p) => p + 1)}
+                  onPress={() => setPage(p => p + 1)}
                   disabled={reviews.length < 10 || loadingReviews}
                   style={[
                     styles.paginationButton,
                     {
-                      borderColor: reviews.length < 10 || loadingReviews ? colors.border : colors.primary,
-                      backgroundColor: reviews.length < 10 || loadingReviews ? colors.card : colors.background,
-                    }
+                      borderColor:
+                        reviews.length < 10 || loadingReviews
+                          ? colors.border
+                          : colors.primary,
+                      backgroundColor:
+                        reviews.length < 10 || loadingReviews
+                          ? colors.card
+                          : colors.background,
+                    },
                   ]}
                 >
-                  <Text style={[
-                    styles.paginationButtonText,
-                    {
-                      color: reviews.length < 10 || loadingReviews ? colors.text : colors.primary,
-                      opacity: reviews.length < 10 || loadingReviews ? 0.5 : 1,
-                    }
-                  ]}>
+                  <Text
+                    style={[
+                      styles.paginationButtonText,
+                      {
+                        color:
+                          reviews.length < 10 || loadingReviews
+                            ? colors.text
+                            : colors.primary,
+                        opacity:
+                          reviews.length < 10 || loadingReviews ? 0.5 : 1,
+                      },
+                    ]}
+                  >
                     Next
                   </Text>
                 </TouchableOpacity>
@@ -554,16 +646,11 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
             styles.snackbar,
             {
               backgroundColor: colors.error,
-            }
+            },
           ]}
         >
-          <Text style={styles.snackbarText}>
-            {error}
-          </Text>
-          <TouchableOpacity 
-            onPress={hideSnackbar}
-            style={styles.snackbarClose}
-          >
+          <Text style={styles.snackbarText}>{error}</Text>
+          <TouchableOpacity onPress={hideSnackbar} style={styles.snackbarClose}>
             <Icon name="close" size={20} color="white" />
           </TouchableOpacity>
         </View>
@@ -574,9 +661,9 @@ export default function RatingComponent({ productId }: RatingComponentProps) {
 
 const styles = StyleSheet.create({
   container: {
-    maxWidth: "100%",
-    alignSelf: "center",
-    alignItems: "center",
+    maxWidth: '100%',
+    alignSelf: 'center',
+    alignItems: 'center',
   },
   starButton: {
     padding: 10,
@@ -590,16 +677,16 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   closeButton: {
     padding: 4,
@@ -614,12 +701,12 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   noDataText: {
-    textAlign: "center",
+    textAlign: 'center',
   },
   reviewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
@@ -628,7 +715,7 @@ const styles = StyleSheet.create({
   },
   reviewButtonText: {
     marginLeft: 8,
-    fontWeight: "600",
+    fontWeight: '600',
     fontSize: 16,
   },
   placeholderButton: {
@@ -636,22 +723,22 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     padding: 12,
     marginBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   placeholderText: {
     marginLeft: 8,
     fontSize: 14,
   },
   loadingContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     marginVertical: 24,
   },
   loadingText: {
     marginTop: 12,
   },
   noReviewsContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     marginVertical: 24,
   },
   noReviewsText: {
@@ -663,9 +750,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   paginationContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 16,
     marginTop: 24,
     marginBottom: 16,
@@ -678,7 +765,7 @@ const styles = StyleSheet.create({
   },
   paginationButtonText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   pageIndicator: {
     paddingVertical: 6,
@@ -687,20 +774,20 @@ const styles = StyleSheet.create({
   },
   pageIndicatorText: {
     fontSize: 14,
-    color: "white",
-    fontWeight: "600",
+    color: 'white',
+    fontWeight: '600',
   },
   snackbar: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
     padding: 16,
     borderRadius: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    shadowColor: "#000",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -708,10 +795,10 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   snackbarText: {
-    color: "white",
+    color: 'white',
     flex: 1,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   snackbarClose: {
     marginLeft: 8,

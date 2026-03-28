@@ -8,6 +8,9 @@ import HomeScreen from '../screens/home/HomeScreen';
 import ProfileScreen from '../screens/profile/Profile';
 import EditProfileScreen from '../screens/profile/ProfileEdit';
 import SettingsScreen from '../screens/settings/Settings';
+import ProductDetailScreen from '../screens/ProductDetail/ProductDetailScreen';
+import OrderSuccessScreen from '../screens/Orders/OrderSuccessScreen';
+import BuyNowScreen from '../screens/BuyNow/BuyNow';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -17,6 +20,9 @@ export type RootStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   Settings: undefined;
+  ProductDetail: undefined;
+  OrderSuccessScreen: undefined;
+  BuyNow: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -35,6 +41,9 @@ export default function AppNavigator() {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+        <Stack.Screen name="OrderSuccessScreen" component={OrderSuccessScreen} />
+        <Stack.Screen name="BuyNow" component={BuyNowScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
