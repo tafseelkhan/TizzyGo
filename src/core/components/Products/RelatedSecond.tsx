@@ -188,7 +188,7 @@ const RelatedSecond: React.FC<Props> = ({
           </View>
           <View style={styles.coinPlaceholder}>
             <Image
-              source={require('../../../assets/coin.png')}
+              source={require('../../../assets/images/coin.png')}
               style={styles.coinImage}
               resizeMode="contain"
             />
@@ -236,7 +236,7 @@ const RelatedSecond: React.FC<Props> = ({
         </View>
         <View style={styles.coinPlaceholder}>
           <Image
-            source={require('../../../assets/coin.png')}
+            source={require('../../../assets/images/coin.png')}
             style={styles.coinImage}
             resizeMode="contain"
           />

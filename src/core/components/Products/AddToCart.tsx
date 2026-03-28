@@ -1361,8 +1361,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
     return 'Add to Cart';
   };
 
-  const successAnimation = require('../../animations/lotties/Success.json');
-  const failedAnimation = require('../../animations/lotties/Failed.json');
+  const successAnimation = require('../animations/lotties/Success.json');
+  const failedAnimation = require('../animations/lotties/Failed.json');
 
   // ✅ Compact version - Theme aware
   if (compact) {

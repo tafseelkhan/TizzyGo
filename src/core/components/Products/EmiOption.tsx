@@ -1,11 +1,11 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import Icon from 'react-native-vector-icons/FontAwesome5';
 
 const EmiOption: React.FC = () => {
   return (
     <TouchableOpacity style={styles.emiButton}>
-      <FontAwesome5 name="credit-card" size={15} color="#FFFFFF" />
+      <Icon name="credit-card" size={15} color="#FFFFFF" />
       <Text style={styles.emiButtonText}>EMI</Text>
     </TouchableOpacity>
   );

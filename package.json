@@ -10,7 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@flixora/airxpay-payment-react-native": "^0.0.1",
+    "@flixora/airxpay-payment-react-native": "^0.0.3",
     "@react-native-async-storage/async-storage": "^1.21.0",
     "@react-native/new-app-screen": "0.84.1",
     "@react-navigation/native": "^7.1.34",

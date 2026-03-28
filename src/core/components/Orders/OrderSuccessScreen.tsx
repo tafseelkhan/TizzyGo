@@ -43,8 +43,8 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 const { width, height } = Dimensions.get('window');
 
 // Animation JSON files
-const SUCCESS_ANIMATION_LIGHT = require('../../animations/lotties/successcheck.json');
-const DELIVERY_ANIMATION = require('../../animations/lotties/delivery.json');
+const SUCCESS_ANIMATION_LIGHT = require('../animations/lotties/successcheck.json');
+const DELIVERY_ANIMATION = require('../animations/lotties/delivery.json');
 
 // Define delivery status types based on your DB model (EXACT MATCH WITH DB ENUM)
 type DeliveryStatus =
