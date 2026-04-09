@@ -132,7 +132,7 @@ const ProductDetailScreen: React.FC = () => {
       console.log('📡 Fetching product with ID:', productId);
 
       const response = await axios.get(
-        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
       );
 
       console.log('✅ API Response:', response.data);

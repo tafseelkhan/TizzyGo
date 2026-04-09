@@ -87,7 +87,7 @@ type ProductDetailRouteProp = RouteProp<RootStackParamList, 'ProductDetail'>;
 // Fetch product with variants
 const fetchProduct = async (productId: string): Promise<Product> => {
   try {
-    const apiUrl = `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`;
+    const apiUrl = `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`;
 
     const response = await fetch(apiUrl);
 

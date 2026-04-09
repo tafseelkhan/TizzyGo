@@ -4,8 +4,8 @@ import { Alert, Platform } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 
 // Base URL - aapka local IP ya production URL
-const BASE_URL = 'http://192.168.42.121:5000';
-const CART_BASE_URL = 'http://192.168.42.121:5000';
+const BASE_URL = 'http://192.168.251.121:5000';
+const CART_BASE_URL = 'http://192.168.251.121:5000';
 
 // Internal API Key
 const INTERNAL_API_KEY =

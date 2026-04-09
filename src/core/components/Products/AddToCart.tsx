@@ -24,8 +24,8 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const CART_API_URL = 'http://172.20.10.12:5000';
-const PRODUCT_API_URL = 'http://172.20.10.12:5000';
+const CART_API_URL = 'http://192.168.251.121:5000';
+const PRODUCT_API_URL = 'http://192.168.251.121:5000';
 
 // ✅ Get theme-based colors
 const getThemeColors = (isDark: boolean) => {

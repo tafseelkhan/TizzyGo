@@ -998,7 +998,7 @@ const ProductInfo: React.FC<any> = props => {
       }
 
       const response = await axios.get(
-        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
         {
           timeout: 10000,
         },
@@ -1031,7 +1031,7 @@ const ProductInfo: React.FC<any> = props => {
 
     try {
       const response = await axios.get(
-        `http://172.20.10.12:5000/api/rating-review/rating/stats/${productId}`,
+        `http://192.168.251.121:5000/api/rating-review/rating/stats/${productId}`,
         { timeout: 5000 },
       );
 
@@ -1048,7 +1048,7 @@ const ProductInfo: React.FC<any> = props => {
 
     try {
       const response = await axios.get(
-        `http://172.20.10.12:5000/api/rating-review/rating/reviews/${productId}?limit=6`,
+        `http://192.168.251.121:5000/api/rating-review/rating/reviews/${productId}?limit=6`,
         { timeout: 5000 },
       );
 

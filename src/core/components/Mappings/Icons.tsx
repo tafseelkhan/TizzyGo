@@ -213,11 +213,11 @@ const ProductHighlights: React.FC<ProductHighlightsProps> = ({
         console.log('✅ Fetching product with ID:', productId);
         console.log(
           '🔗 API URL:',
-          `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+          `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
         );
 
         const response = await fetch(
-          `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+          `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
           {
             method: 'GET',
             headers: {
@@ -397,7 +397,7 @@ const ProductHighlights: React.FC<ProductHighlightsProps> = ({
             setLoading(true);
             setApiError(null);
             fetch(
-              `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+              `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
             )
               .then(res => res.json())
               .then(data => {

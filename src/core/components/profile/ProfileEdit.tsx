@@ -332,7 +332,7 @@ export default function EditProfileScreen() {
           return;
         }
 
-        const res = await fetch('http://192.168.42.121:5000/api/profile/me', {
+        const res = await fetch('http://192.168.251.121:5000/api/profile/me', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -445,7 +445,7 @@ export default function EditProfileScreen() {
 
       console.log('🚀 Sending update request...');
 
-      const res = await fetch('http://192.168.42.121:5000/api/profile/update', {
+      const res = await fetch('http://192.168.251.121:5000/api/profile/update', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

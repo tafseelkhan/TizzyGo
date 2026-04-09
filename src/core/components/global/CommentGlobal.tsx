@@ -123,7 +123,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
     '🎨', '🎤', '🎧', '📸', '📹', '🎥', '🖼️', '📺', '📻',
   ];
 
-  const backendBaseUrl = 'http://192.168.42.121:5000';
+  const backendBaseUrl = 'http://192.168.251.121:5000';
   const FETCH_TIMEOUT = 10000;
 
   // ✅ DARK MODE COLORS

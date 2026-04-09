@@ -25,7 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../contexts/theme/ThemeContext";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const BASE_URL = "http://192.168.42.121:5000";
+const BASE_URL = "http://192.168.251.121:5000";
 
 interface ProfileData {
   _id: string;

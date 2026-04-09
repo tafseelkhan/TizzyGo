@@ -100,7 +100,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   const buttonScale = useRef(new Animated.Value(1)).current;
   const cardElevation = useRef(new Animated.Value(0)).current;
 
-  const API_BASE_URL = 'http://172.20.10.12:5000';
+  const API_BASE_URL = 'http://192.168.251.121:5000';
 
   // Auth token fetch
   useEffect(() => {

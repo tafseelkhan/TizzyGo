@@ -49,7 +49,7 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://192.168.42.121:5000';
+const API_BASE_URL = 'http://192.168.251.121:5000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -677,7 +677,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.42.121:5000/api/seller/forms/categories',
+        'http://192.168.251.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -711,7 +711,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.42.121:5000/api/seller/forms/categories',
+        'http://192.168.251.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
       if (data.success && Array.isArray(data.products)) {

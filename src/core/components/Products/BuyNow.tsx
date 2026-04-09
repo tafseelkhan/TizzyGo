@@ -168,7 +168,7 @@ const ThumbIconComponent = ({ isDark = false }) => (
 const fetchSavedBuyNowCartItem = async (productId: string, token: string) => {
   try {
     const response = await fetch(
-      `http://172.20.10.12:5000/api/cart/buynow-item?productId=${encodeURIComponent(
+      `http://192.168.251.121:5000/api/cart/buynow-item?productId=${encodeURIComponent(
         productId,
       )}`,
       {
@@ -216,7 +216,7 @@ const clearSavedBuyNowCart = async (productId: string) => {
     if (!token) return false;
 
     const response = await fetch(
-      'http://172.20.10.12:5000/api/cart/clear-buynow',
+      'http://192.168.251.121:5000/api/cart/clear-buynow',
       {
         method: 'DELETE',
         headers: {
@@ -557,7 +557,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
       }
 
       const token = await AsyncStorage.getItem('authToken');
-      const res = await fetch('http://172.20.10.12:5000/api/cart/buy-now', {
+      const res = await fetch('http://192.168.251.121:5000/api/cart/buy-now', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -627,7 +627,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
         requestBody.selectedVariant = selectedVariant;
       }
 
-      const res = await fetch('http://172.20.10.12:5000/api/cart/buy-now', {
+      const res = await fetch('http://192.168.251.121:5000/api/cart/buy-now', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -888,7 +888,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
         requestBody.selectedVariant = selectedVariant;
       }
 
-      const res = await fetch('http://172.20.10.12:5000/api/cart/buy-now', {
+      const res = await fetch('http://192.168.251.121:5000/api/cart/buy-now', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

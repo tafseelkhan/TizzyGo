@@ -93,7 +93,7 @@ interface RatingStats {
   totalReviews: number;
 }
 
-const RATING_API_BASE = 'http://172.20.10.12:5000/api/rating-review/rating';
+const RATING_API_BASE = 'http://192.168.251.121:5000/api/rating-review/rating';
 
 const ProductDetailInfo: React.FC = () => {
   const navigation = useNavigation();
@@ -623,7 +623,7 @@ const ProductDetailInfo: React.FC = () => {
       console.log('📡 Fetching product from API with ID:', productId);
 
       const response = await axios.get(
-        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
         { timeout: 10000 },
       );
 

@@ -21,7 +21,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = 'http://172.20.10.12:5000/api';
+const API_BASE_URL = 'http://192.168.251.121:5000/api';
 
 const YourOrdersScreen = () => {
   const [orders, setOrders] = useState<any[]>([]);
