@@ -1,4 +1,4 @@
-// screens/CheckoutStepper.tsx
+// screens/CheckoutStepper.tsx - FINAL FIXED CODE
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -36,7 +36,8 @@ import {
 } from './AddToCart';
 import PaymentStep from './PaymentStep';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { API_URL } from '@env';
+
+const API_URL = 'http://172.20.10.12:5000';
 
 // ✅ Color Palette with theme support
 const getColors = (isDark: boolean) => ({
@@ -59,16 +60,6 @@ const getColors = (isDark: boolean) => ({
   shadow: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(124, 58, 237, 0.1)',
   gradientStart: '#7C3AED',
   gradientEnd: '#3B82F6',
-  darkBackground: '#0F172A',
-  darkSurface: '#1E293B',
-  darkBorder: '#334155',
-  darkTextPrimary: '#F1F5F9',
-  darkTextSecondary: '#CBD5E1',
-  lightBackground: '#FFFFFF',
-  lightSurface: '#FFFFFF',
-  lightBorder: '#E5E7EB',
-  lightTextPrimary: '#1E293B',
-  lightTextSecondary: '#64748B',
 });
 
 // ✅ Animation Constants
@@ -79,21 +70,19 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const isSmallDevice = SCREEN_HEIGHT < 700;
 const isLargeDevice = SCREEN_HEIGHT >= 800;
 
-// Font size scaling
 const scaleFont = (baseSize: number) => {
   if (isSmallDevice) return baseSize - 2;
   if (isLargeDevice) return baseSize + 2;
   return baseSize;
 };
 
-// Spacing scaling
 const scaleSpacing = (baseSpacing: number) => {
   if (isSmallDevice) return baseSpacing - 2;
   if (isLargeDevice) return baseSpacing + 2;
   return baseSpacing;
 };
 
-// ✅ Haptic Feedback Helper Function using Vibration
+// ✅ Haptic Feedback
 const triggerHaptic = (
   type:
     | 'light'
@@ -147,15 +136,14 @@ const formatTruncate2Decimals = (value: number): string => {
 const getExactTotal = (calculatedData: CalculatedData | null): string => {
   if (
     !calculatedData ||
-    !calculatedData.totalFinalPrice ||
-    isNaN(calculatedData.totalFinalPrice)
+    !calculatedData.grandTotal ||
+    isNaN(calculatedData.grandTotal)
   ) {
     return '0.00';
   }
-  return formatTruncate2Decimals(calculatedData.totalFinalPrice);
+  return formatTruncate2Decimals(calculatedData.grandTotal);
 };
 
-// Helper function to parse coordinates
 const parseCoordinate = (
   value: string | number | null | undefined,
 ): number | null => {
@@ -168,32 +156,21 @@ const parseCoordinate = (
   return null;
 };
 
-// ✅ Type-safe web style helper
-const webStyle = <T extends Record<string, any>>(style: T): Partial<T> => {
-  if (Platform.OS !== 'web') return {};
-  return style as Partial<T>;
-};
-
 const CheckoutStepper: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-
-  // ✅ Theme context
   const { isDark } = useTheme();
   const COLORS = getColors(isDark);
 
-  // Extract route params
   const productId = route.params?.productId || null;
   const fromCart = route.params?.fromCart || false;
   const cartQuantity = route.params?.cartQuantity || 1;
   const routeProductData = route.params?.productData || null;
 
-  // ✅ Animation Refs
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // State management
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [calculating, setCalculating] = useState<boolean>(false);
@@ -202,7 +179,6 @@ const CheckoutStepper: React.FC = () => {
   const [calculatedData, setCalculatedData] = useState<CalculatedData | null>(
     null,
   );
-  const [backendResponse, setBackendResponse] = useState<any>(null);
   const [placingOrder, setPlacingOrder] = useState<boolean>(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
@@ -213,7 +189,15 @@ const CheckoutStepper: React.FC = () => {
   const [cartLoading, setCartLoading] = useState<boolean>(false);
   const [userId, setUserId] = useState<string>('user123');
 
-  // Checkout data state
+  // ✅ Store essential product info
+  const [essentialProductInfo, setEssentialProductInfo] = useState<{
+    mongoObjectId: string;
+    displayProductId: string;
+    vendorCodeUID: string;
+    sellerId: string;
+    sellerLocation?: any;
+  } | null>(null);
+
   const [checkoutData, setCheckoutData] = useState<CheckoutData>({
     productId: productId || '',
     quantity: fromCart ? cartQuantity : 1,
@@ -228,22 +212,17 @@ const CheckoutStepper: React.FC = () => {
     orderNotes: '',
   });
 
-  // Refs for debouncing and tracking - FIXED: Use ReturnType<typeof setTimeout>
-  const calculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const calculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const isCalculatingRef = useRef<boolean>(false);
   const lastAppliedCouponRef = useRef<string>('');
 
-  // ✅ Fixed Toast function
   const showToast = {
-    error: (message: string) => {
-      Alert.alert('Error', message);
-    },
-    success: (message: string) => {
-      Alert.alert('Success', message);
-    },
+    error: (message: string) => Alert.alert('Error', message),
+    success: (message: string) => Alert.alert('Success', message),
   };
 
-  // ✅ Step Change Animation
   const animateStepChange = (
     newStep: number,
     direction: 'forward' | 'backward',
@@ -266,7 +245,6 @@ const CheckoutStepper: React.FC = () => {
       slideAnim.setValue(
         direction === 'forward' ? SCREEN_WIDTH : -SCREEN_WIDTH,
       );
-
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -290,16 +268,13 @@ const CheckoutStepper: React.FC = () => {
     });
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (calculationTimeoutRef.current) {
+      if (calculationTimeoutRef.current)
         clearTimeout(calculationTimeoutRef.current);
-      }
     };
   }, []);
 
-  // Initial data loading
   useEffect(() => {
     if (productId) {
       fetchUserId();
@@ -338,15 +313,49 @@ const CheckoutStepper: React.FC = () => {
         console.log('📡 Fetching product from API');
         const productUrl = `${API_URL}/api/seller/forms/categories/${productId}`;
         const response = await axios.get(productUrl, { timeout: 10000 });
-
         if (response.data.product) productData = response.data.product;
         else if (response.data.data) productData = response.data.data;
         else productData = response.data;
       }
 
       console.log('🎯 Product loaded:', productData.title);
+
+      const mongoObjectId = productData._id || '';
+      const displayProductId = (productData as any).productId || productId;
+      const vendorCodeUIDStr = (productData as any).vendorCodeUID || '';
+      const sellerIdStr = (productData as any).sellerId || '';
+      const sellerLocationData = (productData as any).sellerLocation || null;
+
+      console.log('📦 MongoDB ObjectId:', mongoObjectId);
+      console.log('📦 Display Product ID:', displayProductId);
+      console.log('📦 Vendor Code UID:', vendorCodeUIDStr);
+      console.log('📦 Seller ID:', sellerIdStr);
+
+      setEssentialProductInfo({
+        mongoObjectId: mongoObjectId,
+        displayProductId: displayProductId,
+        vendorCodeUID: vendorCodeUIDStr,
+        sellerId: sellerIdStr,
+        sellerLocation: sellerLocationData,
+      });
+
       setProduct(productData);
-      await fetchInitialCalculation(productData);
+
+      // ✅ CRITICAL FIX: Wait for essentialProductInfo to be set before calculation
+      if (
+        mongoObjectId &&
+        displayProductId &&
+        vendorCodeUIDStr &&
+        sellerIdStr
+      ) {
+        await fetchInitialCalculationWithData(
+          mongoObjectId,
+          displayProductId,
+          vendorCodeUIDStr,
+          sellerIdStr,
+          checkoutData.quantity,
+        );
+      }
 
       if (!fromCart) {
         await checkIfInCart(productData);
@@ -357,12 +366,62 @@ const CheckoutStepper: React.FC = () => {
       if (error.response?.status === 404) errorMessage = 'Product not found';
       else if (error.code === 'ERR_NETWORK')
         errorMessage = 'Cannot connect to server.';
-
       Alert.alert('Product Load Failed', errorMessage, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Initial calculation with direct data
+  const fetchInitialCalculationWithData = async (
+    mongoObjectId: string,
+    displayProductId: string,
+    vendorCodeUID: string,
+    sellerId: string,
+    quantity: number,
+  ) => {
+    console.log('\n💰 STEP 1: Initial calculation with direct data');
+
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      setCalculating(true);
+
+      // ✅ Build URL with query params
+      const params = new URLSearchParams();
+      params.append('productId', mongoObjectId);
+      params.append('quantity', quantity.toString());
+      params.append('vendorCodeUID', vendorCodeUID);
+      params.append('sellerId', sellerId);
+      params.append('productDataId', displayProductId);
+
+      const url = `${API_URL}/api/buyer/buy?${params.toString()}`;
+
+      console.log('📤 Sending GET request to:', url);
+
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        timeout: 15000,
+      });
+
+      console.log('📥 Initial calculation response:', response.data);
+
+      if (response.data && response.data.calculated) {
+        setCalculatedData(response.data.calculated);
+      }
+    } catch (error: any) {
+      console.error('❌ Calculation error:', error.message);
+      Alert.alert(
+        'Calculation Error',
+        error.response?.data?.message ||
+          'Price calculation failed. Please try again.',
+      );
+    } finally {
+      setCalculating(false);
     }
   };
 
@@ -389,63 +448,7 @@ const CheckoutStepper: React.FC = () => {
     setCouponSuccess(null);
   };
 
-  const fetchInitialCalculation = async (productData: Product) => {
-    console.log('\n💰 STEP 1: Initial calculation');
-
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      setCalculating(true);
-
-      const params: any = {
-        productId,
-        quantity: checkoutData.quantity,
-      };
-
-      if (productData.sellerLocation) {
-        const sellerLat =
-          productData.sellerLocation.latitude || productData.sellerLocation.lat;
-        const sellerLng =
-          productData.sellerLocation.longitude ||
-          productData.sellerLocation.lng;
-
-        if (sellerLat && sellerLng) {
-          params.sellerLat = sellerLat;
-          params.sellerLng = sellerLng;
-        }
-      }
-
-      const response = await axios.get(`${API_URL}/api/buyer/buy`, {
-        params,
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        timeout: 15000,
-        validateStatus: status => status < 500,
-      });
-
-      if (response.status >= 400) {
-        throw new Error(
-          response.data?.error ||
-            `Request failed with status ${response.status}`,
-        );
-      }
-
-      if (response.data && response.data.calculated) {
-        setCalculatedData(response.data.calculated);
-      }
-    } catch (error: any) {
-      console.error('❌ Calculation error:', error.message);
-      Alert.alert(
-        'Calculation Error',
-        'Price calculation failed. Please try again.',
-      );
-    } finally {
-      setCalculating(false);
-    }
-  };
-
-  // ✅ FIXED: Main calculation function
+  // ✅ FIXED: Main calculation - Build URL properly with null checks
   const fetchCalculatedData = useCallback(
     async (
       options: {
@@ -454,95 +457,102 @@ const CheckoutStepper: React.FC = () => {
         isLocationUpdate?: boolean;
       } = {},
     ) => {
-      if (isCalculatingRef.current) {
-        return;
-      }
-
-      if (calculationTimeoutRef.current) {
+      if (isCalculatingRef.current) return;
+      if (calculationTimeoutRef.current)
         clearTimeout(calculationTimeoutRef.current);
-      }
 
       calculationTimeoutRef.current = setTimeout(async () => {
-        if (!productId || !product) {
-          return;
-        }
+        if (!productId || !essentialProductInfo) return;
 
         try {
           isCalculatingRef.current = true;
           const token = await AsyncStorage.getItem('authToken');
           setCalculating(true);
 
-          if (!options.skipCouponCheck) {
-            clearCouponMessages();
-          }
+          if (!options.skipCouponCheck) clearCouponMessages();
 
-          const params: any = {
-            productId,
-            quantity: checkoutData.quantity,
-          };
+          // ✅ Build URL with query params
+          const params = new URLSearchParams();
+          params.append('productId', essentialProductInfo.mongoObjectId);
+          params.append('quantity', checkoutData.quantity.toString());
+          params.append('vendorCodeUID', essentialProductInfo.vendorCodeUID);
+          params.append('sellerId', essentialProductInfo.sellerId);
+          params.append('productDataId', essentialProductInfo.displayProductId);
 
           if (options.isLocationUpdate) {
-            params.isLocationUpdate = 'true';
+            params.append('isLocationUpdate', 'true');
           }
 
-          // Seller location
-          if (product.sellerLocation) {
+          // ✅ Send seller location
+          if (essentialProductInfo.sellerLocation) {
             const sellerLat =
-              product.sellerLocation.latitude || product.sellerLocation.lat;
+              essentialProductInfo.sellerLocation.latitude ||
+              essentialProductInfo.sellerLocation.lat;
             const sellerLng =
-              product.sellerLocation.longitude || product.sellerLocation.lng;
-
+              essentialProductInfo.sellerLocation.longitude ||
+              essentialProductInfo.sellerLocation.lng;
             if (sellerLat && sellerLng) {
-              params.sellerLat = sellerLat;
-              params.sellerLng = sellerLng;
+              params.append('sellerLat', sellerLat.toString());
+              params.append('sellerLng', sellerLng.toString());
             }
-            if (product.sellerLocation.address) {
-              params.sellerAddress = product.sellerLocation.address;
+            if (essentialProductInfo.sellerLocation.address) {
+              params.append(
+                'sellerAddress',
+                essentialProductInfo.sellerLocation.address,
+              );
             }
-            if (product.sellerLocation.googlePlaceId) {
-              params.sellerGooglePlaceId = product.sellerLocation.googlePlaceId;
+            if (essentialProductInfo.sellerLocation.googlePlaceId) {
+              params.append(
+                'sellerGooglePlaceId',
+                essentialProductInfo.sellerLocation.googlePlaceId,
+              );
             }
           }
 
-          // Buyer location
+          // ✅ Send buyer location - FIXED: proper null checks
           const shippingAddress = checkoutData.shippingAddress;
+          const buyerLatValue = shippingAddress.latitude;
+          const buyerLngValue = shippingAddress.longitude;
           const hasValidBuyerLocation =
             shippingAddress &&
-            shippingAddress.latitude !== null &&
-            shippingAddress.longitude !== null &&
-            shippingAddress.latitude !== 0 &&
-            shippingAddress.longitude !== 0;
+            buyerLatValue !== null &&
+            buyerLngValue !== null &&
+            buyerLatValue !== 0 &&
+            buyerLngValue !== 0;
 
           if (hasValidBuyerLocation) {
-            params.buyerLat = shippingAddress.latitude;
-            params.buyerLng = shippingAddress.longitude;
+            params.append('buyerLat', buyerLatValue.toString());
+            params.append('buyerLng', buyerLngValue.toString());
             if (shippingAddress.address) {
-              params.buyerAddress = shippingAddress.address;
+              params.append('buyerAddress', shippingAddress.address);
             }
             if (shippingAddress.googlePlaceId) {
-              params.buyerGooglePlaceId = shippingAddress.googlePlaceId;
+              params.append(
+                'buyerGooglePlaceId',
+                shippingAddress.googlePlaceId,
+              );
             }
           }
 
-          // Coupon code
+          // ✅ Send coupon code
           const shouldSendCouponCode =
             checkoutData.couponCode &&
             checkoutData.couponCode.trim() !== '' &&
             !options.skipCouponOnAddressChange &&
             couponManuallyApplied;
-
           if (shouldSendCouponCode) {
-            params.couponCode = checkoutData.couponCode;
+            params.append('couponCode', checkoutData.couponCode);
           }
 
-          const response = await axios.get(`${API_URL}/api/buyer/buy`, {
-            params,
+          const url = `${API_URL}/api/buyer/buy?${params.toString()}`;
+          console.log('📤 Sending GET request to:', url);
+
+          const response = await axios.get(url, {
             headers: {
               Authorization: token ? `Bearer ${token}` : '',
               'Content-Type': 'application/json',
             },
             timeout: 20000,
-            validateStatus: status => status < 500,
           });
 
           if (response.data && response.data.calculated) {
@@ -581,6 +591,9 @@ const CheckoutStepper: React.FC = () => {
             setCouponError(error.response.data.message);
             setCouponManuallyApplied(false);
           }
+          if (error.response?.data?.error) {
+            Alert.alert('Error', error.response.data.error);
+          }
         } finally {
           isCalculatingRef.current = false;
           setCalculating(false);
@@ -589,7 +602,7 @@ const CheckoutStepper: React.FC = () => {
     },
     [
       productId,
-      product,
+      essentialProductInfo,
       checkoutData.quantity,
       checkoutData.shippingAddress,
       checkoutData.couponCode,
@@ -598,20 +611,20 @@ const CheckoutStepper: React.FC = () => {
     ],
   );
 
-  // ✅ Effect to trigger recalculation
+  // ✅ FIXED: useEffect with proper null checks
   useEffect(() => {
+    const buyerLatValue = checkoutData.shippingAddress?.latitude;
+    const buyerLngValue = checkoutData.shippingAddress?.longitude;
     const hasValidCoordinates =
       checkoutData.shippingAddress &&
-      checkoutData.shippingAddress.latitude !== null &&
-      checkoutData.shippingAddress.longitude !== null &&
-      checkoutData.shippingAddress.latitude !== 0 &&
-      checkoutData.shippingAddress.longitude !== 0;
+      buyerLatValue !== null &&
+      buyerLngValue !== null &&
+      buyerLatValue !== 0 &&
+      buyerLngValue !== 0;
 
-    if (hasValidCoordinates && product) {
-      if (calculationTimeoutRef.current) {
+    if (hasValidCoordinates && essentialProductInfo) {
+      if (calculationTimeoutRef.current)
         clearTimeout(calculationTimeoutRef.current);
-      }
-
       calculationTimeoutRef.current = setTimeout(() => {
         fetchCalculatedData({
           skipCouponOnAddressChange: true,
@@ -621,19 +634,17 @@ const CheckoutStepper: React.FC = () => {
     }
 
     return () => {
-      if (calculationTimeoutRef.current) {
+      if (calculationTimeoutRef.current)
         clearTimeout(calculationTimeoutRef.current);
-      }
     };
   }, [
     checkoutData.shippingAddress?.latitude,
     checkoutData.shippingAddress?.longitude,
     checkoutData.shippingAddress?.address,
-    product,
+    essentialProductInfo,
     fetchCalculatedData,
   ]);
 
-  // ✅ Handle address selected
   const handleAddressSelected = useCallback(
     (addressData: ShippingAddress) => {
       const processedAddress = {
@@ -641,23 +652,19 @@ const CheckoutStepper: React.FC = () => {
         latitude: parseCoordinate(addressData.latitude),
         longitude: parseCoordinate(addressData.longitude),
       };
-
-      setCheckoutData(prev => ({
-        ...prev,
-        shippingAddress: processedAddress,
-      }));
-
-      setTimeout(() => {
-        fetchCalculatedData({
-          skipCouponOnAddressChange: true,
-          isLocationUpdate: true,
-        });
-      }, 800);
+      setCheckoutData(prev => ({ ...prev, shippingAddress: processedAddress }));
+      setTimeout(
+        () =>
+          fetchCalculatedData({
+            skipCouponOnAddressChange: true,
+            isLocationUpdate: true,
+          }),
+        800,
+      );
     },
     [fetchCalculatedData],
   );
 
-  // ✅ FIXED: updateShippingAddress with generic type
   const updateShippingAddress = useCallback(
     (field: string | number | symbol, value: any) => {
       let processedValue = value;
@@ -667,56 +674,32 @@ const CheckoutStepper: React.FC = () => {
       ) {
         processedValue = parseCoordinate(value);
       }
-
       setCheckoutData(prev => ({
         ...prev,
-        shippingAddress: {
-          ...prev.shippingAddress,
-          [field]: processedValue,
-        },
+        shippingAddress: { ...prev.shippingAddress, [field]: processedValue },
       }));
     },
     [],
   );
 
-  // ✅ FIXED: updateCheckoutData with generic type
   const updateCheckoutData = useCallback(
     (key: string | number | symbol, value: any) => {
-      if (key === 'couponCode') {
-        clearCouponMessages();
-      }
-
-      setCheckoutData(prev => ({
-        ...prev,
-        [key]: value,
-      }));
-
-      if (key === 'quantity') {
-        setTimeout(() => {
-          fetchCalculatedData();
-        }, 300);
-      }
+      if (key === 'couponCode') clearCouponMessages();
+      setCheckoutData(prev => ({ ...prev, [key]: value }));
+      if (key === 'quantity') setTimeout(() => fetchCalculatedData(), 300);
     },
     [fetchCalculatedData],
   );
 
-  // ✅ Coupon handlers
   const handleApplyCoupon = async (couponCode: string) => {
     if (isApplyingCoupon || calculating) return;
-
-    if (couponManuallyApplied && calculatedData?.couponUsed === couponCode) {
+    if (couponManuallyApplied && calculatedData?.couponUsed === couponCode)
       return;
-    }
 
     try {
       setIsApplyingCoupon(true);
       clearCouponMessages();
-
-      setCheckoutData(prev => ({
-        ...prev,
-        couponCode: couponCode,
-      }));
-
+      setCheckoutData(prev => ({ ...prev, couponCode }));
       setCouponManuallyApplied(true);
       await fetchCalculatedData();
     } catch (error) {
@@ -729,16 +712,10 @@ const CheckoutStepper: React.FC = () => {
 
   const handleRemoveCoupon = async () => {
     if (isApplyingCoupon || calculating) return;
-
     try {
       setIsApplyingCoupon(true);
       clearCouponMessages();
-
-      setCheckoutData(prev => ({
-        ...prev,
-        couponCode: '',
-      }));
-
+      setCheckoutData(prev => ({ ...prev, couponCode: '' }));
       setCouponManuallyApplied(false);
       lastAppliedCouponRef.current = '';
       await fetchCalculatedData({ skipCouponCheck: true });
@@ -750,10 +727,8 @@ const CheckoutStepper: React.FC = () => {
     }
   };
 
-  // Cart handlers
   const handleAddToCart = async () => {
     if (!product) return;
-
     setIsAdding(true);
     try {
       const success = await addToCart({
@@ -761,7 +736,6 @@ const CheckoutStepper: React.FC = () => {
         productData: product,
         quantity: checkoutData.quantity,
       });
-
       if (success) {
         setIsInCart(true);
         Alert.alert('Success', 'Added to cart successfully!');
@@ -775,14 +749,12 @@ const CheckoutStepper: React.FC = () => {
 
   const handleUpdateCartQuantity = async (newQuantity: number) => {
     if (!product || newQuantity < 1) return;
-
     setCartLoading(true);
     try {
       const success = await updateCartItem({
         productId: product.id || product._id,
         quantity: newQuantity,
       });
-
       if (success) {
         setCheckoutData(prev => ({ ...prev, quantity: newQuantity }));
         Alert.alert('Success', 'Quantity updated successfully!');
@@ -796,7 +768,6 @@ const CheckoutStepper: React.FC = () => {
 
   const handleRemoveFromCart = async () => {
     if (!product) return;
-
     setCartLoading(true);
     try {
       const success = await removeFromCart(product.id || product._id);
@@ -816,7 +787,7 @@ const CheckoutStepper: React.FC = () => {
     updateCheckoutData('quantity', newQuantity);
   };
 
-  // Navigation handlers
+  // ✅ FIXED: handleNext with proper null checks
   const handleNext = () => {
     if (calculating || loading || isApplyingCoupon || placingOrder) {
       Alert.alert('Please Wait', 'Processing... Please wait.');
@@ -833,16 +804,13 @@ const CheckoutStepper: React.FC = () => {
     } else if (currentStep === 1) {
       const isFreeDelivery =
         product?.freeDelivery === true || product?.delivery === 'free';
-
       if (!isFreeDelivery) {
         if (!checkoutData.shippingAddress.address.trim()) {
           Alert.alert('Error', 'Please enter shipping address');
           return;
         }
-
         const lat = checkoutData.shippingAddress.latitude;
         const lng = checkoutData.shippingAddress.longitude;
-
         if (lat === null || lng === null || lat === 0 || lng === 0) {
           Alert.alert(
             'Error',
@@ -863,7 +831,6 @@ const CheckoutStepper: React.FC = () => {
     }
   };
 
-  // Step Circle Component
   const StepCircle = ({
     index,
     isActive,
@@ -874,7 +841,6 @@ const CheckoutStepper: React.FC = () => {
     isCompleted: boolean;
   }) => {
     const scaleAnim = useRef(new Animated.Value(isActive ? 1.1 : 1)).current;
-
     useEffect(() => {
       Animated.spring(scaleAnim, {
         toValue: isActive ? 1.1 : 1,
@@ -883,9 +849,7 @@ const CheckoutStepper: React.FC = () => {
         useNativeDriver: true,
       }).start();
     }, [isActive]);
-
     const circleSize = scaleSpacing(32);
-
     return (
       <Animated.View
         style={[
@@ -922,7 +886,6 @@ const CheckoutStepper: React.FC = () => {
     );
   };
 
-  // Render current step
   const renderCurrentStep = () => {
     const stepComponent = (() => {
       switch (currentStep) {
@@ -976,7 +939,6 @@ const CheckoutStepper: React.FC = () => {
           return null;
       }
     })();
-
     return (
       <Animated.View
         style={[
@@ -993,15 +955,10 @@ const CheckoutStepper: React.FC = () => {
     );
   };
 
-  const getTotal = (): string => {
-    return `₹${getExactTotal(calculatedData)}`;
-  };
+  const getTotal = (): string => `₹${getExactTotal(calculatedData)}`;
 
   const renderFooterButtons = () => {
-    if (currentStep === 2) {
-      return null;
-    }
-
+    if (currentStep === 2) return null;
     return (
       <View
         style={[
@@ -1016,10 +973,7 @@ const CheckoutStepper: React.FC = () => {
             style={[
               styles.secondaryButton,
               styles.buttonHover,
-              {
-                backgroundColor: COLORS.surface,
-                borderColor: COLORS.border,
-              },
+              { backgroundColor: COLORS.surface, borderColor: COLORS.border },
             ]}
             onPress={() => {
               triggerHaptic('light');
@@ -1037,7 +991,6 @@ const CheckoutStepper: React.FC = () => {
             </Text>
           </TouchableOpacity>
         )}
-
         <TouchableOpacity
           style={[
             styles.primaryButtonContainer,
@@ -1070,7 +1023,6 @@ const CheckoutStepper: React.FC = () => {
     );
   };
 
-  // Loading state
   if (loading && !product) {
     return (
       <View
@@ -1086,7 +1038,6 @@ const CheckoutStepper: React.FC = () => {
     );
   }
 
-  // Error state
   if (!product) {
     return (
       <View
@@ -1118,7 +1069,6 @@ const CheckoutStepper: React.FC = () => {
     );
   }
 
-  // Main render
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: COLORS.background }]}
@@ -1151,7 +1101,6 @@ const CheckoutStepper: React.FC = () => {
         {['Product', 'Address', 'Payment'].map((step, index) => {
           const isActive = index === currentStep;
           const isCompleted = index < currentStep;
-
           return (
             <View key={index} style={styles.stepItem}>
               <StepCircle
@@ -1175,7 +1124,6 @@ const CheckoutStepper: React.FC = () => {
               >
                 {step}
               </Text>
-
               {index < 2 && (
                 <View
                   style={[
@@ -1250,20 +1198,15 @@ const CheckoutStepper: React.FC = () => {
   );
 };
 
-// Styles remain the same as your existing styles...
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  loadingSpinner: {
-    transform: [{ scale: 1.1 }],
-  },
+  loadingSpinner: { transform: [{ scale: 1.1 }] },
   loadingText: {
     marginTop: scaleSpacing(12),
     fontSize: scaleFont(14),
@@ -1285,22 +1228,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: scaleSpacing(16),
   },
-  errorIconText: {
-    color: '#fff',
-    fontSize: scaleFont(28),
-    fontWeight: 'bold',
-  },
+  errorIconText: { color: '#fff', fontSize: scaleFont(28), fontWeight: 'bold' },
   errorText: {
     fontSize: scaleFont(16),
     marginBottom: scaleSpacing(20),
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  goBackButton: {
-    width: '80%',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
+  goBackButton: { width: '80%', borderRadius: 10, overflow: 'hidden' },
   gradientButton: {
     paddingHorizontal: scaleSpacing(20),
     paddingVertical: scaleSpacing(12),
@@ -1311,10 +1246,7 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(14),
     fontWeight: '600',
   },
-  headerGradient: {
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
+  headerGradient: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1323,10 +1255,7 @@ const styles = StyleSheet.create({
     paddingVertical: scaleSpacing(12),
     paddingTop: Platform.OS === 'ios' ? scaleSpacing(8) : scaleSpacing(12),
   },
-  backButton: {
-    padding: scaleSpacing(8),
-    borderRadius: 10,
-  },
+  backButton: { padding: scaleSpacing(8), borderRadius: 10 },
   headerBackText: {
     fontSize: scaleFont(20),
     fontWeight: 'bold',
@@ -1338,9 +1267,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 0.3,
   },
-  headerSpacer: {
-    width: scaleSpacing(36),
-  },
+  headerSpacer: { width: scaleSpacing(36) },
   stepIndicatorContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1364,33 +1291,18 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   activeStep: {},
-  completedStep: {
-    backgroundColor: '#10B981',
-  },
-  stepNumber: {
-    fontWeight: 'bold',
-    fontSize: scaleFont(12),
-  },
-  activeStepNumber: {
-    color: '#fff',
-  },
-  stepCheck: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: scaleFont(14),
-  },
+  completedStep: { backgroundColor: '#10B981' },
+  stepNumber: { fontWeight: 'bold', fontSize: scaleFont(12) },
+  activeStepNumber: { color: '#fff' },
+  stepCheck: { color: '#fff', fontWeight: 'bold', fontSize: scaleFont(14) },
   stepText: {
     fontSize: scaleFont(10),
     fontWeight: '600',
     textAlign: 'center',
     marginTop: scaleSpacing(2),
   },
-  activeStepText: {
-    fontWeight: '700',
-  },
-  completedStepText: {
-    fontWeight: '600',
-  },
+  activeStepText: { fontWeight: '700' },
+  completedStepText: { fontWeight: '600' },
   stepConnector: {
     position: 'absolute',
     top: scaleSpacing(16),
@@ -1405,21 +1317,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: scaleSpacing(12),
     paddingVertical: scaleSpacing(8),
   },
-  scrollContent: {
-    paddingBottom: scaleSpacing(100),
-  },
+  scrollContent: { paddingBottom: scaleSpacing(100) },
   stepContainer: {
     borderRadius: 12,
     padding: scaleSpacing(16),
     marginBottom: scaleSpacing(12),
   },
-  footerGradient: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  footer: {
-    padding: scaleSpacing(16),
-  },
+  footerGradient: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+  footer: { padding: scaleSpacing(16) },
   priceCard: {
     borderRadius: 10,
     padding: scaleSpacing(12),
@@ -1430,17 +1335,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  totalLabel: {
-    fontSize: scaleFont(14),
-    fontWeight: '600',
-  },
-  totalContainer: {
-    alignItems: 'flex-end',
-  },
-  totalPrice: {
-    fontSize: scaleFont(22),
-    fontWeight: 'bold',
-  },
+  totalLabel: { fontSize: scaleFont(14), fontWeight: '600' },
+  totalContainer: { alignItems: 'flex-end' },
+  totalPrice: { fontSize: scaleFont(22), fontWeight: 'bold' },
   discountBadge: {
     fontSize: scaleFont(10),
     paddingHorizontal: scaleSpacing(6),
@@ -1449,16 +1346,9 @@ const styles = StyleSheet.create({
     marginTop: scaleSpacing(2),
     fontWeight: '600',
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: scaleSpacing(10),
-  },
-  buttonRowWithBack: {
-    justifyContent: 'space-between',
-  },
-  buttonRowWithoutBack: {
-    justifyContent: 'flex-end',
-  },
+  buttonContainer: { flexDirection: 'row', gap: scaleSpacing(10) },
+  buttonRowWithBack: { justifyContent: 'space-between' },
+  buttonRowWithoutBack: { justifyContent: 'flex-end' },
   primaryButtonContainer: {
     flex: 1,
     borderRadius: 10,
@@ -1497,13 +1387,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minHeight: scaleSpacing(44),
   },
-  secondaryButtonText: {
-    fontSize: scaleFont(14),
-    fontWeight: '600',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
+  secondaryButtonText: { fontSize: scaleFont(14), fontWeight: '600' },
+  disabledButton: { opacity: 0.6 },
   buttonHover: {},
 });
 

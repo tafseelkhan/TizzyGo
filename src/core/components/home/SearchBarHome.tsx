@@ -29,7 +29,7 @@ import { jwtDecode } from 'jwt-decode';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // API Base URL
-const API_BASE_URL = 'http://192.168.251.121:5000';
+const API_BASE_URL = 'http://172.20.10.12:5000';
 
 // Helper function to extract user ID from token
 const getUserIdFromToken = async (): Promise<string | null> => {

@@ -63,7 +63,7 @@ const ProductShare: React.FC<Props> = ({
       setLoading(true);
       const token = await AsyncStorage.getItem('authToken');
 
-      const res = await fetch('http://192.168.251.121:5000/api/shares/create', {
+      const res = await fetch('http://172.20.10.12:5000/api/shares/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

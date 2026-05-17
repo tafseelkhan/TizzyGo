@@ -423,7 +423,7 @@ const OrderSuccessScreen: React.FC = () => {
       }
 
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/orders/tracking/live/${params.orderId}`,
+        `http://172.20.10.12:5000/api/orders/tracking/live/${params.orderId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -497,7 +497,7 @@ const OrderSuccessScreen: React.FC = () => {
       console.log('📡 Fetching order details for:', params.orderId);
 
       const orderResponse = await axios.get(
-        `http://192.168.251.121:5000/api/orders/delivery/${params.orderId}`,
+        `http://172.20.10.12:5000/api/orders/delivery/${params.orderId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -590,7 +590,7 @@ const OrderSuccessScreen: React.FC = () => {
       console.log('🚚 Fetching live delivery data...');
 
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/orders/tracking/live/${orderId}`,
+        `http://172.20.10.12:5000/api/orders/tracking/live/${orderId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

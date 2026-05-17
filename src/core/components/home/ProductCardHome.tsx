@@ -207,14 +207,14 @@ const RatingDisplay = ({
     const fetchRatingData = async () => {
       try {
         const statsResponse = await axios.get(
-          `http://192.168.251.121:5000/api/rating-review/rating/stats/${productId}`,
+          `http://172.20.10.12:5000/api/rating-review/rating/stats/${productId}`,
         );
         if (statsResponse.data.success) {
           setRatingStats(statsResponse.data.data);
         }
 
         const reviewsResponse = await axios.get(
-          `http://192.168.251.121:5000/api/rating-review/rating/reviews/${productId}?limit=10`,
+          `http://172.20.10.12:5000/api/rating-review/rating/reviews/${productId}?limit=10`,
         );
         if (reviewsResponse.data.success) {
           setReviews(reviewsResponse.data.data || []);
@@ -225,7 +225,7 @@ const RatingDisplay = ({
         if (token) {
           try {
             const userReviewResponse = await axios.get(
-              `http://192.168.251.121:5000/api/rating-review/rating/user/${productId}`,
+              `http://172.20.10.12:5000/api/rating-review/rating/user/${productId}`,
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
@@ -254,14 +254,14 @@ const RatingDisplay = ({
   const fetchRatingData = async () => {
     try {
       const statsResponse = await axios.get(
-        `http://192.168.251.121:5000/api/rating-review/rating/stats/${productId}`,
+        `http://172.20.10.12:5000/api/rating-review/rating/stats/${productId}`,
       );
       if (statsResponse.data.success) {
         setRatingStats(statsResponse.data.data);
       }
 
       const reviewsResponse = await axios.get(
-        `http://192.168.251.121:5000/api/rating-review/rating/reviews/${productId}?limit=10`,
+        `http://172.20.10.12:5000/api/rating-review/rating/reviews/${productId}?limit=10`,
       );
       if (reviewsResponse.data.success) {
         setReviews(reviewsResponse.data.data || []);
@@ -271,7 +271,7 @@ const RatingDisplay = ({
       if (token) {
         try {
           const userReviewResponse = await axios.get(
-            `http://192.168.251.121:5000/api/rating-review/rating/user/${productId}`,
+            `http://172.20.10.12:5000/api/rating-review/rating/user/${productId}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -307,8 +307,8 @@ const RatingDisplay = ({
       };
 
       const endpoint = userReview
-        ? `http://192.168.251.121:5000/api/rating-review/rating/${userReview._id}`
-        : `http://192.168.251.121:5000/api/rating-review/rating`;
+        ? `http://172.20.10.12:5000/api/rating-review/rating/${userReview._id}`
+        : `http://172.20.10.12:5000/api/rating-review/rating`;
       const method = userReview ? 'put' : 'post';
 
       const response = await axios({
@@ -352,7 +352,7 @@ const RatingDisplay = ({
       }
 
       await axios.delete(
-        `http://192.168.251.121:5000/api/rating-review/rating/${userReview._id}`,
+        `http://172.20.10.12:5000/api/rating-review/rating/${userReview._id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

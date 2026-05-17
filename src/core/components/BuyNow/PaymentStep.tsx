@@ -20,7 +20,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { useAirXPay } from '@flixora/airxpay-payment-react-native';
+import { useZeptPay } from '@flixora/zeptpay-payment-react-native';
 
 interface PaymentStepProps {
   checkoutData: CheckoutData;
@@ -45,47 +45,47 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   const navigation = useNavigation<any>();
   const { isDark } = useTheme();
 
-  // ✅ AirXPay SDK hooks - Use as any to avoid type errors initially
-  const airXPayHook = useAirXPay();
+  // ✅ ZeptPay SDK hooks - Use as any to avoid type errors initially
+  const zeptPayHook = useZeptPay();
 
   // Log available properties for debugging (remove in production)
   useEffect(() => {
     console.log(
-      '🔍 Available AirXPay hook properties:',
-      Object.keys(airXPayHook),
+      '🔍 Available ZeptPay hook properties:',
+      Object.keys(zeptPayHook),
     );
   }, []);
 
   // Dynamic property extraction with fallbacks
-  const openAirXPayPaymentSheet =
-    (airXPayHook as any).openAirXPayPaymentSheet ||
-    (airXPayHook as any).pay ||
-    (airXPayHook as any).initiatePayment ||
-    (airXPayHook as any).startPayment;
+  const openZeptPayPaymentSheet =
+    (zeptPayHook as any).openZeptPayPaymentSheet ||
+    (zeptPayHook as any).pay ||
+    (zeptPayHook as any).initiatePayment ||
+    (zeptPayHook as any).startPayment;
 
-  const isVerified = (airXPayHook as any).isVerified || false;
-  const health = (airXPayHook as any).health || {
+  const isVerified = (zeptPayHook as any).isVerified || false;
+  const health = (zeptPayHook as any).health || {
     status: 'unknown',
     mode: 'test',
   };
   const verifyProvider =
-    (airXPayHook as any).verifyProvider ||
+    (zeptPayHook as any).verifyProvider ||
     (() => console.log('verifyProvider not available'));
 
   const confirmPayment =
-    (airXPayHook as any).confirmPayment ||
-    (airXPayHook as any).onSuccess ||
-    (airXPayHook as any).showSuccess;
+    (zeptPayHook as any).confirmPayment ||
+    (zeptPayHook as any).onSuccess ||
+    (zeptPayHook as any).showSuccess;
 
   const failPayment =
-    (airXPayHook as any).failPayment ||
-    (airXPayHook as any).onError ||
-    (airXPayHook as any).showError;
+    (zeptPayHook as any).failPayment ||
+    (zeptPayHook as any).onError ||
+    (zeptPayHook as any).showError;
 
   const setPaymentLoading =
-    (airXPayHook as any).setPaymentLoading ||
-    (airXPayHook as any).setLoading ||
-    (airXPayHook as any).showProcessing;
+    (zeptPayHook as any).setPaymentLoading ||
+    (zeptPayHook as any).setLoading ||
+    (zeptPayHook as any).showProcessing;
 
   const [loading, setLoading] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
@@ -100,7 +100,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   const buttonScale = useRef(new Animated.Value(1)).current;
   const cardElevation = useRef(new Animated.Value(0)).current;
 
-  const API_BASE_URL = 'http://192.168.251.121:5000';
+  const API_BASE_URL = 'http://172.20.10.12:5000';
 
   // Auth token fetch
   useEffect(() => {
@@ -146,7 +146,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
     paymentMethod,
   ]);
 
-  // AirXPay health check
+  // ZeptPay health check
   useEffect(() => {
     if (paymentMethod === 'online' && verifyProvider) {
       console.log('🏥 Health:', { isVerified, status: health?.status });
@@ -223,7 +223,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
       hasPaymentSheetData: !!paymentSheetData,
       isVerified,
       paymentType: paymentSheetData?.paymentType,
-      hasOpenPaymentSheet: !!openAirXPayPaymentSheet,
+      hasOpenPaymentSheet: !!openZeptPayPaymentSheet,
     });
 
     if (!checkoutSessionCreated || !paymentSheetData) {
@@ -231,9 +231,9 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
       return;
     }
 
-    if (!openAirXPayPaymentSheet) {
+    if (!openZeptPayPaymentSheet) {
       Alert.alert('Error', 'Payment system not properly initialized.');
-      console.error('openAirXPayPaymentSheet function is not available');
+      console.error('openZeptPayPaymentSheet function is not available');
       return;
     }
 
@@ -250,7 +250,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
       setPaymentProcessing(true);
 
       console.log('💳 Opening payment sheet...');
-      const result = await openAirXPayPaymentSheet({
+      const result = await openZeptPayPaymentSheet({
         vendorCodeUID: paymentSheetData.vendorCodeUID,
         amount: paymentSheetData.amount,
         appName: paymentSheetData.appName,
@@ -336,7 +336,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                 const successData = {
                   success: true,
                   _id: transaction._id,
-                  airxpayTransactionId: transaction.airxpayTransactionId,
+                  zeptpayTransactionId: transaction.zeptpayTransactionId,
                   amount: transaction.amount,
                   currency: transaction.currency,
                   paymentMethod: transaction.paymentMethod,
@@ -386,7 +386,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                 confirmPayment({
                   success: true,
                   _id: transaction._id,
-                  airxpayTransactionId: transaction.airxpayTransactionId,
+                  zeptpayTransactionId: transaction.zeptpayTransactionId,
                   amount: transaction.amount,
                   currency: transaction.currency,
                   paymentMethod: transaction.paymentMethod,
@@ -557,7 +557,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   const formatPrice = (price: number) => price?.toFixed(2) || '0.00';
   const getButtonText = () => {
     if (paymentMethod === 'online') {
-      return `Pay ₹${calculatedData?.totalFinalPrice.toFixed(2)}`;
+      return `Pay ₹${calculatedData?.grandTotal.toFixed(2)}`;
     }
     return 'Confirm COD Order';
   };
@@ -566,7 +566,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
     if (loading || paymentProcessing || externalLoading) return true;
     if (paymentMethod === 'online' && !isVerified) return true;
     if (paymentMethod === 'online' && !paymentSheetData) return true;
-    if (paymentMethod === 'online' && !openAirXPayPaymentSheet) return true;
+    if (paymentMethod === 'online' && !openZeptPayPaymentSheet) return true;
     return false;
   };
 
@@ -617,7 +617,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
         </View>
       </View>
 
-      {/* AirXPay Status Badge */}
+      {/* ZeptPay Status Badge */}
       <View
         style={[
           styles.secureTransactionBadge,
@@ -635,7 +635,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
           ]}
         >
           {paymentMethod === 'online'
-            ? `AirXPay • ${health?.mode?.toUpperCase() || 'TEST'} Mode`
+            ? `ZeptPay • ${health?.mode?.toUpperCase() || 'TEST'} Mode`
             : 'COD Payment'}
         </Text>
         {paymentMethod === 'online' && (
@@ -726,7 +726,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
             >
               ₹
               {formatPrice(
-                calculatedData.totalFinalPrice +
+                calculatedData.grandTotal +
                   (calculatedData.deliveryCharge || 0),
               )}
             </Text>
@@ -781,22 +781,22 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
             >
               <View style={styles.paymentMethodHeader}>
                 <View style={styles.paymentMethodLogo}>
-                  <View style={styles.airxpayLogoContainer}>
+                  <View style={styles.zeptpayLogoContainer}>
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
                       ]}
                     />
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: '#60A5FA' },
                       ]}
                     />
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: '#93C5FD' },
                       ]}
                     />
@@ -951,22 +951,22 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
             <>
               <View style={styles.paymentMethodHeader}>
                 <View style={styles.paymentMethodLogo}>
-                  <View style={styles.airxpayLogoContainer}>
+                  <View style={styles.zeptpayLogoContainer}>
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
                       ]}
                     />
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: '#60A5FA' },
                       ]}
                     />
                     <View
                       style={[
-                        styles.airxpayDot,
+                        styles.zeptpayDot,
                         { backgroundColor: '#93C5FD' },
                       ]}
                     />
@@ -977,7 +977,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                       { color: isDark ? '#e2e8f0' : '#1a1a1a' },
                     ]}
                   >
-                    AirXPay Secure Payment
+                    ZeptPay Secure Payment
                   </Text>
                 </View>
                 <View
@@ -1003,7 +1003,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                   { color: isDark ? '#cbd5e1' : '#64748b' },
                 ]}
               >
-                Secure payment via AirXPay. Accepts cards, UPI, net banking &
+                Secure payment via ZeptPay. Accepts cards, UPI, net banking &
                 wallets.
               </Text>
 
@@ -1021,7 +1021,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                       { color: isDark ? '#e2e8f0' : '#10b981' },
                     ]}
                   >
-                    Ready to pay ₹{paymentSheetData.amount} via AirXPay
+                    Ready to pay ₹{paymentSheetData.amount} via ZeptPay
                     {paymentSheetData.paymentType === 'qr' && ' (QR Code)'}
                     {paymentSheetData.paymentType === 'autopay' && ' (AutoPay)'}
                   </Text>
@@ -1056,7 +1056,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                   { color: isDark ? '#cbd5e1' : '#64748b' },
                 ]}
               >
-                Pay ₹{calculatedData?.totalFinalPrice.toFixed(2)} when your item
+                Pay ₹{calculatedData?.grandTotal.toFixed(2)} when your item
                 is delivered.
               </Text>
             </>
@@ -1120,7 +1120,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                     </Text>
                     <Text style={styles.payButtonSubText}>
                       {paymentMethod === 'online'
-                        ? 'Securely via AirXPay'
+                        ? 'Securely via ZeptPay'
                         : 'Pay on delivery'}
                     </Text>
                   </View>
@@ -1192,29 +1192,29 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
         </View>
         <View style={styles.verticalSeparator} />
         <View style={styles.verticalBrandSection}>
-          <View style={styles.airxpayVerticalBrand}>
-            <View style={styles.airxpayVerticalLogo}>
+          <View style={styles.zeptpayVerticalBrand}>
+            <View style={styles.zeptpayVerticalLogo}>
               <View
                 style={[
-                  styles.airxpayVerticalDot,
+                  styles.zeptpayVerticalDot,
                   { backgroundColor: '#3B82F6' },
                 ]}
               />
               <View
                 style={[
-                  styles.airxpayVerticalDot,
+                  styles.zeptpayVerticalDot,
                   { backgroundColor: '#60A5FA' },
                 ]}
               />
               <View
                 style={[
-                  styles.airxpayVerticalDot,
+                  styles.zeptpayVerticalDot,
                   { backgroundColor: '#93C5FD' },
                 ]}
               />
             </View>
-            <Text style={styles.airxpayVerticalText}>AirXPay</Text>
-            <Text style={styles.airxpayPartnerText}>Payment Partner</Text>
+            <Text style={styles.zeptpayVerticalText}>ZeptPay</Text>
+            <Text style={styles.zeptpayPartnerText}>Payment Partner</Text>
           </View>
         </View>
       </View>
@@ -1306,8 +1306,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   paymentMethodLogo: { flexDirection: 'row', alignItems: 'center' },
-  airxpayLogoContainer: { flexDirection: 'row', marginRight: 8 },
-  airxpayDot: { width: 6, height: 6, borderRadius: 3, marginRight: 2 },
+  zeptpayLogoContainer: { flexDirection: 'row', marginRight: 8 },
+  zeptpayDot: { width: 6, height: 6, borderRadius: 3, marginRight: 2 },
   paymentMethodText: { fontSize: 13, fontWeight: '700' },
   paymentMethodIcons: {
     flexDirection: 'row',
@@ -1324,10 +1324,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   brandInfoText: { fontSize: 10, fontWeight: '500' },
-  airxpayMiniBrand: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  airxpayMiniLogoContainer: { flexDirection: 'row', alignItems: 'center' },
-  airxpayMiniDot: { width: 4, height: 4, borderRadius: 2, marginHorizontal: 1 },
-  airxpayMiniText: { fontSize: 10, fontWeight: '700' },
+  zeptpayMiniBrand: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  zeptpayMiniLogoContainer: { flexDirection: 'row', alignItems: 'center' },
+  zeptpayMiniDot: { width: 4, height: 4, borderRadius: 2, marginHorizontal: 1 },
+  zeptpayMiniText: { fontSize: 10, fontWeight: '700' },
   codIcon: {
     width: 20,
     height: 20,
@@ -1484,30 +1484,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     marginVertical: 16,
   },
-  airxpayVerticalBrand: {
+  zeptpayVerticalBrand: {
     flexDirection: 'column',
     alignItems: 'center',
     width: '100%',
   },
-  airxpayVerticalLogo: {
+  zeptpayVerticalLogo: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
   },
-  airxpayVerticalDot: {
+  zeptpayVerticalDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     marginHorizontal: 2,
   },
-  airxpayVerticalText: {
+  zeptpayVerticalText: {
     fontSize: 20,
     fontWeight: '800',
     color: '#fff',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  airxpayPartnerText: {
+  zeptpayPartnerText: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
     fontWeight: '500',

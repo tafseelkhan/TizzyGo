@@ -1180,7 +1180,7 @@ const AddressCouponStep: React.FC<AddressCouponStepProps> = ({
                     ]}
                   >
                     Current order value: ₹
-                    {calculatedData?.totalFinalPrice?.toFixed(2) || '0.00'}
+                    {calculatedData?.grandTotal?.toFixed(2) || '0.00'}
                   </Text>
                 </View>
               )}

@@ -1,4 +1,4 @@
-// components/ProductGrid.tsx
+// components/ProductGrid.tsx - FINAL FIXED VERSION
 import React, {
   useState,
   useMemo,
@@ -16,6 +16,7 @@ import {
   RefreshControl,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -62,7 +63,7 @@ type ProductGridProps = {
   isLoading: boolean;
   userId: string;
   onRefresh?: () => void;
-  refreshTrigger?: boolean; // New prop to trigger refresh
+  refreshTrigger?: boolean;
 };
 
 // Define navigation param types
@@ -72,6 +73,21 @@ type RootStackParamList = {
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Helper function to safely format price
+const safeFormatPrice = (price: any): string => {
+  const numPrice = typeof price === 'number' ? price : Number(price);
+  if (isNaN(numPrice) || numPrice === undefined || numPrice === null) {
+    return '0';
+  }
+  return numPrice.toLocaleString();
+};
+
+// Helper function to safely get number value
+const safeGetNumber = (value: any, defaultValue: number = 0): number => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return isNaN(num) ? defaultValue : num;
+};
 
 // Helper function to get the product image
 const getProductImage = (product: Product): string => {
@@ -134,7 +150,7 @@ const HorizontalProductCard: React.FC<{
         ]}
         numberOfLines={2}
       >
-        {product.fullProduct.title}
+        {product.fullProduct.title || 'Product'}
       </Text>
     </TouchableOpacity>
   );
@@ -148,6 +164,11 @@ const PremiumPickCard: React.FC<{
   const { isDark } = useTheme();
   const imageUrl = getProductImage(product);
   const scaleAnim = useState(new Animated.Value(1))[0];
+
+  // Safe price getters
+  const finalPrice = safeGetNumber(product?.fullProduct?.finalPrice);
+  const mrp = safeGetNumber(product?.fullProduct?.mrp);
+  const averageRating = safeGetNumber(product?.fullProduct?.averageRating, 4.5);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -222,7 +243,7 @@ const PremiumPickCard: React.FC<{
             ]}
             numberOfLines={2}
           >
-            {product.fullProduct.title}
+            {product.fullProduct.title || 'Product'}
           </Text>
 
           {/* Price and Rating */}
@@ -234,16 +255,16 @@ const PremiumPickCard: React.FC<{
                   { color: isDark ? '#FFFFFF' : '#1e293b' },
                 ]}
               >
-                ₹{product.fullProduct.finalPrice.toLocaleString()}
+                ₹{safeFormatPrice(finalPrice)}
               </Text>
-              {product.fullProduct.mrp > product.fullProduct.finalPrice && (
+              {mrp > finalPrice && (
                 <Text
                   style={[
                     styles.premiumOriginalPrice,
                     { color: isDark ? '#94A3B8' : '#94a3b8' },
                   ]}
                 >
-                  ₹{product.fullProduct.mrp.toLocaleString()}
+                  ₹{safeFormatPrice(mrp)}
                 </Text>
               )}
             </View>
@@ -262,7 +283,7 @@ const PremiumPickCard: React.FC<{
                   { color: isDark ? '#FFFFFF' : '#92400e' },
                 ]}
               >
-                {product.fullProduct.averageRating?.toFixed(1) || '4.5'}
+                {averageRating.toFixed(1)}
               </Text>
             </View>
           </View>
@@ -272,7 +293,7 @@ const PremiumPickCard: React.FC<{
   );
 };
 
-// Trending Bundle Card
+// Trending Bundle Card - FIXED KEY PROP ISSUE
 const TrendingBundleCard: React.FC<{
   products: Product[];
   onPress: (product: Product) => void;
@@ -285,17 +306,17 @@ const TrendingBundleCard: React.FC<{
   }, [products]);
 
   const totalOriginalPrice = bundleProducts.reduce(
-    (sum, product) => sum + product.fullProduct.mrp,
+    (sum, product) => sum + safeGetNumber(product?.fullProduct?.mrp),
     0,
   );
 
   const totalBundlePrice = bundleProducts.reduce(
-    (sum, product) => sum + product.fullProduct.finalPrice,
+    (sum, product) => sum + safeGetNumber(product?.fullProduct?.finalPrice),
     0,
   );
 
   const totalDiscount = bundleProducts.reduce(
-    (sum, product) => sum + product.fullProduct.discount,
+    (sum, product) => sum + safeGetNumber(product?.fullProduct?.discount),
     0,
   );
 
@@ -340,46 +361,58 @@ const TrendingBundleCard: React.FC<{
         </View>
       </View>
 
-      {/* Bundle Products Grid */}
+      {/* Bundle Products Grid - FIXED: Removed Date.now() from key */}
       <View style={styles.bundleProductsGrid}>
-        {bundleProducts.map((product, index) => (
-          <TouchableOpacity
-            key={`${product.fullProduct._id}-${index}`}
-            style={styles.bundleProductItem}
-            onPress={() => onPress(product)}
-            activeOpacity={0.8}
-          >
-            <View
-              style={[
-                styles.bundleProductImageContainer,
-                { backgroundColor: isDark ? '#334155' : '#f8fafc' },
-              ]}
+        {bundleProducts.map((product, index) => {
+          // Create a stable unique key WITHOUT Date.now()
+          const stableKey = product?.fullProduct?._id
+            ? `bundle-${product.fullProduct._id}`
+            : `bundle-fallback-${index}-${
+                product.fullProduct.title?.substring(0, 10) || 'unknown'
+              }`;
+
+          return (
+            <TouchableOpacity
+              key={stableKey}
+              style={styles.bundleProductItem}
+              onPress={() => onPress(product)}
+              activeOpacity={0.8}
             >
-              <Image
-                source={{ uri: getProductImage(product) }}
-                style={styles.bundleProductImage}
-                resizeMode="cover"
-              />
-            </View>
-            <Text
-              style={[
-                styles.bundleProductName,
-                { color: isDark ? '#CBD5E1' : '#475569' },
-              ]}
-              numberOfLines={1}
-            >
-              {product.fullProduct.brand}
-            </Text>
-            <Text
-              style={[
-                styles.bundleProductPrice,
-                { color: isDark ? '#FFFFFF' : '#1e293b' },
-              ]}
-            >
-              ₹{product.fullProduct.finalPrice.toLocaleString()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <View
+                style={[
+                  styles.bundleProductImageContainer,
+                  { backgroundColor: isDark ? '#334155' : '#f8fafc' },
+                ]}
+              >
+                <Image
+                  source={{ uri: getProductImage(product) }}
+                  style={styles.bundleProductImage}
+                  resizeMode="cover"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.bundleProductName,
+                  { color: isDark ? '#CBD5E1' : '#475569' },
+                ]}
+                numberOfLines={1}
+              >
+                {product.fullProduct.brand || 'Brand'}
+              </Text>
+              <Text
+                style={[
+                  styles.bundleProductPrice,
+                  { color: isDark ? '#FFFFFF' : '#1e293b' },
+                ]}
+              >
+                ₹
+                {safeFormatPrice(
+                  safeGetNumber(product?.fullProduct?.finalPrice),
+                )}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Bundle Footer */}
@@ -408,7 +441,7 @@ const TrendingBundleCard: React.FC<{
                 { color: isDark ? '#FFFFFF' : '#1e293b' },
               ]}
             >
-              ₹{totalBundlePrice.toLocaleString()}
+              ₹{safeFormatPrice(totalBundlePrice)}
             </Text>
           </View>
           <Text
@@ -417,7 +450,7 @@ const TrendingBundleCard: React.FC<{
               { color: isDark ? '#94A3B8' : '#94a3b8' },
             ]}
           >
-            ₹{totalOriginalPrice.toLocaleString()}
+            ₹{safeFormatPrice(totalOriginalPrice)}
           </Text>
         </View>
         <TouchableOpacity style={styles.bundleButton}>
@@ -446,7 +479,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   // Update local products when parent products change
   useEffect(() => {
     setLocalProducts(products);
-    // Reset to first page when products change
     setCurrentPage(1);
   }, [products]);
 
@@ -500,7 +532,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    setCurrentPage(1); // Reset to first page on refresh
+    setCurrentPage(1);
     if (onRefresh) {
       await onRefresh();
     }
@@ -509,14 +541,31 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-    // Scroll to top when changing page
-    // You can implement scroll to top if needed
   }, []);
 
+  // FIXED: handleProductPress with proper error handling and debug
   const handleProductPress = useCallback(
     (product: Product) => {
+      // Debug log
+      console.log('🔍 Product pressed:', {
+        productId: product?.productId,
+        fullProductId: product?.fullProduct?._id,
+        title: product?.fullProduct?.title,
+      });
+
+      // Get product ID from multiple possible sources
+      const productId = product?.productId || product?.fullProduct?._id;
+
+      if (!productId) {
+        console.error('❌ No product ID found!', product);
+        Alert.alert('Error', 'Product ID not found. Please try again.');
+        return;
+      }
+
+      console.log('✅ Navigating with productId:', productId);
+
       navigation.navigate('ProductDetail', {
-        productId: product.productId || product.fullProduct._id,
+        productId: productId,
       });
     },
     [navigation],
@@ -572,7 +621,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
             <View key={`col-${colIndex}`} style={styles.column}>
               {[...Array(5)].map((_, i) => (
                 <View
-                  key={`col-${colIndex}-${i}`}
+                  key={`skeleton-${colIndex}-${i}`}
                   style={[
                     styles.skeletonCard,
                     { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' },
@@ -681,7 +730,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
             >
               {horizontalProducts.map((product, index) => (
                 <HorizontalProductCard
-                  key={`${product.fullProduct._id}-${index}`}
+                  key={product.fullProduct?._id || `horizontal-${index}`}
                   product={product}
                   onPress={handleProductPress}
                 />
@@ -715,7 +764,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
             <View style={styles.premiumGrid}>
               {premiumPicks.map(product => (
                 <PremiumPickCard
-                  key={product.fullProduct._id}
+                  key={
+                    product.fullProduct?._id ||
+                    `premium-${product.fullProduct.title}`
+                  }
                   product={product}
                   onPress={handleProductPress}
                 />
@@ -754,7 +806,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 ]}
                 numberOfLines={2}
               >
-                {fastestSellingProduct.fullProduct.title}
+                {fastestSellingProduct.fullProduct.title || 'Product'}
               </Text>
               <Text
                 style={[
@@ -763,7 +815,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 ]}
               >
                 Grab it now at ₹
-                {fastestSellingProduct.fullProduct.finalPrice.toLocaleString()}
+                {safeFormatPrice(
+                  safeGetNumber(fastestSellingProduct?.fullProduct?.finalPrice),
+                )}
               </Text>
             </View>
 
@@ -821,7 +875,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           <View style={styles.column}>
             {column1.map(product => (
               <View
-                key={product.fullProduct._id}
+                key={product.fullProduct?._id || `col1-${product.productId}`}
                 style={styles.productCardWrapper}
               >
                 <ProductCard
@@ -840,7 +894,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           <View style={styles.column}>
             {column2.map(product => (
               <View
-                key={product.fullProduct._id}
+                key={product.fullProduct?._id || `col2-${product.productId}`}
                 style={styles.productCardWrapper}
               >
                 <ProductCard
@@ -894,7 +948,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                     </Text>
                   ) : (
                     <TouchableOpacity
-                      key={pageNum}
+                      key={`page-${pageNum}`}
                       onPress={() => handlePageChange(pageNum as number)}
                       style={[
                         styles.pageNumber,
@@ -940,7 +994,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   );
 };
 
-// Styles remain exactly the same as your original
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

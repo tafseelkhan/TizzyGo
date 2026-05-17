@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,65 +11,24 @@ import {
   Dimensions,
   ScrollView,
   Image,
-  TouchableWithoutFeedback,
   Vibration,
   Platform,
+  SafeAreaView,
 } from 'react-native';
-// ✅ REPLACED: Using react-native-vector-icons instead of @expo/vector-icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
-import SwipeButton from 'rn-swipe-button';
 import { useTheme } from '../../contexts/theme/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const CART_API_URL = 'http://192.168.251.121:5000';
-const PRODUCT_API_URL = 'http://192.168.251.121:5000';
+const CART_API_URL = 'http://172.20.10.12:5000';
 
-// ✅ Get theme-based colors
-const getThemeColors = (isDark: boolean) => {
-  return {
-    primary: isDark ? '#F59E0B' : '#F59E0B', // Yellow color for both themes
-    secondary: isDark ? '#7DD3FC' : '#6366F1',
-    accent: isDark ? '#F59E0B' : '#F59E0B',
-    success: isDark ? '#10B981' : '#10B981',
-    danger: isDark ? '#EF4444' : '#EF4444',
-    dark: isDark ? '#F1F5F9' : '#1F2937', // Text colors reversed
-    light: isDark ? '#1E293B' : '#F9FAFB', // Background colors reversed
-    gray: isDark ? '#94A3B8' : '#6B7280',
-    white: isDark ? '#0F172A' : '#FFFFFF', // White background in dark mode = dark
-    black: isDark ? '#FFFFFF' : '#000000', // Black text in dark mode = white
-    railFill: isDark ? '#F59E0B' : '#F59E0B', // Yellow
-    thumbIcon: isDark ? '#0F172A' : '#FFFFFF', // Icon color based on theme
-    railBackground: isDark ? '#334155' : '#F3F4F6',
-    cardHover: isDark ? '#92400e' : '#FEF3C7', // Dark mode: brown, Light mode: light yellow
-    warning: isDark ? '#F59E0B' : '#F59E0B', // Yellow warning
-    modalBg: isDark ? '#1E293B' : '#FFFFFF',
-    modalContentBg: isDark ? '#0F172A' : '#FFFFFF',
-    borderColor: isDark ? '#334155' : '#E5E7EB',
-    lightBorder: isDark ? '#475569' : '#F3F4F6',
-    textSecondary: isDark ? '#CBD5E1' : '#4B5563',
-    textTertiary: isDark ? '#94A3B8' : '#6B7280',
-  };
-};
-
-// ✅ Thumb Icon Component for Swipe Button - Theme aware
-const ThumbIconComponent = ({ isDark }: { isDark: boolean }) => {
-  const colors = getThemeColors(isDark);
-  return (
-    <View
-      style={[
-        swiperStyles.thumbIconContent,
-        { backgroundColor: colors.white, borderColor: colors.primary },
-      ]}
-    >
-      <Icon name="arrow-forward" size={16} color={colors.primary} />
-    </View>
-  );
-};
-
-// ✅ Types (same as before)
+// Types
 export interface VariantField {
   name: string;
   value: string;
@@ -81,16 +40,35 @@ export interface VariantField {
 
 export interface ProductVariant {
   _id?: string;
+  variantId?: string;
+  mrp?: number;
+  price?: number;
+  savedAmount?: number;
+  discount?: number;
+  finalPrice?: number;
   fields?: VariantField[];
   images?: string[];
   video?: string;
+  combinationKey?: string;
+  inStock?: boolean;
+  quantityAvailable?: number;
+  sku?: string;
+  isDefault?: boolean;
 }
 
 export interface SelectedVariant {
-  variantId?: string;
-  [key: string]: any;
-  variantSku?: string;
+  variantId: string;
+  _id?: string;
+  mrp?: number;
+  price?: number;
+  savedAmount?: number;
+  discount?: number;
+  finalPrice?: number;
+  variantImages?: string[];
+  variantVideo?: string;
   variantImage?: string;
+  variantSku?: string;
+  [key: string]: any;
 }
 
 export interface CartItemParams {
@@ -123,98 +101,56 @@ interface AddToCartProps {
   onAddToCartSuccess?: () => void;
 }
 
-// ✅ FIXED: Function to fetch product variants from API
-export const fetchProductVariants = async (
-  productId: string,
-): Promise<ProductVariant[]> => {
-  console.log('🚀 Fetching variants for product:', productId);
-
-  try {
-    const response = await fetch(
-      `${PRODUCT_API_URL}/api/products/${productId}/variants`,
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch variants');
-    }
-
-    const data = await response.json();
-    console.log('✅ API variants response:', data);
-
-    // Handle array response
-    if (Array.isArray(data)) {
-      return data.map((item: any) => ({
-        _id: item._id,
-        fields: item.fields || [],
-        images: item.images || [],
-        video: item.video || '',
-      }));
-    }
-
-    return [];
-  } catch (error) {
-    console.error('❌ Error fetching variants:', error);
-    return [];
-  }
-};
-
-// ✅ Helper functions for media (BuyNow se liya)
-const isVideoUrl = (url?: string) => {
+// Helper functions
+const isVideoUrl = (url?: string): boolean => {
   if (!url) return false;
-
-  // Firebase storage video URLs ke liye check
-  if (url.includes('firebasestorage.googleapis.com/v0/b/')) {
-    // Check if URL has video extension or contains video in path
-    const videoExtensions = [
-      '.mp4',
-      '.mov',
-      '.webm',
-      '.mkv',
-      '.avi',
-      '.wmv',
-      '.flv',
-      '.m4v',
-    ];
-    const hasVideoExtension = videoExtensions.some(ext =>
-      url.toLowerCase().includes(ext),
-    );
-
-    // Also check for "video" in URL path
-    const hasVideoInPath =
-      url.toLowerCase().includes('/video/') ||
-      url.toLowerCase().includes('video=true') ||
-      url.toLowerCase().includes('media_type=video');
-
-    return hasVideoExtension || hasVideoInPath;
-  }
-
-  return /\.(mp4|mov|webm|mkv|avi|wmv|flv|m4v)$/i.test(url);
+  const urlLower = url.toLowerCase();
+  return (
+    /\.(mp4|mov|webm|mkv|avi|wmv|flv|m4v)$/i.test(urlLower) ||
+    urlLower.includes('/video/') ||
+    urlLower.includes('video=true')
+  );
 };
 
-const normalizeMedia = (images: string[] = [], video?: string) => {
+const normalizeMedia = (
+  images: string[] = [],
+  video?: string,
+): { type: 'image' | 'video'; url: string }[] => {
   const media: { type: 'image' | 'video'; url: string }[] = [];
-
-  // Add images first (filter out empty strings)
-  images.forEach(img => {
-    if (img && img.trim() !== '') {
-      media.push({ type: 'image', url: img });
-    }
-  });
-
-  // Add video at the beginning if exists
+  if (images && Array.isArray(images)) {
+    images.forEach(img => {
+      if (img && img.trim() !== '') {
+        media.push({ type: 'image', url: img });
+      }
+    });
+  }
   if (video && video.trim() !== '') {
     media.unshift({ type: 'video', url: video });
   }
-
   return media;
 };
 
-// ✅ Format price
-const formatPrice = (price: number) => {
+const formatPrice = (price: number): string => {
   return `₹${price.toLocaleString('en-IN')}`;
 };
 
-// ✅ Cart API functions (same as before)
+// API Functions
+export const fetchProductVariants = async (
+  productId: string,
+): Promise<ProductVariant[]> => {
+  try {
+    const response = await fetch(
+      `${CART_API_URL}/api/products/${productId}/variants`,
+    );
+    if (!response.ok) throw new Error('Failed to fetch variants');
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Error fetching variants:', error);
+    return [];
+  }
+};
+
 export const addToCart = async (params: CartItemParams): Promise<boolean> => {
   const {
     productId,
@@ -222,7 +158,6 @@ export const addToCart = async (params: CartItemParams): Promise<boolean> => {
     quantity = 1,
     selectedVariant = null,
   } = params;
-
   try {
     const token = await AsyncStorage.getItem('authToken');
     if (!token) {
@@ -230,17 +165,10 @@ export const addToCart = async (params: CartItemParams): Promise<boolean> => {
       return false;
     }
 
-    const requestBody: any = {
-      productId,
-      productData,
-      quantity,
-    };
-
+    const requestBody: any = { productId, productData, quantity };
     if (selectedVariant && Object.keys(selectedVariant).length > 0) {
       requestBody.selectedVariant = selectedVariant;
     }
-
-    console.log('📦 Adding to cart:', requestBody);
 
     const response = await fetch(`${CART_API_URL}/api/cart/add`, {
       method: 'POST',
@@ -255,7 +183,6 @@ export const addToCart = async (params: CartItemParams): Promise<boolean> => {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to add to cart');
     }
-
     return true;
   } catch (error: any) {
     Alert.alert('Error', error.message || 'Failed to add item to cart');
@@ -267,7 +194,6 @@ export const updateCartItem = async (
   params: Omit<CartItemParams, 'productData'>,
 ): Promise<boolean> => {
   const { productId, quantity = 1, selectedVariant = null } = params;
-
   try {
     const token = await AsyncStorage.getItem('authToken');
     if (!token) {
@@ -275,11 +201,7 @@ export const updateCartItem = async (
       return false;
     }
 
-    const requestBody: any = {
-      productId,
-      quantity,
-    };
-
+    const requestBody: any = { productId, quantity };
     if (selectedVariant && Object.keys(selectedVariant).length > 0) {
       requestBody.selectedVariant = selectedVariant;
     }
@@ -297,7 +219,6 @@ export const updateCartItem = async (
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to update cart');
     }
-
     return true;
   } catch (error: any) {
     Alert.alert('Error', error.message || 'Failed to update cart');
@@ -326,7 +247,6 @@ export const removeFromCart = async (productId: string): Promise<boolean> => {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to remove from cart');
     }
-
     return true;
   } catch (error: any) {
     Alert.alert('Error', error.message || 'Failed to remove from cart');
@@ -348,16 +268,11 @@ export const fetchCart = async (
     const response = await fetch(
       `${CART_API_URL}/api/cart/check?productId=${productId}`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       },
     );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch cart status');
-    }
-
+    if (!response.ok) throw new Error('Failed to fetch cart status');
     const data = await response.json();
     return {
       inCart: data.inCart || false,
@@ -385,7 +300,26 @@ const AddToCart: React.FC<AddToCartProps> = ({
   onVariantSelect = () => {},
   onAddToCartSuccess = () => {},
 }) => {
-  const { isDark } = useTheme(); // ✅ Theme context
+  const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const themeColors = {
+    primary: '#F59E0B',
+    primaryLight: '#FBBF24',
+    success: '#10B981',
+    danger: '#EF4444',
+    dark: isDark ? '#F1F5F9' : '#1A1A2E',
+    light: isDark ? '#1E293B' : '#F8F9FA',
+    gray: isDark ? '#94A3B8' : '#6C757D',
+    white: isDark ? '#0F172A' : '#FFFFFF',
+    modalBg: isDark ? '#1E293B' : '#FFFFFF',
+    modalBorder: isDark ? '#334155' : '#f3f4f6',
+    textPrimary: isDark ? '#F1F5F9' : '#1A1A2E',
+    textSecondary: isDark ? '#CBD5E1' : '#485696',
+    cardBg: isDark ? '#1E293B' : '#FFFFFF',
+    borderColor: isDark ? '#334155' : '#E5E7EB',
+    videoBg: isDark ? '#1E293B' : '#E6F7F1',
+  };
+
   const [cartState, setCartState] = useState<CartState>({
     isInCart: initialIsInCart,
     quantity: initialQuantity,
@@ -393,7 +327,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
     isAdding: false,
   });
 
-  const [variants, setVariants] = useState<ProductVariant[]>(propVariants);
+  const [variants, setVariants] = useState<ProductVariant[]>(
+    propVariants || [],
+  );
   const [selectedVariant, setSelectedVariant] =
     useState<SelectedVariant | null>(propSelectedVariant);
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<
@@ -403,747 +339,280 @@ const AddToCart: React.FC<AddToCartProps> = ({
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [showAnim, setShowAnim] = useState<'success' | 'failed' | null>(null);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
-  const [swipeLoading, setSwipeLoading] = useState(false);
+  const [isModalInitialized, setIsModalInitialized] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const modalOpenRef = useRef(false);
-  const swipeButtonRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
 
-  // ✅ Get theme colors based on current theme
-  const themeColors = getThemeColors(isDark);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  // ✅ Fetch variants if not provided as prop
+  // Initialize modal when opened
+  useEffect(() => {
+    if (showVariantModal && !isModalInitialized) {
+      setIsModalInitialized(true);
+    }
+  }, [showVariantModal, isModalInitialized]);
+
+  // Load variants
   useEffect(() => {
     const loadVariants = async () => {
-      console.log('📥 Loading variants for product:', productId);
-
-      if (propVariants.length === 0 && productId) {
+      if ((!propVariants || propVariants.length === 0) && productId) {
         setVariantsLoading(true);
         try {
           const fetchedVariants = await fetchProductVariants(productId);
-          console.log('✅ Variants loaded:', fetchedVariants);
-          console.log('✅ Number of variant objects:', fetchedVariants.length);
-          setVariants(fetchedVariants);
+          if (isMountedRef.current) setVariants(fetchedVariants || []);
         } catch (error) {
-          console.error('❌ Error loading variants:', error);
+          console.error('Error loading variants:', error);
         } finally {
-          setVariantsLoading(false);
+          if (isMountedRef.current) setVariantsLoading(false);
         }
       } else {
-        console.log('✅ Using prop variants:', propVariants);
-        console.log('✅ Number of variant objects:', propVariants.length);
-        setVariants(propVariants);
+        setVariants(propVariants || []);
       }
     };
-
     loadVariants();
   }, [productId, propVariants]);
 
-  // ✅ Debug logging
-  useEffect(() => {
-    console.log('🔄 VARIANT STATE UPDATED:');
-    console.log('Variants:', variants);
-    console.log('Variants length:', variants?.length);
-    console.log('Selected Variant Index:', selectedVariantIndex);
-    console.log('Selected Variant:', selectedVariant);
-  }, [variants, selectedVariant, selectedVariantIndex]);
-
-  // ✅ Fetch cart status
+  // Fetch cart status
   useEffect(() => {
     const checkCartStatus = async () => {
-      try {
-        const cartStatus = await fetchCart(productId);
-        if (cartStatus) {
-          setCartState({
-            isInCart: cartStatus.inCart,
-            quantity: cartStatus.quantity,
-            isLoading: false,
-            isAdding: false,
-          });
-
-          if (cartStatus.selectedVariant) {
-            setSelectedVariant(cartStatus.selectedVariant);
-            onVariantSelect(cartStatus.selectedVariant);
-
-            // Find variant index if variantId exists
-            if (cartStatus.selectedVariant.variantId && variants.length > 0) {
-              const index = variants.findIndex(
-                v => v._id === cartStatus.selectedVariant?.variantId,
-              );
-              if (index !== -1) {
-                setSelectedVariantIndex(index);
-              }
-            }
-          }
+      const cartStatus = await fetchCart(productId);
+      if (cartStatus && isMountedRef.current) {
+        setCartState(prev => ({
+          ...prev,
+          isInCart: cartStatus.inCart,
+          quantity: cartStatus.quantity,
+        }));
+        if (cartStatus.selectedVariant) {
+          setSelectedVariant(cartStatus.selectedVariant);
+          onVariantSelect(cartStatus.selectedVariant);
         }
-      } catch (error) {
-        console.error('Error checking cart status:', error);
       }
     };
+    if (variants && variants.length > 0) checkCartStatus();
+  }, [productId, variants.length]);
 
-    if (variants.length > 0) {
-      checkCartStatus();
-    }
-  }, [productId, variants]);
-
-  // ✅ Vibration function (BuyNow se liya)
   const triggerVibration = () => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate([0, 30, 0, 30]);
-    } else {
-      Vibration.vibrate(300);
-    }
+    if (Platform.OS === 'ios') Vibration.vibrate([0, 30, 0, 30]);
+    else Vibration.vibrate(300);
   };
 
-  // ✅ Handle variant selection with vibration (BuyNow style)
-  const handleVariantSelect = (variantIndex: number) => {
-    triggerVibration();
+  // Handle variant selection
+  const handleVariantSelect = useCallback(
+    (variantIndex: number) => {
+      triggerVibration();
+      if (!variants || !variants.length || variantIndex >= variants.length)
+        return;
 
-    console.log('🎯 Selecting complete variant object at index:', variantIndex);
+      const selectedVariantObj = variants[variantIndex];
+      if (!selectedVariantObj) return;
 
-    const selectedVariantObj = variants[variantIndex];
-    if (!selectedVariantObj) return;
+      const variantIdToUse: string =
+        selectedVariantObj.variantId || selectedVariantObj._id || '';
 
-    const newVariant: SelectedVariant = {
-      variantId: selectedVariantObj._id,
-    };
+      const newVariant: SelectedVariant = {
+        variantId: variantIdToUse,
+        _id: selectedVariantObj._id,
+        mrp: selectedVariantObj.mrp || 0,
+        price: selectedVariantObj.price || 0,
+        savedAmount: selectedVariantObj.savedAmount || 0,
+        discount: selectedVariantObj.discount || 0,
+        finalPrice:
+          selectedVariantObj.finalPrice || selectedVariantObj.price || 0,
+      };
 
-    // Add all fields to selected variant
-    if (selectedVariantObj.fields) {
-      selectedVariantObj.fields.forEach(field => {
-        newVariant[field.name] = field.value;
+      if (
+        selectedVariantObj.fields &&
+        Array.isArray(selectedVariantObj.fields)
+      ) {
+        selectedVariantObj.fields.forEach((field: VariantField) => {
+          newVariant[field.name] = field.value;
+          if (field.image) newVariant.variantImage = field.image;
+          if (field.sku) newVariant.variantSku = field.sku;
+        });
+      }
 
-        // Store additional info
-        if (field.image) newVariant.variantImage = field.image;
-        if (field.sku) newVariant.variantSku = field.sku;
-      });
-    }
+      if (selectedVariantObj.images?.length)
+        newVariant.variantImages = selectedVariantObj.images;
+      if (selectedVariantObj.video)
+        newVariant.variantVideo = selectedVariantObj.video;
 
-    // Add images if available
-    if (selectedVariantObj.images && selectedVariantObj.images.length > 0) {
-      newVariant.variantImages = selectedVariantObj.images;
-    }
+      setSelectedVariantIndex(variantIndex);
+      setSelectedVariant(newVariant);
+      onVariantSelect(newVariant);
+    },
+    [variants, onVariantSelect],
+  );
 
-    // Add video if available
-    if (selectedVariantObj.video) {
-      newVariant.variantVideo = selectedVariantObj.video;
-    }
+  const isVariantSelected = (): boolean =>
+    selectedVariantIndex !== null && selectedVariant !== null;
+  const hasVariants = (): boolean => variants && variants.length > 0;
 
-    setSelectedVariantIndex(variantIndex);
-    setSelectedVariant(newVariant);
-    onVariantSelect(newVariant);
-
-    console.log('✅ Selected variant:', newVariant);
-  };
-
-  // ✅ Check if a variant is selected
-  const isVariantSelected = () => {
-    return selectedVariantIndex !== null && selectedVariant !== null;
-  };
-
-  // ✅ Check if product has variants
-  const hasVariants = () => {
-    return variants && variants.length > 0;
-  };
-
-  // ✅ Render media thumbnails (BuyNow se liya)
-  const renderMediaThumbnail = (variant: ProductVariant, index: number) => {
+  // Render variant media thumbnails
+  const renderVariantMedia = (variant: ProductVariant, index: number) => {
     const media = normalizeMedia(variant.images || [], variant.video);
 
-    console.log(`🔍 Variant ${index} media data:`, {
-      hasVideo: !!variant.video,
-      videoUrl: variant.video,
-      imagesCount: variant.images?.length || 0,
-      images: variant.images,
-      normalizedMedia: media,
-    });
-
     if (media.length === 0) {
-      console.log(`📭 Variant ${index}: No media available`);
       return (
         <View
-          style={[
-            swiperStyles.noMediaContainer,
-            {
-              backgroundColor: themeColors.light,
-              borderColor: themeColors.light,
-            },
-          ]}
+          style={[styles.emptyMedia, { backgroundColor: themeColors.light }]}
         >
-          <Icon name="image" size={32} color={themeColors.gray} />
-          <Text style={[swiperStyles.noMediaText, { color: themeColors.gray }]}>
+          <Icon name="image-not-supported" size={28} color={themeColors.gray} />
+          <Text style={[styles.emptyMediaText, { color: themeColors.gray }]}>
             No media
           </Text>
         </View>
       );
     }
 
-    console.log(`✅ Variant ${index}: Rendering ${media.length} media items`);
-
     return (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={[
-          swiperStyles.variantImagesContainer,
-          { backgroundColor: themeColors.light },
-        ]}
-        contentContainerStyle={swiperStyles.variantImagesContent}
+        style={styles.variantMediaScroll}
+        contentContainerStyle={styles.variantMediaContent}
       >
         {media.map((item, mediaIndex) => {
           const isVideo = isVideoUrl(item.url);
-
-          console.log(`   📄 Media ${mediaIndex}:`, {
-            type: item.type,
-            url: item.url,
-            isVideo: isVideo,
-            detectedByFunction: isVideoUrl(item.url),
-          });
-
-          if (isVideo) {
-            return (
-              <View
-                key={`media-${index}-${mediaIndex}`}
-                style={swiperStyles.videoThumbnailContainer}
-              >
+          return (
+            <View key={`media-${index}-${mediaIndex}`} style={styles.mediaItem}>
+              {isVideo ? (
                 <View
                   style={[
-                    swiperStyles.videoThumbnail,
+                    styles.variantVideoThumb,
                     {
+                      backgroundColor: themeColors.videoBg,
                       borderColor: themeColors.primary,
-                      backgroundColor: '#FEF3C7',
                     },
                   ]}
                 >
-                  <Icon name="videocam" size={24} color={themeColors.primary} />
-                </View>
-                <View style={swiperStyles.videoPlayIcon}>
-                  <Icon
-                    name="play-circle-filled"
-                    size={28}
-                    color="rgba(255, 255, 255, 0.9)"
+                  <Ionicons
+                    name="play-circle"
+                    size={36}
+                    color={themeColors.primary}
                   />
+                  <View style={styles.videoOverlayBadge}>
+                    <Text style={styles.videoBadgeSmallText}>VIDEO</Text>
+                  </View>
                 </View>
-                <View
-                  style={[
-                    swiperStyles.videoBadge,
-                    { backgroundColor: themeColors.primary },
-                  ]}
-                >
-                  <Icon name="videocam" size={12} color={themeColors.white} />
-                  <Text
-                    style={[
-                      swiperStyles.videoBadgeText,
-                      { color: themeColors.white },
-                    ]}
-                  >
-                    VIDEO
-                  </Text>
-                </View>
-              </View>
-            );
-          } else {
-            return (
-              <View
-                key={`media-${index}-${mediaIndex}`}
-                style={swiperStyles.imageContainer}
-              >
+              ) : (
                 <Image
                   source={{ uri: item.url }}
-                  style={[
-                    swiperStyles.variantImage,
-                    { borderColor: themeColors.light },
-                  ]}
+                  style={styles.variantMediaImage}
                   resizeMode="cover"
-                  onError={error => {
-                    console.log(
-                      `❌ Error loading image for variant ${index}:`,
-                      error.nativeEvent.error,
-                    );
-                  }}
-                  onLoad={() => {
-                    console.log(
-                      `✅ Successfully loaded image for variant ${index}`,
-                    );
-                  }}
                 />
-              </View>
-            );
-          }
+              )}
+            </View>
+          );
         })}
       </ScrollView>
     );
   };
 
-  // ✅ Modal Component (BuyNow jaisa) - Theme aware
-  const renderVariantModal = () => {
-    console.log('🎨 Rendering variant modal...');
-    console.log('Modal visible:', showVariantModal);
-    console.log('Number of variant objects:', variants.length);
+  // Render product header in modal
+  const renderProductHeader = () => {
+    const productImages = productData?.images || [];
+    const productVideo = productData?.video;
+    const media = normalizeMedia(productImages, productVideo);
+    const firstMedia = media[0];
 
     return (
-      <Modal
-        visible={showVariantModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowVariantModal(false)}
-      >
-        <View style={swiperStyles.modalFullScreenContainer}>
-          <TouchableWithoutFeedback onPress={() => setShowVariantModal(false)}>
-            <View style={swiperStyles.modalBackdrop} />
-          </TouchableWithoutFeedback>
-
-          <View
-            style={[
-              swiperStyles.variantModalContainer,
-              {
-                backgroundColor: themeColors.modalBg,
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-              },
-            ]}
-          >
-            {/* Modal Header */}
-            <View
-              style={[
-                swiperStyles.variantModalHeader,
-                {
-                  borderBottomColor: themeColors.borderColor,
-                  backgroundColor: themeColors.modalBg,
-                },
-              ]}
-            >
-              <View style={swiperStyles.modalHeaderLeft}>
-                <Icon name="inventory" size={24} color={themeColors.primary} />
-                <Text
-                  style={[
-                    swiperStyles.variantModalTitle,
-                    { color: themeColors.dark },
-                  ]}
-                >
-                  Select Option
-                </Text>
+      <View style={styles.productHeader}>
+        {firstMedia && (
+          <View style={styles.productMediaContainer}>
+            {firstMedia.type === 'video' ? (
+              <View style={styles.productVideoContainer}>
+                <Ionicons
+                  name="play-circle"
+                  size={64}
+                  color={themeColors.primary}
+                />
+                <View style={styles.videoBadgeLarge}>
+                  <Ionicons name="videocam" size={16} color="#fff" />
+                  <Text style={styles.videoBadgeLargeText}>VIDEO</Text>
+                </View>
               </View>
-              <TouchableOpacity
-                style={[
-                  swiperStyles.closeButton,
-                  { backgroundColor: themeColors.light },
-                ]}
-                onPress={() => setShowVariantModal(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Icon name="close" size={24} color={themeColors.dark} />
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <Image
+                source={{ uri: firstMedia.url }}
+                style={styles.productImage}
+                resizeMode="cover"
+              />
+            )}
+          </View>
+        )}
 
-            {/* Variant List - Flexible Height */}
-            <ScrollView
-              style={[
-                swiperStyles.variantScrollView,
-                { backgroundColor: themeColors.modalBg },
-              ]}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                swiperStyles.variantScrollContent,
-                { backgroundColor: themeColors.modalBg },
-              ]}
+        <View style={styles.productInfo}>
+          <View style={styles.titleRow}>
+            <Text
+              style={[styles.productTitle, { color: themeColors.textPrimary }]}
+              numberOfLines={2}
             >
-              {variantsLoading ? (
-                <View
-                  style={[
-                    swiperStyles.loadingContainer,
-                    { backgroundColor: themeColors.modalBg },
-                  ]}
-                >
-                  <ActivityIndicator size="large" color={themeColors.primary} />
-                  <Text
-                    style={[
-                      swiperStyles.loadingText,
-                      { color: themeColors.gray },
-                    ]}
-                  >
-                    Loading options...
-                  </Text>
-                </View>
-              ) : (
-                <View
-                  style={[
-                    swiperStyles.variantListContainer,
-                    { backgroundColor: themeColors.modalBg },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      swiperStyles.variantModalSubtitle,
-                      { color: themeColors.secondary },
-                    ]}
-                  >
-                    {variants.length} variant{variants.length !== 1 ? 's' : ''}{' '}
-                    available
-                  </Text>
-
-                  {variants && variants.length > 0 ? (
-                    variants.map((variant, index) => {
-                      const fields = variant.fields || [];
-                      const isSelected = selectedVariantIndex === index;
-
-                      return (
-                        <TouchableOpacity
-                          key={`addtocart-variant-${index}`}
-                          style={[
-                            swiperStyles.variantCard,
-                            {
-                              backgroundColor: themeColors.modalContentBg,
-                              borderColor: themeColors.borderColor,
-                            },
-                            isSelected && [
-                              swiperStyles.variantCardSelected,
-                              {
-                                backgroundColor: themeColors.cardHover,
-                                borderColor: themeColors.primary,
-                              },
-                            ],
-                          ]}
-                          onPress={() => handleVariantSelect(index)}
-                          activeOpacity={0.7}
-                        >
-                          {/* Selected Indicator */}
-                          {isSelected && (
-                            <View
-                              style={[
-                                swiperStyles.selectedBadge,
-                                { backgroundColor: themeColors.success },
-                              ]}
-                            >
-                              <Icon
-                                name="check"
-                                size={16}
-                                color={themeColors.white}
-                              />
-                            </View>
-                          )}
-
-                          {/* Images and Video Thumbnail */}
-                          {renderMediaThumbnail(variant, index)}
-
-                          {/* Variant Details */}
-                          <View
-                            style={[
-                              swiperStyles.variantDetails,
-                              { backgroundColor: themeColors.modalContentBg },
-                            ]}
-                          >
-                            <View style={swiperStyles.variantHeader}>
-                              <Text
-                                style={[
-                                  swiperStyles.variantName,
-                                  { color: themeColors.dark },
-                                ]}
-                              >
-                                Option {index + 1}
-                              </Text>
-                              {variant.video && (
-                                <View
-                                  style={[
-                                    swiperStyles.videoIconSmall,
-                                    { backgroundColor: '#FEF3C7' },
-                                  ]}
-                                >
-                                  <Icon
-                                    name="videocam"
-                                    size={20}
-                                    color={themeColors.primary}
-                                  />
-                                </View>
-                              )}
-                            </View>
-
-                            {/* Fields */}
-                            {fields.map((field, fieldIndex) => (
-                              <View
-                                key={`field-${index}-${fieldIndex}`}
-                                style={swiperStyles.fieldRow}
-                              >
-                                <Text
-                                  style={[
-                                    swiperStyles.fieldName,
-                                    { color: themeColors.secondary },
-                                  ]}
-                                >
-                                  {field.name}:
-                                </Text>
-                                <Text
-                                  style={[
-                                    swiperStyles.fieldValue,
-                                    { color: themeColors.dark },
-                                  ]}
-                                >
-                                  {field.value}
-                                </Text>
-                                {field.price && field.price > 0 && (
-                                  <Text
-                                    style={[
-                                      swiperStyles.fieldPrice,
-                                      { color: themeColors.success },
-                                    ]}
-                                  >
-                                    +{formatPrice(field.price)}
-                                  </Text>
-                                )}
-                              </View>
-                            ))}
-
-                            {/* Status */}
-                            <View style={swiperStyles.variantBottomRow}>
-                              <View
-                                style={[
-                                  swiperStyles.statusTag,
-                                  isSelected
-                                    ? [
-                                        swiperStyles.statusSelected,
-                                        {
-                                          backgroundColor: themeColors.success,
-                                        },
-                                      ]
-                                    : [
-                                        swiperStyles.statusDefault,
-                                        { backgroundColor: themeColors.light },
-                                      ],
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    swiperStyles.statusText,
-                                    isSelected && [
-                                      swiperStyles.statusSelectedText,
-                                      { color: themeColors.white },
-                                    ],
-                                    {
-                                      color: isSelected
-                                        ? themeColors.white
-                                        : themeColors.dark,
-                                    },
-                                  ]}
-                                >
-                                  {isSelected ? 'Selected' : 'Available'}
-                                </Text>
-                              </View>
-
-                              {/* Video indicator */}
-                              {variant.video && (
-                                <TouchableOpacity
-                                  style={[
-                                    swiperStyles.videoIndicator,
-                                    { backgroundColor: themeColors.secondary },
-                                  ]}
-                                >
-                                  <Icon
-                                    name="play-circle"
-                                    size={14}
-                                    color={themeColors.white}
-                                  />
-                                  <Text
-                                    style={[
-                                      swiperStyles.videoIndicatorText,
-                                      { color: themeColors.white },
-                                    ]}
-                                  >
-                                    Video Available
-                                  </Text>
-                                </TouchableOpacity>
-                              )}
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  ) : (
-                    <View
-                      style={[
-                        swiperStyles.noVariantsContainer,
-                        { backgroundColor: themeColors.modalBg },
-                      ]}
-                    >
-                      <Icon
-                        name="inventory"
-                        size={48}
-                        color={themeColors.gray}
-                      />
-                      <Text
-                        style={[
-                          swiperStyles.noVariantsText,
-                          { color: themeColors.dark },
-                        ]}
-                      >
-                        No variants available
-                      </Text>
-                      <Text
-                        style={[
-                          swiperStyles.noVariantsSubtext,
-                          { color: themeColors.gray },
-                        ]}
-                      >
-                        Proceed with basic product
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </ScrollView>
-
-            {/* ✅ SWIPE BUTTON SECTION */}
-            <View
-              style={[
-                swiperStyles.swipeSection,
-                {
-                  backgroundColor: themeColors.modalBg,
-                  borderTopColor: themeColors.borderColor,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  swiperStyles.swipeInfo,
-                  {
-                    backgroundColor: '#FEF3C7',
-                    borderColor: '#FDE68A',
-                  },
-                ]}
-              >
-                <Icon
-                  name="info-outline"
-                  size={16}
-                  color={themeColors.secondary}
+              {productData?.title || 'Product'}
+            </Text>
+            {productData?.verified === true && (
+              <View style={styles.verifiedBadge}>
+                <MaterialCommunityIcons
+                  name="verified"
+                  size={18}
+                  color={themeColors.primary}
                 />
                 <Text
-                  style={[
-                    swiperStyles.swipeInfoText,
-                    { color: themeColors.secondary },
-                  ]}
+                  style={[styles.verifiedText, { color: themeColors.primary }]}
                 >
-                  {isVariantSelected()
-                    ? 'Swipe to add to cart'
-                    : 'Select an option to proceed'}
+                  Verified
                 </Text>
               </View>
-
-              {isVariantSelected() ? (
-                <View style={swiperStyles.swipeButtonWrapper}>
-                  // ✅ CORRECTED SWIPE BUTTON COMPONENT - Remove unsupported
-                  props
-                  <SwipeButton
-                    ref={swipeButtonRef}
-                    disabled={swipeLoading}
-                    swipeSuccessThreshold={70}
-                    height={48}
-                    width={Math.min(screenWidth - 32, 400)}
-                    title="Swipe to Add to Cart"
-                    titleStyles={[
-                      swiperStyles.swipeButtonTitle,
-                      { fontWeight: '600' },
-                    ]}
-                    titleColor={themeColors.white}
-                    titleFontSize={14}
-                    onSwipeStart={() => triggerVibration()}
-                    onSwipeSuccess={handleSwipeSuccess}
-                    shouldResetAfterSuccess={true}
-                    railFillBackgroundColor={themeColors.railFill}
-                    railFillBorderColor={themeColors.primary}
-                    thumbIconBackgroundColor={themeColors.white}
-                    thumbIconBorderColor={themeColors.primary}
-                    railBackgroundColor={themeColors.railBackground}
-                    railBorderColor={themeColors.light}
-                    // ❌ REMOVED: railBorderWidth - not supported
-                    containerStyles={[
-                      swiperStyles.swipeButtonContainer,
-                      {
-                        backgroundColor: themeColors.primary,
-                        borderColor: themeColors.primary,
-                      },
-                    ]}
-                    railStyles={swiperStyles.swipeRail}
-                    thumbIconStyles={swiperStyles.thumbIcon}
-                    thumbIconComponent={() => (
-                      <ThumbIconComponent isDark={isDark} />
-                    )}
-                  />
-                  {swipeLoading && (
-                    <View style={swiperStyles.swipeLoadingOverlay}>
-                      <ActivityIndicator
-                        size="small"
-                        color={themeColors.primary}
-                      />
-                      <Text
-                        style={[
-                          swiperStyles.swipeLoadingText,
-                          { color: themeColors.primary },
-                        ]}
-                      >
-                        Adding...
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    swiperStyles.selectPromptContainer,
-                    {
-                      backgroundColor: themeColors.light,
-                      borderColor: themeColors.railBackground,
-                    },
-                  ]}
-                  onPress={() => {
-                    if (variants.length > 0) {
-                      handleVariantSelect(0);
-                    }
-                  }}
-                  disabled={variants.length === 0}
-                  activeOpacity={0.6}
-                >
-                  <Icon name="touch-app" size={18} color={themeColors.gray} />
-                  <Text
-                    style={[
-                      swiperStyles.selectPromptText,
-                      { color: themeColors.gray },
-                    ]}
-                  >
-                    {variants.length > 0
-                      ? 'Tap to select first option'
-                      : 'No options available'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            )}
           </View>
+
+          {productData?.brand && (
+            <View style={styles.brandRow}>
+              <Icon name="business" size={16} color={themeColors.gray} />
+              <Text
+                style={[styles.brandText, { color: themeColors.textSecondary }]}
+              >
+                {productData.brand}
+              </Text>
+            </View>
+          )}
+
+          {productData?.description && (
+            <Text
+              style={[
+                styles.productDescription,
+                { color: themeColors.textSecondary },
+              ]}
+              numberOfLines={3}
+            >
+              {productData.description}
+            </Text>
+          )}
         </View>
-      </Modal>
+      </View>
     );
   };
 
-  // ✅ Handle Add to Cart (SAME AS BEFORE - NO CHANGES)
+  // Add to cart handler
   const handleAddToCart = async () => {
-    console.log('🛒 ======= ADD TO CART CLICKED =======');
-    console.log('Product ID:', productId);
-    console.log('Has Variants?', hasVariants());
-    console.log('Is Variant Selected?', isVariantSelected());
-    console.log('Variants:', variants);
-
     if (!productAvailable) {
       setShowAnim('failed');
       Alert.alert('Out of Stock', 'This product is currently out of stock');
       return;
     }
 
-    // ✅ Check if variants exist and are not selected
     if (hasVariants() && !isVariantSelected()) {
-      console.log('📱 OPENING VARIANT MODAL...');
       setShowVariantModal(true);
       return;
     }
 
-    // ✅ If no variants OR variant is selected, add to cart directly
     setCartState(prev => ({ ...prev, isAdding: true }));
 
     try {
@@ -1154,7 +623,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
         selectedVariant: hasVariants() ? selectedVariant : null,
       });
 
-      if (success) {
+      if (success && isMountedRef.current) {
         setCartState({
           isInCart: true,
           quantity: 1,
@@ -1163,10 +632,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
         });
         setShowAnim('success');
         onAddToCartSuccess();
-
-        setTimeout(() => {
-          showQuantityController();
-        }, 800);
+        setTimeout(() => showQuantityController(), 800);
       } else {
         setCartState(prev => ({ ...prev, isAdding: false }));
         setShowAnim('failed');
@@ -1177,68 +643,12 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   };
 
-  // ✅ Handle SWIPE button completion (SAME AS BEFORE)
-  const handleSwipeSuccess = async () => {
-    console.log('🔄 Swipe completed! Adding to cart...');
-    setSwipeLoading(true);
-
-    if (!productAvailable) {
-      Alert.alert('Out of Stock', 'This product is currently out of stock');
-      setSwipeLoading(false);
-      if (swipeButtonRef.current) {
-        swipeButtonRef.current.reset();
-      }
-      return;
-    }
-
-    try {
-      const success = await addToCart({
-        productId,
-        productData,
-        quantity: 1,
-        selectedVariant: hasVariants() ? selectedVariant : null,
-      });
-
-      if (success) {
-        setCartState({
-          isInCart: true,
-          quantity: 1,
-          isLoading: false,
-          isAdding: false,
-        });
-        setShowAnim('success');
-        onAddToCartSuccess();
-        setShowVariantModal(false);
-
-        setTimeout(() => {
-          showQuantityController();
-        }, 800);
-      } else {
-        Alert.alert('Error', 'Failed to add to cart');
-        if (swipeButtonRef.current) {
-          swipeButtonRef.current.reset();
-        }
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add to cart');
-      if (swipeButtonRef.current) {
-        swipeButtonRef.current.reset();
-      }
-    } finally {
-      setSwipeLoading(false);
-    }
-  };
-
-  // ✅ Quantity Modal Functions (SAME AS BEFORE - NO CHANGES)
   const showQuantityController = () => {
     if (modalOpenRef.current) return;
-
     modalOpenRef.current = true;
     setShowQuantityModal(true);
-
     slideAnim.setValue(0);
     scaleAnim.setValue(0);
-
     setTimeout(() => {
       Animated.parallel([
         Animated.spring(slideAnim, {
@@ -1259,7 +669,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
 
   const hideQuantityController = () => {
     if (!modalOpenRef.current) return;
-
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: 0,
@@ -1279,46 +688,20 @@ const AddToCart: React.FC<AddToCartProps> = ({
     });
   };
 
-  const slideUpAnimation = {
-    transform: [
-      {
-        translateY: slideAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [300, 0],
-        }),
-      },
-    ],
-  };
-
-  const scaleAnimation = {
-    transform: [
-      {
-        scale: scaleAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.8, 1],
-        }),
-      },
-    ],
-  };
-
-  // ✅ Handle quantity update (SAME AS BEFORE)
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1 || newQuantity > maxQuantity) return;
-
     setCartState(prev => ({ ...prev, isLoading: true }));
-
     const success = await updateCartItem({
       productId,
       quantity: newQuantity,
       selectedVariant: hasVariants() ? selectedVariant : null,
     });
-
-    if (success) {
-      setCartState({
-        ...cartState,
+    if (success && isMountedRef.current) {
+      setCartState(prev => ({
+        ...prev,
         quantity: newQuantity,
         isLoading: false,
-      });
+      }));
       setShowAnim('success');
     } else {
       setCartState(prev => ({ ...prev, isLoading: false }));
@@ -1326,12 +709,10 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   };
 
-  // ✅ Handle remove from cart (SAME AS BEFORE)
   const handleRemoveFromCart = async () => {
     setCartState(prev => ({ ...prev, isLoading: true }));
-
     const success = await removeFromCart(productId);
-    if (success) {
+    if (success && isMountedRef.current) {
       setCartState({
         isInCart: false,
         quantity: 1,
@@ -1349,202 +730,632 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   };
 
-  const handleAnimationFinish = () => {
-    setShowAnim(null);
-  };
+  const handleModalClose = useCallback(() => {
+    setShowVariantModal(false);
+    setIsModalInitialized(false);
+  }, []);
 
-  // ✅ Get button text (SAME AS BEFORE)
-  const getButtonText = () => {
+  const getButtonText = (): string => {
     if (!productAvailable) return 'Out of Stock';
-    if (cartState.isAdding) return 'Adding to Cart...';
+    if (cartState.isAdding) return 'Adding...';
     if (hasVariants() && !isVariantSelected()) return 'Add to Cart';
     return 'Add to Cart';
   };
 
-  const successAnimation = require('../animations/lotties/Success.json');
-  const failedAnimation = require('../animations/lotties/Failed.json');
+  // Render Variant Info Section with all details
+  const renderVariantInfo = (variant: ProductVariant) => {
+    const inStock = variant.inStock === true;
+    const quantityAvailable = variant.quantityAvailable || 0;
+    const sku = variant.sku || 'N/A';
+    const combinationKey = variant.combinationKey || 'N/A';
 
-  // ✅ Compact version - Theme aware
+    return (
+      <View style={styles.variantInfoContainer}>
+        <View style={styles.infoRow}>
+          <View style={styles.infoIcon}>
+            <MaterialCommunityIcons
+              name={inStock ? 'check-circle' : 'alert-circle'}
+              size={16}
+              color={inStock ? themeColors.success : themeColors.danger}
+            />
+          </View>
+          <Text
+            style={[styles.infoLabel, { color: themeColors.textSecondary }]}
+          >
+            Stock Status:
+          </Text>
+          <Text
+            style={[
+              styles.infoValue,
+              {
+                color: inStock ? themeColors.success : themeColors.danger,
+                fontWeight: '600',
+              },
+            ]}
+          >
+            {inStock ? 'In Stock' : 'Out of Stock'}
+          </Text>
+        </View>
+
+        {inStock && quantityAvailable > 0 && (
+          <View style={styles.infoRow}>
+            <View style={styles.infoIcon}>
+              <MaterialCommunityIcons
+                name="package-variant"
+                size={16}
+                color={themeColors.primary}
+              />
+            </View>
+            <Text
+              style={[styles.infoLabel, { color: themeColors.textSecondary }]}
+            >
+              Quantity Available:
+            </Text>
+            <Text
+              style={[
+                styles.infoValue,
+                { color: themeColors.textPrimary, fontWeight: '600' },
+              ]}
+            >
+              {quantityAvailable} units
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.infoRow}>
+          <View style={styles.infoIcon}>
+            <MaterialCommunityIcons
+              name="barcode"
+              size={16}
+              color={themeColors.primary}
+            />
+          </View>
+          <Text
+            style={[styles.infoLabel, { color: themeColors.textSecondary }]}
+          >
+            SKU:
+          </Text>
+          <Text
+            style={[
+              styles.infoValue,
+              { color: themeColors.textPrimary, fontSize: 11, flex: 1 },
+            ]}
+            numberOfLines={1}
+          >
+            {sku}
+          </Text>
+        </View>
+
+        {combinationKey !== 'N/A' && (
+          <View style={styles.infoRow}>
+            <View style={styles.infoIcon}>
+              <MaterialCommunityIcons
+                name="link-variant"
+                size={16}
+                color={themeColors.primary}
+              />
+            </View>
+            <Text
+              style={[styles.infoLabel, { color: themeColors.textSecondary }]}
+            >
+              Combo Key:
+            </Text>
+            <Text
+              style={[
+                styles.infoValue,
+                { color: themeColors.textPrimary, fontSize: 10, flex: 1 },
+              ]}
+              numberOfLines={2}
+            >
+              {combinationKey}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Render Variant Modal - FULL SCREEN with BuyNow-like header and close button
+  const renderVariantModal = () => (
+    <Modal
+      visible={showVariantModal}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={handleModalClose}
+    >
+      <SafeAreaView
+        style={[
+          styles.fullScreenModal,
+          { backgroundColor: themeColors.modalBg },
+        ]}
+      >
+        {/* Modal Header - Same as BuyNow */}
+        <View
+          style={[
+            styles.modalHeader,
+            {
+              borderBottomColor: themeColors.modalBorder,
+              backgroundColor: themeColors.modalBg,
+            },
+          ]}
+        >
+          <Text style={[styles.modalTitle, { color: themeColors.textPrimary }]}>
+            Choose your option
+          </Text>
+          <TouchableOpacity
+            onPress={handleModalClose}
+            style={[styles.closeButton, { backgroundColor: themeColors.light }]}
+          >
+            <Icon name="close" size={24} color={themeColors.dark} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.modalScrollContent}
+        >
+          {/* Product Header */}
+          {renderProductHeader()}
+
+          {/* Variants List */}
+          {variantsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={themeColors.primary} />
+              <Text style={[styles.loadingText, { color: themeColors.gray }]}>
+                Loading options...
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.variantCount,
+                  { color: themeColors.textPrimary },
+                ]}
+              >
+                {variants?.length || 0} variant
+                {(variants?.length || 0) !== 1 ? 's' : ''} available
+              </Text>
+
+              {variants && Array.isArray(variants) && variants.length > 0 ? (
+                variants.map((variant: ProductVariant, index: number) => {
+                  const isSelected = selectedVariantIndex === index;
+                  const finalPrice = variant.finalPrice || variant.price || 0;
+                  const mrp = variant.mrp || 0;
+                  const discount =
+                    variant.discount ||
+                    (mrp > finalPrice
+                      ? Math.round(((mrp - finalPrice) / mrp) * 100)
+                      : 0);
+                  const inStock = variant.inStock === true;
+
+                  return (
+                    <TouchableOpacity
+                      key={`variant-${
+                        variant.variantId || variant._id || index
+                      }`}
+                      style={[
+                        styles.variantCard,
+                        {
+                          backgroundColor: themeColors.cardBg,
+                          borderColor: themeColors.borderColor,
+                          opacity: !inStock ? 0.6 : 1,
+                        },
+                        isSelected && styles.variantCardSelected,
+                      ]}
+                      onPress={() => inStock && handleVariantSelect(index)}
+                      activeOpacity={inStock ? 0.7 : 1}
+                      disabled={!inStock}
+                    >
+                      {isSelected && (
+                        <View
+                          style={[
+                            styles.selectedBadge,
+                            { backgroundColor: themeColors.primary },
+                          ]}
+                        >
+                          <Icon name="check" size={16} color="#fff" />
+                        </View>
+                      )}
+                      {!inStock && (
+                        <View style={styles.outOfStockOverlay}>
+                          <Text style={styles.outOfStockText}>
+                            OUT OF STOCK
+                          </Text>
+                        </View>
+                      )}
+                      {renderVariantMedia(variant, index)}
+                      <View
+                        style={[
+                          styles.variantDetails,
+                          { backgroundColor: themeColors.cardBg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.variantName,
+                            { color: themeColors.textPrimary },
+                          ]}
+                        >
+                          Option {index + 1}
+                        </Text>
+
+                        {variant.fields &&
+                          Array.isArray(variant.fields) &&
+                          variant.fields.map(
+                            (field: VariantField, fieldIndex: number) => (
+                              <View
+                                key={`field-${fieldIndex}-${index}`}
+                                style={styles.fieldRow}
+                              >
+                                <Text
+                                  style={[
+                                    styles.fieldName,
+                                    { color: themeColors.textSecondary },
+                                  ]}
+                                >
+                                  {field.name}:
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.fieldValue,
+                                    { color: themeColors.textPrimary },
+                                  ]}
+                                >
+                                  {field.value}
+                                </Text>
+                              </View>
+                            ),
+                          )}
+
+                        <View style={styles.priceSection}>
+                          <View style={styles.priceRow}>
+                            <Text
+                              style={[
+                                styles.finalPrice,
+                                { color: themeColors.primary },
+                              ]}
+                            >
+                              {formatPrice(finalPrice)}
+                            </Text>
+                            {mrp > finalPrice && (
+                              <>
+                                <Text
+                                  style={[
+                                    styles.originalPrice,
+                                    { color: themeColors.gray },
+                                  ]}
+                                >
+                                  {formatPrice(mrp)}
+                                </Text>
+                                <View style={styles.discountBadge}>
+                                  <Text style={styles.discountText}>
+                                    {discount}% OFF
+                                  </Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                          {variant.savedAmount && variant.savedAmount > 0 && (
+                            <Text
+                              style={[
+                                styles.savedText,
+                                { color: themeColors.success },
+                              ]}
+                            >
+                              You save {formatPrice(variant.savedAmount)}
+                            </Text>
+                          )}
+                        </View>
+
+                        <View
+                          style={[
+                            styles.itemDivider,
+                            { backgroundColor: themeColors.borderColor },
+                          ]}
+                        />
+
+                        {renderVariantInfo(variant)}
+
+                        <View
+                          style={[
+                            styles.variantStatus,
+                            isSelected
+                              ? styles.statusSelected
+                              : styles.statusAvailable,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              isSelected && styles.statusTextSelected,
+                            ]}
+                          >
+                            {isSelected
+                              ? '✓ Selected'
+                              : inStock
+                              ? 'Tap to select'
+                              : 'Out of Stock'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <Icon name="inventory" size={48} color={themeColors.gray} />
+                  <Text
+                    style={[
+                      styles.emptyStateText,
+                      { color: themeColors.gray, marginTop: 12 },
+                    ]}
+                  >
+                    No variants available
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Footer with Confirm Button - Yellow */}
+        <View
+          style={[
+            styles.modalFooter,
+            {
+              backgroundColor: themeColors.modalBg,
+              borderTopColor: themeColors.modalBorder,
+              paddingBottom: insets.bottom + 16,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              if (isVariantSelected()) {
+                handleAddToCart();
+                setShowVariantModal(false);
+              }
+            }}
+            style={[
+              styles.confirmButton,
+              {
+                backgroundColor: isVariantSelected()
+                  ? themeColors.primary
+                  : '#9CA3AF',
+                shadowColor: isVariantSelected()
+                  ? themeColors.primary
+                  : '#9CA3AF',
+              },
+              !isVariantSelected() && styles.disabledButton,
+            ]}
+            disabled={!isVariantSelected() || cartState.isAdding}
+            activeOpacity={0.8}
+          >
+            {cartState.isAdding ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name="cart-plus"
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.confirmButtonText}>
+                  {isVariantSelected() ? 'CONFIRM & ADD TO CART' : 'SELECT AN OPTION'}
+                </Text>
+                {isVariantSelected() && (
+                  <FontAwesome5 name="arrow-right" size={14} color="#fff" />
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+
+  // Compact version
   if (compact) {
-    if (!cartState.isInCart) {
-      return (
-        <>
-          {renderVariantModal()}
-
+    return (
+      <>
+        {renderVariantModal()}
+        {!cartState.isInCart ? (
           <TouchableOpacity
             onPress={handleAddToCart}
             disabled={cartState.isAdding || productLoading || !productAvailable}
             style={[
               styles.compactAddButton,
               { backgroundColor: themeColors.primary },
-              (!productAvailable || cartState.isAdding || productLoading) &&
+              (!productAvailable || cartState.isAdding) &&
                 styles.disabledButton,
             ]}
           >
             {cartState.isAdding ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text style={styles.compactButtonText}>{getButtonText()}</Text>
             )}
           </TouchableOpacity>
-        </>
-      );
-    }
-
-    return (
-      <View style={styles.compactContainer}>
-        <TouchableOpacity
-          onPress={showQuantityController}
-          style={[
-            styles.compactQuantityButton,
-            {
-              backgroundColor: themeColors.light,
-              borderColor: themeColors.borderColor,
-            },
-          ]}
-        >
-          <Text
-            style={[styles.compactQuantityText, { color: themeColors.dark }]}
-          >
-            {cartState.quantity}
-          </Text>
-          <Icon name="keyboard-arrow-down" size={16} color={themeColors.gray} />
-        </TouchableOpacity>
-
-        <Modal
-          visible={showQuantityModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={hideQuantityController}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={hideQuantityController}
-          >
-            <Animated.View style={[styles.modalContent, slideUpAnimation]}>
-              <Animated.View
+        ) : (
+          <View style={styles.compactContainer}>
+            <TouchableOpacity
+              onPress={showQuantityController}
+              style={[
+                styles.compactQuantityButton,
+                {
+                  backgroundColor: themeColors.light,
+                  borderColor: themeColors.borderColor,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.modalQuantityContainer,
-                  scaleAnimation,
-                  {
-                    backgroundColor: themeColors.modalContentBg,
-                  },
+                  styles.compactQuantityText,
+                  { color: themeColors.textPrimary },
                 ]}
               >
-                <View style={styles.modalHeader}>
-                  <Text
-                    style={[styles.modalTitle, { color: themeColors.dark }]}
-                  >
-                    Quantity
-                  </Text>
-                  <TouchableOpacity onPress={hideQuantityController}>
-                    <Icon name="close" size={24} color={themeColors.gray} />
-                  </TouchableOpacity>
-                </View>
-
-                <View
+                {cartState.quantity}
+              </Text>
+              <Icon
+                name="keyboard-arrow-down"
+                size={16}
+                color={themeColors.gray}
+              />
+            </TouchableOpacity>
+            {/* Quantity Modal */}
+            <Modal
+              visible={showQuantityModal}
+              transparent
+              animationType="fade"
+              onRequestClose={hideQuantityController}
+            >
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={hideQuantityController}
+              >
+                <Animated.View
                   style={[
-                    styles.modalControls,
+                    styles.modalContent,
                     {
-                      backgroundColor: themeColors.light,
-                      borderColor: themeColors.borderColor,
+                      transform: [
+                        {
+                          translateY: slideAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [300, 0],
+                          }),
+                        },
+                      ],
                     },
                   ]}
                 >
-                  <TouchableOpacity
-                    onPress={() => handleQuantityChange(cartState.quantity - 1)}
-                    disabled={cartState.isLoading || cartState.quantity <= 1}
+                  <Animated.View
                     style={[
-                      styles.modalQuantityButton,
-                      {
-                        backgroundColor: themeColors.white,
-                        borderColor: themeColors.borderColor,
-                      },
-                      (cartState.quantity <= 1 || cartState.isLoading) &&
-                        styles.disabledButton,
+                      styles.modalQuantityContainer,
+                      { transform: [{ scale: scaleAnim }] },
+                      { backgroundColor: themeColors.modalBg },
                     ]}
                   >
-                    <Icon
-                      name="remove"
-                      size={24}
-                      color={themeColors.textSecondary}
-                    />
-                  </TouchableOpacity>
-
-                  <View style={styles.modalQuantityDisplay}>
-                    {cartState.isLoading ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={themeColors.textSecondary}
-                      />
-                    ) : (
+                    <View style={styles.modalHeader}>
                       <Text
                         style={[
-                          styles.modalQuantityText,
-                          { color: themeColors.dark },
+                          styles.modalTitle,
+                          { color: themeColors.textPrimary },
                         ]}
                       >
-                        {cartState.quantity}
+                        Quantity
                       </Text>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => handleQuantityChange(cartState.quantity + 1)}
-                    disabled={
-                      cartState.isLoading || cartState.quantity >= maxQuantity
-                    }
-                    style={[
-                      styles.modalQuantityButton,
-                      {
-                        backgroundColor: themeColors.white,
-                        borderColor: themeColors.borderColor,
-                      },
-                      (cartState.quantity >= maxQuantity ||
-                        cartState.isLoading) &&
-                        styles.disabledButton,
-                    ]}
-                  >
-                    <Icon
-                      name="add"
-                      size={24}
-                      color={themeColors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  onPress={handleRemoveFromCart}
-                  disabled={cartState.isLoading}
-                  style={[
-                    styles.modalRemoveButton,
-                    {
-                      backgroundColor: '#FEF2F2',
-                      borderColor: '#FECACA',
-                    },
-                    cartState.isLoading && styles.disabledButton,
-                  ]}
-                >
-                  <Icon name="delete-outline" size={20} color="#DC2626" />
-                  <Text style={styles.modalRemoveText}>Remove from Cart</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </Animated.View>
-          </TouchableOpacity>
-        </Modal>
-      </View>
+                      <TouchableOpacity onPress={hideQuantityController}>
+                        <Icon name="close" size={24} color={themeColors.gray} />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={[
+                        styles.modalControls,
+                        {
+                          backgroundColor: themeColors.light,
+                          borderColor: themeColors.borderColor,
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleQuantityChange(cartState.quantity - 1)
+                        }
+                        disabled={
+                          cartState.isLoading || cartState.quantity <= 1
+                        }
+                        style={[
+                          styles.modalQuantityButton,
+                          {
+                            backgroundColor: themeColors.white,
+                            borderColor: themeColors.borderColor,
+                          },
+                          (cartState.quantity <= 1 || cartState.isLoading) &&
+                            styles.disabledButton,
+                        ]}
+                      >
+                        <Icon
+                          name="remove"
+                          size={24}
+                          color={themeColors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                      <View style={styles.modalQuantityDisplay}>
+                        {cartState.isLoading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={themeColors.textSecondary}
+                          />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.modalQuantityText,
+                              { color: themeColors.textPrimary },
+                            ]}
+                          >
+                            {cartState.quantity}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleQuantityChange(cartState.quantity + 1)
+                        }
+                        disabled={
+                          cartState.isLoading ||
+                          cartState.quantity >= maxQuantity
+                        }
+                        style={[
+                          styles.modalQuantityButton,
+                          {
+                            backgroundColor: themeColors.white,
+                            borderColor: themeColors.borderColor,
+                          },
+                          (cartState.quantity >= maxQuantity ||
+                            cartState.isLoading) &&
+                            styles.disabledButton,
+                        ]}
+                      >
+                        <Icon
+                          name="add"
+                          size={24}
+                          color={themeColors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity
+                      onPress={handleRemoveFromCart}
+                      disabled={cartState.isLoading}
+                      style={[
+                        styles.modalRemoveButton,
+                        { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+                        cartState.isLoading && styles.disabledButton,
+                      ]}
+                    >
+                      <Icon name="delete-outline" size={20} color="#DC2626" />
+                      <Text style={styles.modalRemoveText}>
+                        Remove from Cart
+                      </Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                </Animated.View>
+              </TouchableOpacity>
+            </Modal>
+          </View>
+        )}
+      </>
     );
   }
 
-  // ✅ Full version - Theme aware
+  // Full version
   return (
     <View style={[styles.container, style]}>
       {renderVariantModal()}
-
       <Modal
         visible={showAnim !== null}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setShowAnim(null)}
       >
@@ -1552,39 +1363,40 @@ const AddToCart: React.FC<AddToCartProps> = ({
           <View style={styles.animationBackground}>
             <LottieView
               source={
-                showAnim === 'success' ? successAnimation : failedAnimation
+                showAnim === 'success'
+                  ? require('../animations/lotties/Success.json')
+                  : require('../animations/lotties/Failed.json')
               }
               autoPlay
               loop={false}
               style={styles.animation}
-              onAnimationFinish={handleAnimationFinish}
+              onAnimationFinish={() => setShowAnim(null)}
             />
           </View>
         </View>
       </Modal>
-
       {!cartState.isInCart ? (
         <TouchableOpacity
           onPress={handleAddToCart}
           disabled={cartState.isAdding || productLoading || !productAvailable}
           style={[
-            styles.addButton,
-            { backgroundColor: themeColors.primary },
-            (!productAvailable || cartState.isAdding || productLoading) &&
-              styles.disabledButton,
+            styles.buyNowButton,
+            {
+              backgroundColor: themeColors.primary,
+              shadowColor: themeColors.primary,
+            },
+            (!productAvailable || cartState.isAdding) && styles.disabledButton,
           ]}
+          activeOpacity={0.7}
         >
           {cartState.isAdding ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            </View>
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <View style={styles.iconContent}>
-              <Icon name="add-shopping-cart" size={16} color="#FFFFFF" />
-              <View style={styles.buttonContent}>
-                <Text style={styles.buttonText}>{getButtonText()}</Text>
-              </View>
-            </View>
+            <>
+              <MaterialCommunityIcons name="cart-plus" size={18} color="#fff" />
+              <Text style={styles.buttonText}>{getButtonText()}</Text>
+              <FontAwesome5 name="arrow-right" size={14} color="#fff" />
+            </>
           )}
         </TouchableOpacity>
       ) : (
@@ -1599,7 +1411,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
               },
             ]}
           >
-            <View style={styles.quantityInfo}>
+            <View>
               <Text style={[styles.quantityText, { color: themeColors.gray }]}>
                 Qty: {cartState.quantity}
               </Text>
@@ -1610,10 +1422,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
               color={themeColors.gray}
             />
           </TouchableOpacity>
-
           <Modal
             visible={showQuantityModal}
-            transparent={true}
+            transparent
             animationType="fade"
             onRequestClose={hideQuantityController}
           >
@@ -1622,27 +1433,28 @@ const AddToCart: React.FC<AddToCartProps> = ({
               activeOpacity={1}
               onPress={hideQuantityController}
             >
-              <Animated.View style={[styles.modalContent, slideUpAnimation]}>
+              <Animated.View
+                style={[
+                  styles.modalContent,
+                  {
+                    transform: [
+                      {
+                        translateY: slideAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [300, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
                 <Animated.View
                   style={[
                     styles.modalQuantityContainer,
-                    scaleAnimation,
-                    {
-                      backgroundColor: themeColors.modalContentBg,
-                    },
+                    { transform: [{ scale: scaleAnim }] },
+                    { backgroundColor: themeColors.modalBg },
                   ]}
                 >
-                  <View style={styles.modalHeader}>
-                    <Text
-                      style={[styles.modalTitle, { color: themeColors.dark }]}
-                    >
-                      Update Quantity
-                    </Text>
-                    <TouchableOpacity onPress={hideQuantityController}>
-                      <Icon name="close" size={24} color={themeColors.gray} />
-                    </TouchableOpacity>
-                  </View>
-
                   <View
                     style={[
                       styles.modalControls,
@@ -1673,7 +1485,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         color={themeColors.textSecondary}
                       />
                     </TouchableOpacity>
-
                     <View style={styles.modalQuantityDisplay}>
                       {cartState.isLoading ? (
                         <ActivityIndicator
@@ -1684,14 +1495,13 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         <Text
                           style={[
                             styles.modalQuantityText,
-                            { color: themeColors.dark },
+                            { color: themeColors.textPrimary },
                           ]}
                         >
                           {cartState.quantity}
                         </Text>
                       )}
                     </View>
-
                     <TouchableOpacity
                       onPress={() =>
                         handleQuantityChange(cartState.quantity + 1)
@@ -1717,16 +1527,12 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       />
                     </TouchableOpacity>
                   </View>
-
                   <TouchableOpacity
                     onPress={handleRemoveFromCart}
                     disabled={cartState.isLoading}
                     style={[
                       styles.modalRemoveButton,
-                      {
-                        backgroundColor: '#FEF2F2',
-                        borderColor: '#FECACA',
-                      },
+                      { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
                       cartState.isLoading && styles.disabledButton,
                     ]}
                   >
@@ -1743,461 +1549,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
   );
 };
 
-// ✅ NEW SWIPER STYLES (BuyNow jaisa with Theme support)
-const swiperStyles = StyleSheet.create({
-  // ✅ Modal Full Screen Container
-  modalFullScreenContainer: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-
-  // ✅ Modal Backdrop
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-
-  // ✅ Modal Container - Proper Height (59% of screen)
-  variantModalContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: screenHeight * 0.59,
-    maxHeight: screenHeight * 0.65,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 20,
-  },
-
-  // ✅ Modal Header - Proper padding
-  variantModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  variantModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  closeButton: {
-    padding: 6,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-  },
-  variantModalSubtitle: {
-    fontSize: 14,
-    color: '#6366F1',
-    marginBottom: 12,
-    fontWeight: '500',
-    paddingHorizontal: 16,
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 150,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-
-  // ✅ Variant List Container
-  variantListContainer: {
-    paddingHorizontal: 4,
-    backgroundColor: '#FFFFFF',
-  },
-
-  // ✅ Variant Scroll View - Flexible Height
-  variantScrollView: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  variantScrollContent: {
-    paddingBottom: 20,
-    paddingTop: 8,
-    backgroundColor: '#FFFFFF',
-  },
-
-  // ✅ Variant Card
-  variantCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#F3F4F6',
-    marginBottom: 12,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    marginHorizontal: 12,
-  },
-  variantCardSelected: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 2,
-    shadowColor: '#F59E0B',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  selectedBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#10B981',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-
-  // ✅ Variant Images Container
-  variantImagesContainer: {
-    maxHeight: 100,
-    backgroundColor: '#F3F4F6',
-  },
-  variantImagesContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  imageContainer: {
-    marginRight: 8,
-  },
-  variantImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    backgroundColor: '#FFFFFF',
-  },
-
-  // ✅ Video Thumbnail Styles
-  videoThumbnailContainer: {
-    position: 'relative',
-    marginRight: 8,
-  },
-  videoThumbnail: {
-    width: 70,
-    height: 70,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#F59E0B',
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoPlayIcon: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -14 }, { translateY: -14 }],
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 14,
-    padding: 2,
-  },
-  videoBadge: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: '#F59E0B',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 2,
-  },
-  videoBadgeText: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  videoIconSmall: {
-    backgroundColor: '#FEF3C7',
-    padding: 4,
-    borderRadius: 8,
-  },
-
-  // ✅ No Media Container
-  noMediaContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#F3F4F6',
-    borderStyle: 'dashed',
-  },
-  noMediaText: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-
-  // ✅ Variant Details
-  variantDetails: {
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-  },
-  variantHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  variantName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
-  fieldName: {
-    fontSize: 12,
-    color: '#6366F1',
-    marginRight: 6,
-    width: 70,
-    fontWeight: '500',
-  },
-  fieldValue: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#1F2937',
-    flex: 1,
-  },
-  fieldPrice: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#10B981',
-    marginLeft: 6,
-  },
-
-  // ✅ Bottom Row
-  variantBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  statusTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusDefault: {
-    backgroundColor: '#F3F4F6',
-  },
-  statusSelected: {
-    backgroundColor: '#10B981',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  statusSelectedText: {
-    color: '#FFFFFF',
-  },
-  videoIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
-  },
-  videoIndicatorText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
-  // ✅ No Variants
-  noVariantsContainer: {
-    padding: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-  },
-  noVariantsText: {
-    fontSize: 16,
-    color: '#1F2937',
-    textAlign: 'center',
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  noVariantsSubtext: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-
-  // ✅ Swipe Section
-  swipeSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  swipeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    width: '100%',
-  },
-  swipeInfoText: {
-    fontSize: 13,
-    color: '#6366F1',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // ✅ Swipe Button
-  swipeButtonWrapper: {
-    position: 'relative',
-    width: '100%',
-    alignItems: 'center',
-  },
-  swipeButtonContainer: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-    backgroundColor: '#F59E0B',
-  },
-  swipeRail: {
-    borderRadius: 24,
-  },
-  swipeButtonTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-
-  // ✅ Thumb Icon
-  thumbIcon: {
-    borderRadius: 20,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 40,
-    height: 40,
-    backgroundColor: '#FFFFFF',
-  },
-  thumbIconContent: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-  },
-
-  // ✅ Select Prompt
-  selectPromptContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#F3F4F6',
-    borderStyle: 'dashed',
-    gap: 8,
-    width: '100%',
-  },
-  selectPromptText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-
-  // ✅ Loading Overlay
-  swipeLoadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 12,
-    gap: 8,
-  },
-  swipeLoadingText: {
-    fontSize: 13,
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-});
-
-// ✅ ORIGINAL STYLES (SAME AS BEFORE - NO CHANGES)
 const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    position: 'relative',
-    zIndex: 10,
-  },
-  fullContainer: {
-    width: '100%',
-  },
-  compactContainer: {
-    position: 'relative',
-  },
+  container: { width: '100%', position: 'relative', zIndex: 10 },
+  fullContainer: { width: '100%' },
+  compactContainer: { position: 'relative' },
   compactAddButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#F59E0B',
     paddingHorizontal: 22,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 50,
     height: 28,
     justifyContent: 'center',
     alignItems: 'center',
@@ -2206,95 +1566,54 @@ const styles = StyleSheet.create({
   compactButtonText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#fff',
     textAlign: 'center',
   },
   compactQuantityButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     height: 28,
     minWidth: 60,
     justifyContent: 'space-between',
   },
-  compactQuantityText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  addButton: {
-    width: '100%',
-    backgroundColor: '#ff7b00ff',
+  compactQuantityText: { fontSize: 12, fontWeight: '600' },
+  buyNowButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 50,
+    gap: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
     elevation: 5,
   },
-  buttonContent: {
-    flexDirection: 'row',
-    right: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  iconContent: {
-    flexDirection: 'row',
-    left: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
+  iconContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  quantityInfo: {
-    flex: 1,
-  },
-  quantityText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  variantInfoText: {
-    fontSize: 12,
-    color: '#059669',
-    marginTop: 2,
-  },
+  quantityText: { fontSize: 14, fontWeight: '500' },
   showControlsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F3F4F6',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -2303,14 +1622,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   modalQuantityContainer: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
@@ -2319,34 +1634,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#1F2937',
-  },
-  selectedVariantDisplay: {
-    backgroundColor: '#F0F9FF',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  selectedVariantText: {
-    fontSize: 14,
-    color: '#0369A1',
-    fontWeight: '500',
+    flex: 1,
+    marginLeft: 15,
   },
   modalControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     padding: 8,
     marginBottom: 16,
   },
@@ -2355,10 +1658,8 @@ const styles = StyleSheet.create({
     height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   modalQuantityDisplay: {
     minWidth: 60,
@@ -2366,35 +1667,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  modalQuantityText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
+  modalQuantityText: { fontSize: 20, fontWeight: '600' },
   modalRemoveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FECACA',
     gap: 8,
   },
-  modalRemoveText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#DC2626',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
+  modalRemoveText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
+  disabledButton: { opacity: 0.5 },
   animationContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   animationBackground: {
     width: 220,
@@ -2402,9 +1691,294 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  animation: {
-    width: 220,
+  animation: { width: 220, height: 220 },
+
+  // Full Screen Modal Styles
+  fullScreenModal: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  productHeader: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  productMediaContainer: {
+    width: '100%',
     height: 220,
+    backgroundColor: '#F3F4F6',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  productVideoContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E6F7F1',
+  },
+  videoBadgeLarge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 6,
+  },
+  videoBadgeLargeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  productInfo: {
+    padding: 16,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  productTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  verifiedText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  brandText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  productDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  variantCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
+  variantCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  variantCardSelected: {
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  outOfStockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+    borderRadius: 16,
+  },
+  outOfStockText: {
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    color: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    fontSize: 12,
+    fontWeight: '700',
+    overflow: 'hidden',
+  },
+  variantMediaScroll: { maxHeight: 100 },
+  variantMediaContent: { padding: 12, gap: 8 },
+  mediaItem: { marginRight: 8 },
+  variantMediaImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  variantVideoThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  videoOverlayBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  videoBadgeSmallText: { fontSize: 8, fontWeight: '700', color: '#fff' },
+  emptyMedia: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 12,
+  },
+  emptyMediaText: { fontSize: 10, marginTop: 4 },
+  variantDetails: { padding: 16 },
+  variantName: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  fieldName: { fontSize: 12, width: 80, fontWeight: '500' },
+  fieldValue: { fontSize: 13, fontWeight: '500', flex: 1 },
+  priceSection: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  finalPrice: { fontSize: 18, fontWeight: '700', color: '#F59E0B' },
+  originalPrice: { fontSize: 13, textDecorationLine: 'line-through' },
+  discountBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  discountText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  savedText: { fontSize: 11, marginTop: 4 },
+  itemDivider: {
+    height: 1,
+    marginVertical: 10,
+  },
+  variantInfoContainer: {
+    marginTop: 10,
+    gap: 6,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  infoIcon: {
+    width: 20,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 11,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  variantStatus: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  statusAvailable: { backgroundColor: '#F3F4F6' },
+  statusSelected: { backgroundColor: '#F59E0B' },
+  statusText: { fontSize: 12, fontWeight: '600' },
+  statusTextSelected: { color: '#fff' },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 150,
+    gap: 12,
+  },
+  loadingText: { fontSize: 14, fontWeight: '500' },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+  },
+  confirmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 50,
+    gap: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  emptyStateContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

@@ -55,7 +55,7 @@ export const SettingsScreen: React.FC = () => {
         return;
       }
 
-      const API_URL = 'http://192.168.251.121:5000'; // Replace with your API URL
+      const API_URL = 'http://172.20.10.12:5000'; // Replace with your API URL
       const response = await fetch(`${API_URL}/api/profile/me`, {
         method: "GET",
         headers: {

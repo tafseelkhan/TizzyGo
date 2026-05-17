@@ -1,5 +1,11 @@
-// components/Products/ProductImages.tsx
-import React, { useState, useEffect, useRef } from 'react';
+// components/Products/ProductImages.tsx - FIXED VERSION
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
 import {
   View,
   Text,
@@ -11,24 +17,31 @@ import {
   Modal,
   PanResponder,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
-import { useTheme } from '../../contexts/theme/ThemeContext'; // Adjust path as needed
+import Icon from 'react-native-vector-icons/Ionicons';
+import { useTheme } from '../../contexts/theme/ThemeContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// Types
-export interface VariantField {
-  name: string;
-  value: string;
-}
+// ============= UPDATED INTERFACES FOR NEW DATA STRUCTURE =============
 
 export interface Variant {
   _id?: string;
-  fields: VariantField[];
-  images: string[];
+  fields?: Record<string, string>;
+  combinationKey?: string;
+  images?: string[];
   video?: string;
   stock?: number;
+  quantityAvailable?: number;
   price?: number;
+  finalPrice?: number;
+  mrp?: number;
+  discount?: number;
+  sku?: string;
+  isDefault?: boolean;
+  variantId?: string;
+  inStock?: boolean;
 }
 
 interface ProductImagesProps {
@@ -37,9 +50,7 @@ interface ProductImagesProps {
   initialVariantIndex?: number;
 }
 
-// Color mapping for common colors
 const colorMap: Record<string, string> = {
-  // Basic colors
   red: '#FF0000',
   blue: '#0000FF',
   green: '#008000',
@@ -69,161 +80,147 @@ const colorMap: Record<string, string> = {
   lavender: '#E6E6FA',
   violet: '#EE82EE',
   indigo: '#4B0082',
-
-  // Additional colors
-  aliceblue: '#F0F8FF',
-  antiquewhite: '#FAEBD7',
-  aqua: '#00FFFF',
-  aquamarine: '#7FFFD4',
-  azure: '#F0FFFF',
-  bisque: '#FFE4C4',
-  blanchedalmond: '#FFEBCD',
-  blueviolet: '#8A2BE2',
-  burlywood: '#DEB887',
-  cadetblue: '#5F9EA0',
-  chartreuse: '#7FFF00',
-  chocolate: '#D2691E',
-  cornflowerblue: '#6495ED',
-  cornsilk: '#FFF8DC',
-  crimson: '#DC143C',
-  darkblue: '#00008B',
-  darkcyan: '#008B8B',
-  darkgoldenrod: '#B8860B',
-  darkgray: '#A9A9A9',
-  darkgreen: '#006400',
-  darkgrey: '#A9A9A9',
-  darkkhaki: '#BDB76B',
-  darkmagenta: '#8B008B',
-  darkolivegreen: '#556B2F',
-  darkorange: '#FF8C00',
-  darkorchid: '#9932CC',
-  darkred: '#8B0000',
-  darksalmon: '#E9967A',
-  darkseagreen: '#8FBC8F',
-  darkslateblue: '#483D8B',
-  darkslategray: '#2F4F4F',
-  darkslategrey: '#2F4F4F',
-  darkturquoise: '#00CED1',
-  darkviolet: '#9400D3',
-  deeppink: '#FF1493',
-  deepskyblue: '#00BFFF',
-  dimgray: '#696969',
-  dimgrey: '#696969',
-  dodgerblue: '#1E90FF',
-  firebrick: '#B22222',
-  floralwhite: '#FFFAF0',
-  forestgreen: '#228B22',
-  fuchsia: '#FF00FF',
-  gainsboro: '#DCDCDC',
-  ghostwhite: '#F8F8FF',
-  goldenrod: '#DAA520',
-  greenyellow: '#ADFF2F',
-  honeydew: '#F0FFF0',
-  hotpink: '#FF69B4',
-  indianred: '#CD5C5C',
-  ivory: '#FFFFF0',
-  lavenderblush: '#FFF0F5',
-  lawngreen: '#7CFC00',
-  lemonchiffon: '#FFFACD',
-  lightblue: '#ADD8E6',
-  lightcoral: '#F08080',
-  lightcyan: '#E0FFFF',
-  lightgoldenrodyellow: '#FAFAD2',
-  lightgray: '#D3D3D3',
-  lightgreen: '#90EE90',
-  lightgrey: '#D3D3D3',
-  lightpink: '#FFB6C1',
-  lightsalmon: '#FFA07A',
-  lightseagreen: '#20B2AA',
-  lightskyblue: '#87CEFA',
-  lightslategray: '#778899',
-  lightslategrey: '#778899',
-  lightsteelblue: '#B0C4DE',
-  lightyellow: '#FFFFE0',
-  linen: '#FAF0E6',
-  mediumaquamarine: '#66CDAA',
-  mediumblue: '#0000CD',
-  mediumorchid: '#BA55D3',
-  mediumpurple: '#9370DB',
-  mediumseagreen: '#3CB371',
-  mediumslateblue: '#7B68EE',
-  mediumspringgreen: '#00FA9A',
-  mediumturquoise: '#48D1CC',
-  mediumvioletred: '#C71585',
-  midnightblue: '#191970',
-  mintcream: '#F5FFFA',
-  mistyrose: '#FFE4E1',
-  moccasin: '#FFE4B5',
-  navajowhite: '#FFDEAD',
-  oldlace: '#FDF5E6',
-  olivedrab: '#6B8E23',
-  orangered: '#FF4500',
-  orchid: '#DA70D6',
-  palegoldenrod: '#EEE8AA',
-  palegreen: '#98FB98',
-  paleturquoise: '#AFEEEE',
-  palevioletred: '#DB7093',
-  papayawhip: '#FFEFD5',
-  peachpuff: '#FFDAB9',
-  peru: '#CD853F',
-  plum: '#DDA0DD',
-  powderblue: '#B0E0E6',
-  rosybrown: '#BC8F8F',
-  royalblue: '#4169E1',
-  saddlebrown: '#8B4513',
-  salmon: '#FA8072',
-  sandybrown: '#F4A460',
-  seagreen: '#2E8B57',
-  seashell: '#FFF5EE',
-  sienna: '#A0522D',
-  skyblue: '#87CEEB',
-  slateblue: '#6A5ACD',
-  slategray: '#708090',
-  slategrey: '#708090',
-  snow: '#FFFAFA',
-  springgreen: '#00FF7F',
-  steelblue: '#4682B4',
-  tan: '#D2B48C',
-  thistle: '#D8BFD8',
-  tomato: '#FF6347',
-  wheat: '#F5DEB3',
-  whitesmoke: '#F5F5F5',
-  yellowgreen: '#9ACD32',
-
-  // Transparent
   transparent: '#00000000',
+  f: '#808080',
+  gg: '#A0A0A0',
+  '0b': '#0B3B60',
+  ttt: '#5C6BC0',
+  gG: '#9E9E9E',
 };
 
-// Icons as simple text/emoji since we're not using expo vector icons
-const Icon = ({
-  name,
-  size = 24,
-  color = '#FFFFFF',
-}: {
-  name: string;
-  size?: number;
-  color?: string;
-}) => {
-  const getIconChar = (iconName: string): string => {
-    switch (iconName) {
-      case 'zoom-in':
-        return '🔍';
-      case 'close':
-        return '✕';
-      case 'chevron-left':
-        return '←';
-      case 'chevron-right':
-        return '→';
-      case 'swipe':
-        return '👆';
-      default:
-        return '●';
-    }
-  };
+// Helper function to validate Firebase image URLs - SILENT (no console logs)
+const getValidImageUrl = (url: string): string => {
+  if (!url) return '';
+  if (typeof url !== 'string') return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return '';
+};
+
+// FIXED: SafeImage component with proper useEffect dependencies
+const SafeImage: React.FC<{
+  uri: string;
+  style: any;
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center';
+}> = React.memo(({ uri, style, resizeMode = 'cover' }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const validUri = useMemo(() => getValidImageUrl(uri), [uri]);
+
+  // FIXED: Reset states only when validUri actually changes
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+  }, [validUri]); // ✅ Only depends on validUri, not uri
+
+  if (!validUri) {
+    return (
+      <View style={[style, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Icon name="image-outline" size={32} color="#9CA3AF" />
+      </View>
+    );
+  }
 
   return (
-    <Text style={{ fontSize: size, color: color }}>{getIconChar(name)}</Text>
+    <View style={style}>
+      {loading && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#F3F4F6',
+            },
+          ]}
+        >
+          <ActivityIndicator size="large" color="#10B981" />
+        </View>
+      )}
+      {error && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#F3F4F6',
+            },
+          ]}
+        >
+          <Icon name="image-off-outline" size={32} color="#9CA3AF" />
+          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
+            Failed to load
+          </Text>
+        </View>
+      )}
+      <Image
+        source={{ uri: validUri }}
+        style={[style, { opacity: loading || error ? 0 : 1 }]}
+        resizeMode={resizeMode}
+        onLoadStart={() => {
+          setLoading(true);
+          setError(false);
+        }}
+        onLoadEnd={() => {
+          setLoading(false);
+        }}
+        onError={() => {
+          setLoading(false);
+          setError(true);
+        }}
+      />
+    </View>
   );
+});
+
+// Helper: Convert old variant fields array to new object format
+const normalizeVariantFields = (variant: Variant): Record<string, string> => {
+  if (
+    variant.fields &&
+    typeof variant.fields === 'object' &&
+    !Array.isArray(variant.fields)
+  ) {
+    return variant.fields;
+  }
+
+  if (variant.fields && Array.isArray(variant.fields)) {
+    const normalized: Record<string, string> = {};
+    variant.fields.forEach((field: any) => {
+      if (field.name && field.value) {
+        normalized[field.name] = field.value;
+      }
+    });
+    return normalized;
+  }
+
+  return {};
+};
+
+const getVariantDisplayName = (variant: Variant): string => {
+  const fields = normalizeVariantFields(variant);
+  if (Object.keys(fields).length > 0) {
+    return Object.entries(fields)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(' • ');
+  }
+  if (variant.combinationKey) {
+    return variant.combinationKey.replace(/\|/g, ' • ');
+  }
+  return '';
+};
+
+const getVariantStock = (variant: Variant): number => {
+  if (variant.quantityAvailable !== undefined) return variant.quantityAvailable;
+  if (variant.stock !== undefined) return variant.stock;
+  return 0;
+};
+
+const getVariantPrice = (variant: Variant): number => {
+  if (variant.finalPrice) return variant.finalPrice;
+  if (variant.price) return variant.price;
+  return 0;
 };
 
 const ProductImages: React.FC<ProductImagesProps> = ({
@@ -231,10 +228,18 @@ const ProductImages: React.FC<ProductImagesProps> = ({
   onVariantChange,
   initialVariantIndex = 0,
 }) => {
-  const { isDark, theme } = useTheme(); // Theme context
+  const { isDark } = useTheme();
 
-  const [selectedVariantIndex, setSelectedVariantIndex] =
-    useState(initialVariantIndex);
+  // FIXED: Memoize validVariants to prevent recalculation on every render
+  const validVariants = useMemo(() => {
+    return variants.filter(
+      v => v && (normalizeVariantFields(v) || v.combinationKey),
+    );
+  }, [variants]);
+
+  const [selectedVariantIndex, setSelectedVariantIndex] = useState(
+    initialVariantIndex >= validVariants.length ? 0 : initialVariantIndex,
+  );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [tempSelectedOptions, setTempSelectedOptions] = useState<
     Record<string, string>
@@ -245,10 +250,31 @@ const ProductImages: React.FC<ProductImagesProps> = ({
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomImage, setZoomImage] = useState('');
+  const [tempVariantIndex, setTempVariantIndex] =
+    useState(selectedVariantIndex);
 
-  // Swipe animation for main image
   const swipeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // FIXED: Memoize selectedVariant to prevent unnecessary re-renders
+  const selectedVariant = useMemo(() => {
+    return validVariants[selectedVariantIndex];
+  }, [validVariants, selectedVariantIndex]);
+
+  const selectedVariantFields = useMemo(() => {
+    return normalizeVariantFields(selectedVariant);
+  }, [selectedVariant]);
+
+  const images = useMemo(() => {
+    return selectedVariant?.images || [];
+  }, [selectedVariant]);
+
+  const selectedImage = useMemo(() => {
+    return images[selectedImageIndex] || '';
+  }, [images, selectedImageIndex]);
+
+  const dynamicStyles = getDynamicStyles(isDark);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -266,528 +292,224 @@ const ProductImages: React.FC<ProductImagesProps> = ({
           toValue: 1,
           useNativeDriver: true,
         }).start();
-
-        // Handle swipe to change image
-        if (gestureState.dx < -50) {
-          // Swipe left - next image
-          if (selectedImageIndex < images.length - 1) {
-            setSelectedImageIndex(selectedImageIndex + 1);
-          }
-        } else if (gestureState.dx > 50) {
-          // Swipe right - previous image
-          if (selectedImageIndex > 0) {
-            setSelectedImageIndex(selectedImageIndex - 1);
-          }
+        if (gestureState.dx < -50 && selectedImageIndex < images.length - 1) {
+          setSelectedImageIndex(selectedImageIndex + 1);
+        } else if (gestureState.dx > 50 && selectedImageIndex > 0) {
+          setSelectedImageIndex(selectedImageIndex - 1);
         }
-
-        // Reset animation
         swipeAnim.setValue(0);
       },
     }),
   ).current;
 
-  const selectedVariant = variants[selectedVariantIndex];
-  const images = selectedVariant?.images || [];
-  const selectedImage = images[selectedImageIndex] || '';
-
-  // Temporary selected variant based on temp options
-  const [tempVariantIndex, setTempVariantIndex] =
-    useState(selectedVariantIndex);
-
-  // Dynamic styles based on theme
-  const dynamicStyles = StyleSheet.create({
-    // Container styles
-    container: {
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    placeholder: {
-      height: 300,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
-      borderRadius: 12,
-    },
-    placeholderText: {
-      fontSize: 16,
-      color: isDark ? '#CBD5E1' : '#6B7280',
-    },
-
-    // Main image container
-    mainImageContainer: {
-      width: width - 32,
-      height: 300,
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E5E7EB',
-      marginBottom: 16,
-      overflow: 'hidden',
-      position: 'relative',
-    },
-    imagePlaceholder: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
-    },
-
-    // Thumbnails
-    thumbnailsSection: {
-      marginBottom: 16,
-    },
-    thumbnail: {
-      width: 80,
-      height: 80,
-      marginHorizontal: 4,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderColor: 'transparent',
-      overflow: 'hidden',
-    },
-    selectedThumbnail: {
-      borderColor: '#3B82F6',
-    },
-
-    // Color section
-    colorSection: {
-      marginBottom: 12,
-    },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginBottom: 8,
-    },
-    colorText: {
-      fontSize: 12,
-      color: isDark ? '#E2E8F0' : '#374151',
-      maxWidth: 60,
-      textAlign: 'center',
-    },
-
-    // More options button
-    moreOptionsButton: {
-      backgroundColor: '#3B82F6',
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-    },
-    moreOptionsText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-
-    // Modal styles
-    modalContent: {
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      maxHeight: '85%',
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-    },
-    closeButton: {
-      fontSize: 24,
-      color: isDark ? '#CBD5E1' : '#6B7280',
-      fontWeight: '300',
-    },
-    modalScroll: {
-      padding: 20,
-      paddingBottom: 30,
-    },
-    optionLabel: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginBottom: 12,
-    },
-    colorModalOption: {
-      alignItems: 'center',
-      padding: 8,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#475569' : '#E5E7EB',
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      width: 80,
-    },
-    selectedColorModalOption: {
-      borderColor: '#3B82F6',
-      backgroundColor: isDark ? '#1E40AF' : '#EFF6FF',
-    },
-    modalColorText: {
-      fontSize: 12,
-      color: isDark ? '#E2E8F0' : '#374151',
-      textAlign: 'center',
-    },
-    textOption: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: isDark ? '#475569' : '#D1D5DB',
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-    },
-    selectedTextOption: {
-      borderColor: '#3B82F6',
-      backgroundColor: '#3B82F6',
-    },
-    textOptionText: {
-      fontSize: 14,
-      color: isDark ? '#E2E8F0' : '#374151',
-      fontWeight: '500',
-    },
-    selectedTextOptionText: {
-      color: '#FFFFFF',
-    },
-    selectedInfo: {
-      marginTop: 20,
-      padding: 16,
-      backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    selectedInfoTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginBottom: 12,
-    },
-    selectedFieldName: {
-      fontSize: 14,
-      color: isDark ? '#94A3B8' : '#6B7280',
-    },
-    selectedFieldValue: {
-      fontSize: 14,
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      fontWeight: '500',
-    },
-    previewTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginBottom: 8,
-    },
-    previewImageWrapper: {
-      width: 80,
-      height: 80,
-      marginRight: 8,
-      borderRadius: 8,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: isDark ? '#475569' : '#E5E7EB',
-    },
-    imageCount: {
-      fontSize: 12,
-      color: isDark ? '#94A3B8' : '#6B7280',
-      marginTop: 4,
-      fontStyle: 'italic',
-    },
-    videoText: {
-      fontSize: 14,
-      color: isDark ? '#94A3B8' : '#6B7280',
-      marginTop: 4,
-    },
-    priceText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginTop: 8,
-    },
-    cancelButton: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: isDark ? '#475569' : '#D1D5DB',
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      alignItems: 'center',
-    },
-    cancelButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: isDark ? '#E2E8F0' : '#374151',
-    },
-    applyButton: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 8,
-      backgroundColor: '#3B82F6',
-      alignItems: 'center',
-    },
-    applyButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
-
-    // Zoom modal styles
-    zoomModalOverlay: {
-      flex: 1,
-      backgroundColor: isDark ? '#0F172A' : '#000000',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    zoomCloseButton: {
-      position: 'absolute',
-      top: 40,
-      right: 20,
-      zIndex: 1000,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    zoomImageContainer: {
-      width: width,
-      height: width,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    zoomImage: {
-      width: '100%',
-      height: '100%',
-      resizeMode: 'contain',
-    },
-  });
-
-  // Initialize options
+  // FIXED: Build available options from all variants - proper dependencies
   useEffect(() => {
-    if (variants.length > 0) {
+    if (validVariants.length > 0) {
       const options: Record<string, string[]> = {};
-      const selectedVars = variants[selectedVariantIndex];
-
-      // Get all available options
-      variants.forEach(variant => {
-        variant.fields?.forEach(field => {
-          if (!options[field.name]) {
-            options[field.name] = [];
-          }
-          if (!options[field.name].includes(field.value)) {
-            options[field.name].push(field.value);
-          }
+      validVariants.forEach(variant => {
+        const fields = normalizeVariantFields(variant);
+        Object.entries(fields).forEach(([name, value]) => {
+          if (!options[name]) options[name] = [];
+          if (!options[name].includes(value)) options[name].push(value);
         });
       });
-
       setAvailableOptions(options);
 
-      // Set selected options from current variant
       const currentOptions: Record<string, string> = {};
-      selectedVars.fields?.forEach(field => {
-        currentOptions[field.name] = field.value;
+      const fields = normalizeVariantFields(
+        validVariants[selectedVariantIndex],
+      );
+      Object.entries(fields).forEach(([name, value]) => {
+        currentOptions[name] = value;
       });
       setTempSelectedOptions(currentOptions);
     }
-  }, [variants, selectedVariantIndex]);
+  }, [validVariants, selectedVariantIndex]); // ✅ Proper dependencies
 
-  // Find variant based on selected options
-  const findVariantByOptions = (options: Record<string, string>) => {
-    for (let i = 0; i < variants.length; i++) {
-      const variant = variants[i];
-      const matches = variant.fields?.every(
-        field => options[field.name] === field.value,
-      );
-
-      if (matches) {
-        return i;
+  const findVariantByOptions = useCallback(
+    (options: Record<string, string>) => {
+      for (let i = 0; i < validVariants.length; i++) {
+        const variant = validVariants[i];
+        const fields = normalizeVariantFields(variant);
+        let matches = true;
+        for (const [key, value] of Object.entries(options)) {
+          if (fields[key] !== value) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches) return i;
       }
-    }
-
-    return selectedVariantIndex; // Return current variant if no match
-  };
-
-  // Handle temporary option selection in modal
-  const handleTempOptionSelect = (fieldName: string, value: string) => {
-    const newOptions = {
-      ...tempSelectedOptions,
-      [fieldName]: value,
-    };
-
-    setTempSelectedOptions(newOptions);
-
-    // Find matching variant for preview
-    const variantIndex = findVariantByOptions(newOptions);
-    setTempVariantIndex(variantIndex);
-  };
-
-  // Apply selected options
-  const handleApplySelection = () => {
-    const variantIndex = findVariantByOptions(tempSelectedOptions);
-
-    // Update main state
-    setSelectedVariantIndex(variantIndex);
-    setSelectedImageIndex(0); // Reset to first image
-
-    // Notify parent
-    if (onVariantChange) {
-      onVariantChange(variantIndex);
-    }
-
-    // Close modal
-    setShowVariantModal(false);
-  };
-
-  // Handle quick color selection (outside modal)
-  const handleQuickColorSelect = (fieldName: string, value: string) => {
-    const newOptions = {
-      ...tempSelectedOptions,
-      [fieldName]: value,
-    };
-
-    const variantIndex = findVariantByOptions(newOptions);
-
-    setTempSelectedOptions(newOptions);
-    setSelectedVariantIndex(variantIndex);
-    setSelectedImageIndex(0);
-
-    if (onVariantChange) {
-      onVariantChange(variantIndex);
-    }
-  };
-
-  // Get color for color buttons
-  const getColorValue = (colorName: string): string => {
-    const lowerColor = colorName.toLowerCase();
-    return colorMap[lowerColor] || '#E5E7EB'; // Default gray
-  };
-
-  // Check if it's a color field
-  const isColorField = (fieldName: string) => {
-    const lowerField = fieldName.toLowerCase();
-    return lowerField.includes('color') || lowerField.includes('colour');
-  };
-
-  // Group fields by type
-  const colorFields = Object.keys(availableOptions).filter(isColorField);
-  const otherFields = Object.keys(availableOptions).filter(
-    field => !isColorField(field),
+      return selectedVariantIndex;
+    },
+    [validVariants, selectedVariantIndex],
   );
 
-  // Get temporary variant for preview
-  const tempVariant = variants[tempVariantIndex];
+  const handleTempOptionSelect = useCallback(
+    (fieldName: string, value: string) => {
+      const newOptions = { ...tempSelectedOptions, [fieldName]: value };
+      setTempSelectedOptions(newOptions);
+      setTempVariantIndex(findVariantByOptions(newOptions));
+    },
+    [tempSelectedOptions, findVariantByOptions],
+  );
 
-  // Handle image zoom
-  const handleImageZoom = (image: string) => {
+  const handleApplySelection = useCallback(() => {
+    const variantIndex = findVariantByOptions(tempSelectedOptions);
+    setSelectedVariantIndex(variantIndex);
+    setSelectedImageIndex(0);
+    if (onVariantChange) onVariantChange(variantIndex);
+    setShowVariantModal(false);
+  }, [tempSelectedOptions, findVariantByOptions, onVariantChange]);
+
+  const handleQuickColorSelect = useCallback(
+    (fieldName: string, value: string) => {
+      const newOptions = { ...tempSelectedOptions, [fieldName]: value };
+      const variantIndex = findVariantByOptions(newOptions);
+      setTempSelectedOptions(newOptions);
+      setSelectedVariantIndex(variantIndex);
+      setSelectedImageIndex(0);
+      if (onVariantChange) onVariantChange(variantIndex);
+    },
+    [tempSelectedOptions, findVariantByOptions, onVariantChange],
+  );
+
+  const getColorValue = useCallback((colorName: string): string => {
+    if (!colorName) return '#E5E7EB';
+    const lowerColor = colorName.toLowerCase();
+    if (colorMap[lowerColor]) return colorMap[lowerColor];
+    for (const [key, value] of Object.entries(colorMap)) {
+      if (lowerColor.includes(key)) return value;
+    }
+    return '#E5E7EB';
+  }, []);
+
+  const isColorField = useCallback((fieldName: string) => {
+    const lowerField = fieldName.toLowerCase();
+    return lowerField.includes('color') || lowerField.includes('colour');
+  }, []);
+
+  const getVariantDisplayFields = useCallback(
+    (variant: Variant): { name: string; value: string }[] => {
+      const fields = normalizeVariantFields(variant);
+      return Object.entries(fields).map(([name, value]) => ({ name, value }));
+    },
+    [],
+  );
+
+  const colorFields = useMemo(() => {
+    return Object.keys(availableOptions).filter(isColorField);
+  }, [availableOptions, isColorField]);
+
+  const otherFields = useMemo(() => {
+    return Object.keys(availableOptions).filter(field => !isColorField(field));
+  }, [availableOptions, isColorField]);
+
+  const tempVariant = useMemo(() => {
+    return validVariants[tempVariantIndex];
+  }, [validVariants, tempVariantIndex]);
+
+  const tempVariantFields = useMemo(() => {
+    return normalizeVariantFields(tempVariant);
+  }, [tempVariant]);
+
+  const handleImageZoom = useCallback((image: string) => {
     setZoomImage(image);
     setShowZoomModal(true);
-  };
+  }, []);
 
-  // Handle zoom modal image change
-  const handleZoomImageChange = (direction: 'left' | 'right') => {
-    if (direction === 'left' && selectedImageIndex > 0) {
-      setSelectedImageIndex(selectedImageIndex - 1);
-      setZoomImage(images[selectedImageIndex - 1]);
-    } else if (
-      direction === 'right' &&
-      selectedImageIndex < images.length - 1
-    ) {
-      setSelectedImageIndex(selectedImageIndex + 1);
-      setZoomImage(images[selectedImageIndex + 1]);
-    }
-  };
+  const handleZoomImageChange = useCallback(
+    (direction: 'left' | 'right') => {
+      if (direction === 'left' && selectedImageIndex > 0) {
+        setSelectedImageIndex(selectedImageIndex - 1);
+        setZoomImage(images[selectedImageIndex - 1]);
+      } else if (
+        direction === 'right' &&
+        selectedImageIndex < images.length - 1
+      ) {
+        setSelectedImageIndex(selectedImageIndex + 1);
+        setZoomImage(images[selectedImageIndex + 1]);
+      }
+    },
+    [selectedImageIndex, images],
+  );
 
-  if (variants.length === 0) {
+  if (validVariants.length === 0) {
     return (
       <View style={dynamicStyles.container}>
         <View style={dynamicStyles.placeholder}>
+          <Icon
+            name="image-outline"
+            size={48}
+            color={isDark ? '#64748B' : '#9CA3AF'}
+          />
           <Text style={dynamicStyles.placeholderText}>No Images Available</Text>
         </View>
       </View>
     );
   }
 
+  const variantDisplayName = getVariantDisplayName(selectedVariant);
+  const variantFieldsArray = getVariantDisplayFields(selectedVariant);
+  const variantStock = getVariantStock(selectedVariant);
+  const variantPrice = getVariantPrice(selectedVariant);
+
   return (
     <View style={dynamicStyles.container}>
-      {/* Main Image with Swipe and Zoom */}
+      {/* Main Image Container */}
       <View style={dynamicStyles.mainImageContainer}>
         <Animated.View
-          style={{
-            transform: [{ translateX: swipeAnim }, { scale: scaleAnim }],
-          }}
+          style={[
+            dynamicStyles.mainImageWrapper,
+            { transform: [{ translateX: swipeAnim }, { scale: scaleAnim }] },
+          ]}
           {...panResponder.panHandlers}
         >
           {selectedImage ? (
             <TouchableOpacity
-              activeOpacity={0.9}
+              activeOpacity={0.95}
               onPress={() => handleImageZoom(selectedImage)}
+              style={dynamicStyles.imageTouchable}
             >
-              <Image
-                source={{ uri: selectedImage }}
-                style={styles.mainImage}
-                resizeMode="contain"
+              <SafeImage
+                uri={selectedImage}
+                style={dynamicStyles.mainImage}
+                resizeMode="cover"
               />
             </TouchableOpacity>
           ) : (
             <View style={dynamicStyles.imagePlaceholder}>
+              <Icon
+                name="image-outline"
+                size={48}
+                color={isDark ? '#64748B' : '#9CA3AF'}
+              />
               <Text style={dynamicStyles.placeholderText}>No Image</Text>
             </View>
           )}
         </Animated.View>
-
-        {/* Zoom Icon */}
-        {selectedImage && (
-          <TouchableOpacity
-            style={styles.zoomButton}
-            onPress={() => handleImageZoom(selectedImage)}
-          >
-            <Icon name="zoom-in" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-
-        {/* Swipe Instructions */}
-        {images.length > 1 && (
-          <View style={styles.swipeInstruction}>
-            <Icon name="swipe" size={16} color="#FFFFFF" />
-            <Text style={styles.swipeInstructionText}>
-              Swipe to see more images
-            </Text>
-          </View>
-        )}
-
-        {/* Variant Indicator */}
-        <TouchableOpacity
-          style={styles.variantIndicator}
-          onPress={() => {
-            // Reset temp options to current selection when opening modal
-            const currentOptions: Record<string, string> = {};
-            selectedVariant.fields?.forEach(field => {
-              currentOptions[field.name] = field.value;
-            });
-            setTempSelectedOptions(currentOptions);
-            setTempVariantIndex(selectedVariantIndex);
-            setShowVariantModal(true);
-          }}
-        >
-          <Text style={styles.variantIndicatorText}>
-            {selectedVariant.fields?.map(field => field.value).join(' • ')}
-          </Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Image Thumbnails */}
+      {/* Selected Variant Chip */}
+      {variantDisplayName && (
+        <View style={dynamicStyles.selectedVariantContainer}>
+          <View style={dynamicStyles.selectedVariantCard}>
+            <Icon name="checkmark-circle-outline" size={20} color="#10B981" />
+            <Text style={dynamicStyles.selectedVariantLabel}>Selected:</Text>
+            <Text style={dynamicStyles.selectedVariantValue} numberOfLines={1}>
+              {variantDisplayName}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Thumbnails */}
       {images.length > 1 && (
         <View style={dynamicStyles.thumbnailsSection}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.thumbnailsContainer}
+            contentContainerStyle={dynamicStyles.thumbnailsContainer}
           >
             {images.map((image, index) => (
               <TouchableOpacity
@@ -797,13 +519,11 @@ const ProductImages: React.FC<ProductImagesProps> = ({
                   selectedImageIndex === index &&
                     dynamicStyles.selectedThumbnail,
                 ]}
-                onPress={() => {
-                  setSelectedImageIndex(index);
-                }}
+                onPress={() => setSelectedImageIndex(index)}
               >
-                <Image
-                  source={{ uri: image }}
-                  style={styles.thumbnailImage}
+                <SafeImage
+                  uri={image}
+                  style={dynamicStyles.thumbnailImage}
                   resizeMode="cover"
                 />
               </TouchableOpacity>
@@ -812,14 +532,14 @@ const ProductImages: React.FC<ProductImagesProps> = ({
         </View>
       )}
 
-      {/* Color Selector - Quick Access */}
+      {/* Color Selector */}
       {colorFields.length > 0 && (
         <View style={dynamicStyles.colorSection}>
-          <Text style={dynamicStyles.sectionTitle}>Color</Text>
+          <Text style={dynamicStyles.sectionTitle}>Colors</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.colorContainer}
+            contentContainerStyle={dynamicStyles.colorContainer}
           >
             {colorFields.map(fieldName => (
               <React.Fragment key={fieldName}>
@@ -827,18 +547,16 @@ const ProductImages: React.FC<ProductImagesProps> = ({
                   <TouchableOpacity
                     key={`${fieldName}-${value}`}
                     style={[
-                      styles.colorOption,
+                      dynamicStyles.colorOption,
                       tempSelectedOptions[fieldName] === value &&
-                        styles.selectedColorOption,
+                        dynamicStyles.selectedColorOption,
                     ]}
                     onPress={() => handleQuickColorSelect(fieldName, value)}
                   >
                     <View
                       style={[
-                        styles.colorCircle,
+                        dynamicStyles.colorCircle,
                         { backgroundColor: getColorValue(value) },
-                        tempSelectedOptions[fieldName] === value &&
-                          styles.selectedColorCircle,
                       ]}
                     />
                     <Text style={dynamicStyles.colorText} numberOfLines={1}>
@@ -852,40 +570,57 @@ const ProductImages: React.FC<ProductImagesProps> = ({
         </View>
       )}
 
-      {/* Other Options Button */}
+      {/* Select Variant Button */}
       {(otherFields.length > 0 || colorFields.length > 1) && (
         <TouchableOpacity
-          style={dynamicStyles.moreOptionsButton}
+          style={dynamicStyles.selectVariantButton}
           onPress={() => {
             const currentOptions: Record<string, string> = {};
-            selectedVariant.fields?.forEach(field => {
-              currentOptions[field.name] = field.value;
+            const fields = normalizeVariantFields(selectedVariant);
+            Object.entries(fields).forEach(([name, value]) => {
+              currentOptions[name] = value;
             });
             setTempSelectedOptions(currentOptions);
             setTempVariantIndex(selectedVariantIndex);
             setShowVariantModal(true);
           }}
         >
-          <Text style={dynamicStyles.moreOptionsText}>
-            Select{' '}
-            {otherFields.length > 0 ? 'Size & Other Options' : 'More Colors'}
-          </Text>
+          <View style={dynamicStyles.buttonGradient}>
+            <Icon name="shuffle-outline" size={22} color="#FFFFFF" />
+            <Text style={dynamicStyles.selectVariantButtonText}>
+              Select {otherFields.length > 0 ? 'Size & Options' : 'Variant'}
+            </Text>
+            <Icon name="arrow-forward-outline" size={20} color="#FFFFFF" />
+          </View>
         </TouchableOpacity>
       )}
 
-      {/* Variant Selection Modal */}
+      {/* Rest of the modal JSX remains same... */}
+      {/* Variant Modal */}
       <Modal
         visible={showVariantModal}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={() => setShowVariantModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={dynamicStyles.modalOverlay}>
           <View style={dynamicStyles.modalContent}>
             <View style={dynamicStyles.modalHeader}>
-              <Text style={dynamicStyles.modalTitle}>Select Variant</Text>
-              <TouchableOpacity onPress={() => setShowVariantModal(false)}>
-                <Text style={dynamicStyles.closeButton}>✕</Text>
+              <View>
+                <Text style={dynamicStyles.modalTitle}>Choose Options</Text>
+                <Text style={dynamicStyles.modalSubtitle}>
+                  Select your preferred variant
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={dynamicStyles.closeButton}
+                onPress={() => setShowVariantModal(false)}
+              >
+                <Icon
+                  name="close-outline"
+                  size={26}
+                  color={isDark ? '#CBD5E1' : '#6B7280'}
+                />
               </TouchableOpacity>
             </View>
 
@@ -893,11 +628,10 @@ const ProductImages: React.FC<ProductImagesProps> = ({
               style={dynamicStyles.modalScroll}
               showsVerticalScrollIndicator={false}
             >
-              {/* Color Fields */}
               {colorFields.map(fieldName => (
-                <View key={fieldName} style={styles.optionSection}>
+                <View key={fieldName} style={dynamicStyles.optionSection}>
                   <Text style={dynamicStyles.optionLabel}>{fieldName}</Text>
-                  <View style={styles.optionGrid}>
+                  <View style={dynamicStyles.optionGrid}>
                     {availableOptions[fieldName].map(value => (
                       <TouchableOpacity
                         key={value}
@@ -910,7 +644,7 @@ const ProductImages: React.FC<ProductImagesProps> = ({
                       >
                         <View
                           style={[
-                            styles.modalColorCircle,
+                            dynamicStyles.modalColorCircle,
                             { backgroundColor: getColorValue(value) },
                           ]}
                         />
@@ -920,17 +654,21 @@ const ProductImages: React.FC<ProductImagesProps> = ({
                         >
                           {value}
                         </Text>
+                        {tempSelectedOptions[fieldName] === value && (
+                          <View style={dynamicStyles.checkMark}>
+                            <Icon name="checkmark" size={12} color="#FFFFFF" />
+                          </View>
+                        )}
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
               ))}
 
-              {/* Other Fields */}
               {otherFields.map(fieldName => (
-                <View key={fieldName} style={styles.optionSection}>
+                <View key={fieldName} style={dynamicStyles.optionSection}>
                   <Text style={dynamicStyles.optionLabel}>{fieldName}</Text>
-                  <View style={styles.optionGrid}>
+                  <View style={dynamicStyles.optionGrid}>
                     {availableOptions[fieldName].map(value => (
                       <TouchableOpacity
                         key={value}
@@ -956,111 +694,53 @@ const ProductImages: React.FC<ProductImagesProps> = ({
                 </View>
               ))}
 
-              {/* Selected Variant Preview */}
-              {tempVariant && (
-                <View style={dynamicStyles.selectedInfo}>
-                  <Text style={dynamicStyles.selectedInfoTitle}>
-                    Selected Variant Preview:
+              {tempVariant && Object.keys(tempVariantFields).length > 0 && (
+                <View style={dynamicStyles.previewCard}>
+                  <Text style={dynamicStyles.previewTitle}>
+                    Selected Preview
                   </Text>
-                  <View style={styles.selectedDetails}>
-                    {tempVariant.fields?.map((field, index) => (
-                      <View key={index} style={styles.selectedField}>
-                        <Text style={dynamicStyles.selectedFieldName}>
-                          {field.name}:
-                        </Text>
-                        <Text style={dynamicStyles.selectedFieldValue}>
-                          {field.value}
-                        </Text>
-                      </View>
-                    ))}
+                  <View style={dynamicStyles.previewDetails}>
+                    {Object.entries(tempVariantFields).map(
+                      ([name, value], index) => (
+                        <View key={index} style={dynamicStyles.previewField}>
+                          <Text style={dynamicStyles.previewFieldName}>
+                            {name}:
+                          </Text>
+                          <Text style={dynamicStyles.previewFieldValue}>
+                            {value}
+                          </Text>
+                        </View>
+                      ),
+                    )}
                   </View>
-
-                  {/* Preview Images */}
-                  {tempVariant.images && tempVariant.images.length > 0 && (
-                    <View style={styles.previewImagesContainer}>
-                      <Text style={dynamicStyles.previewTitle}>
-                        Preview Images:
-                      </Text>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                      >
-                        {tempVariant.images.slice(0, 3).map((image, index) => (
-                          <View
-                            key={index}
-                            style={dynamicStyles.previewImageWrapper}
-                          >
-                            <Image
-                              source={{ uri: image }}
-                              style={styles.previewImage}
-                              resizeMode="cover"
-                            />
-                          </View>
-                        ))}
-                      </ScrollView>
-                      <Text style={dynamicStyles.imageCount}>
-                        {tempVariant.images.length} image
-                        {tempVariant.images.length > 1 ? 's' : ''} available
+                  {variantPrice > 0 && (
+                    <View style={dynamicStyles.priceRow}>
+                      <Text style={dynamicStyles.priceLabel}>Price:</Text>
+                      <Text style={dynamicStyles.priceValue}>
+                        ₹{variantPrice}
                       </Text>
                     </View>
-                  )}
-
-                  {/* Video Preview */}
-                  {tempVariant.video && (
-                    <View style={styles.videoPreview}>
-                      <Text style={dynamicStyles.previewTitle}>
-                        Video Available
-                      </Text>
-                      <View style={styles.videoIcon}>
-                        <Text style={styles.videoIconText}>▶</Text>
-                      </View>
-                      <Text style={dynamicStyles.videoText}>
-                        This variant includes a video
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Stock Status */}
-                  {tempVariant.stock !== undefined && (
-                    <Text
-                      style={[
-                        styles.stockText,
-                        tempVariant.stock > 0
-                          ? styles.inStock
-                          : styles.outOfStock,
-                      ]}
-                    >
-                      {tempVariant.stock > 0
-                        ? `In Stock (${tempVariant.stock} available)`
-                        : 'Out of Stock'}
-                    </Text>
-                  )}
-
-                  {/* Price */}
-                  {tempVariant.price !== undefined && (
-                    <Text style={dynamicStyles.priceText}>
-                      Price: ₹{tempVariant.price}
-                    </Text>
                   )}
                 </View>
               )}
 
-              {/* Apply Button */}
-              <View style={styles.buttonContainer}>
+              <View style={dynamicStyles.modalButtonContainer}>
                 <TouchableOpacity
-                  style={dynamicStyles.cancelButton}
+                  style={dynamicStyles.modalCancelButton}
                   onPress={() => setShowVariantModal(false)}
                 >
-                  <Text style={dynamicStyles.cancelButtonText}>Cancel</Text>
+                  <Text style={dynamicStyles.modalCancelButtonText}>
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  style={dynamicStyles.applyButton}
+                  style={dynamicStyles.modalApplyButton}
                   onPress={handleApplySelection}
                 >
-                  <Text style={dynamicStyles.applyButtonText}>
+                  <Text style={dynamicStyles.modalApplyButtonText}>
                     Apply Selection
                   </Text>
+                  <Icon name="checkmark-outline" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1072,57 +752,51 @@ const ProductImages: React.FC<ProductImagesProps> = ({
       <Modal
         visible={showZoomModal}
         animationType="fade"
-        transparent={true}
+        transparent
         onRequestClose={() => setShowZoomModal(false)}
       >
         <View style={dynamicStyles.zoomModalOverlay}>
-          {/* Close Button */}
           <TouchableOpacity
             style={dynamicStyles.zoomCloseButton}
             onPress={() => setShowZoomModal(false)}
           >
-            <Icon name="close" size={24} color="#FFFFFF" />
+            <Icon name="close-outline" size={28} color="#FFFFFF" />
           </TouchableOpacity>
-
-          {/* Image with Swipe */}
-          <View style={styles.zoomContainer}>
-            {/* Left Arrow */}
+          <View style={dynamicStyles.zoomContainer}>
             {selectedImageIndex > 0 && (
               <TouchableOpacity
-                style={styles.zoomArrowLeft}
+                style={dynamicStyles.zoomArrowLeft}
                 onPress={() => handleZoomImageChange('left')}
               >
-                <Icon name="chevron-left" size={30} color="#FFFFFF" />
+                <Icon name="chevron-back-outline" size={32} color="#FFFFFF" />
               </TouchableOpacity>
             )}
-
-            {/* Image */}
             <TouchableOpacity
               activeOpacity={1}
               style={dynamicStyles.zoomImageContainer}
               onPress={() => setShowZoomModal(false)}
             >
-              <Image
-                source={{ uri: zoomImage }}
+              <SafeImage
+                uri={zoomImage}
                 style={dynamicStyles.zoomImage}
                 resizeMode="contain"
               />
             </TouchableOpacity>
-
-            {/* Right Arrow */}
             {selectedImageIndex < images.length - 1 && (
               <TouchableOpacity
-                style={styles.zoomArrowRight}
+                style={dynamicStyles.zoomArrowRight}
                 onPress={() => handleZoomImageChange('right')}
               >
-                <Icon name="chevron-right" size={30} color="#FFFFFF" />
+                <Icon
+                  name="chevron-forward-outline"
+                  size={32}
+                  color="#FFFFFF"
+                />
               </TouchableOpacity>
             )}
           </View>
-
-          {/* Image Counter */}
-          <View style={styles.imageCounter}>
-            <Text style={styles.imageCounterText}>
+          <View style={dynamicStyles.imageCounter}>
+            <Text style={dynamicStyles.imageCounterText}>
               {selectedImageIndex + 1} / {images.length}
             </Text>
           </View>
@@ -1132,198 +806,419 @@ const ProductImages: React.FC<ProductImagesProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  // Static styles (no theme dependency)
-  mainImage: {
-    width: '100%',
-    height: '100%',
-  },
-  variantIndicator: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  variantIndicatorText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  zoomButton: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  swipeInstruction: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  swipeInstructionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginLeft: 6,
-  },
-  thumbnailsContainer: {
-    paddingHorizontal: 8,
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 6,
-  },
-  colorContainer: {
-    paddingRight: 16,
-  },
-  colorOption: {
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  selectedColorOption: {
-    padding: 4,
-    borderRadius: 20,
-    backgroundColor: '#EFF6FF',
-  },
-  colorCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    marginBottom: 4,
-  },
-  selectedColorCircle: {
-    borderColor: '#3B82F6',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  optionSection: {
-    marginBottom: 24,
-  },
-  optionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  modalColorCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginBottom: 4,
-  },
-  selectedDetails: {
-    gap: 8,
-    marginBottom: 16,
-  },
-  selectedField: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  previewImagesContainer: {
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  videoPreview: {
-    marginTop: 12,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  videoIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  videoIconText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-  },
-  stockText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  inStock: {
-    color: '#059669',
-  },
-  outOfStock: {
-    color: '#DC2626',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 24,
-    marginBottom: 10,
-  },
-
-  // Zoom modal static styles
-  zoomContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  zoomArrowLeft: {
-    position: 'absolute',
-    left: 20,
-    zIndex: 100,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  zoomArrowRight: {
-    position: 'absolute',
-    right: 20,
-    zIndex: 100,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageCounter: {
-    position: 'absolute',
-    bottom: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  imageCounterText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+const getDynamicStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    },
+    placeholder: {
+      height: 400,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
+    },
+    placeholderText: {
+      fontSize: 16,
+      color: isDark ? '#CBD5E1' : '#6B7280',
+      marginTop: 8,
+    },
+    mainImageContainer: {
+      width: width,
+      height: 420,
+      backgroundColor: isDark ? '#0F172A' : '#eeeeee',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    mainImageWrapper: {
+      width: '100%',
+      height: '100%',
+    },
+    imageTouchable: {
+      width: '100%',
+      height: '100%',
+    },
+    mainImage: {
+      width: '100%',
+      height: '100%',
+    },
+    imagePlaceholder: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
+    },
+    selectedVariantContainer: {
+      paddingHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    selectedVariantCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#0F172A' : '#F0FDF4',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#166534' : '#D1FAE5',
+      gap: 8,
+    },
+    selectedVariantLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: isDark ? '#86EFAC' : '#059669',
+    },
+    selectedVariantValue: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: isDark ? '#E2E8F0' : '#1F2937',
+      flex: 1,
+    },
+    thumbnailsSection: {
+      marginTop: 8,
+      marginBottom: 16,
+      paddingHorizontal: 16,
+    },
+    thumbnailsContainer: {
+      gap: 8,
+    },
+    thumbnail: {
+      width: 70,
+      height: 70,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: 'transparent',
+      overflow: 'hidden',
+    },
+    selectedThumbnail: {
+      borderColor: '#10B981',
+    },
+    thumbnailImage: {
+      width: '100%',
+      height: '100%',
+    },
+    colorSection: {
+      marginBottom: 12,
+      paddingHorizontal: 16,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      marginBottom: 12,
+    },
+    colorContainer: {
+      gap: 12,
+      paddingRight: 16,
+    },
+    colorOption: {
+      alignItems: 'center',
+    },
+    selectedColorOption: {
+      padding: 4,
+      borderRadius: 20,
+      backgroundColor: '#D1FAE5',
+    },
+    colorCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 2,
+      borderColor: '#E5E7EB',
+      marginBottom: 4,
+    },
+    colorText: {
+      fontSize: 12,
+      color: isDark ? '#E2E8F0' : '#374151',
+      maxWidth: 60,
+      textAlign: 'center',
+    },
+    selectVariantButton: {
+      marginHorizontal: 16,
+      marginBottom: 20,
+      borderRadius: 14,
+      overflow: 'hidden',
+      elevation: 3,
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    },
+    buttonGradient: {
+      backgroundColor: '#10B981',
+      flexDirection: 'row',
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    selectVariantButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      maxHeight: '85%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+    },
+    modalSubtitle: {
+      fontSize: 13,
+      color: isDark ? '#94A3B8' : '#6B7280',
+      marginTop: 2,
+    },
+    closeButton: {
+      padding: 4,
+    },
+    modalScroll: {
+      padding: 20,
+      paddingBottom: 30,
+    },
+    optionSection: {
+      marginBottom: 24,
+    },
+    optionLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      marginBottom: 12,
+    },
+    optionGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    colorModalOption: {
+      alignItems: 'center',
+      padding: 10,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: isDark ? '#475569' : '#E5E7EB',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      width: 80,
+      position: 'relative',
+    },
+    selectedColorModalOption: {
+      borderColor: '#10B981',
+      backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+    },
+    modalColorCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      marginBottom: 6,
+    },
+    modalColorText: {
+      fontSize: 12,
+      color: isDark ? '#E2E8F0' : '#374151',
+      textAlign: 'center',
+    },
+    checkMark: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      backgroundColor: '#10B981',
+      borderRadius: 12,
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: isDark ? '#1E293B' : '#FFFFFF',
+    },
+    textOption: {
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderRadius: 30,
+      borderWidth: 2,
+      borderColor: isDark ? '#475569' : '#E5E7EB',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+    },
+    selectedTextOption: {
+      borderColor: '#10B981',
+      backgroundColor: '#10B981',
+    },
+    textOptionText: {
+      fontSize: 14,
+      color: isDark ? '#E2E8F0' : '#374151',
+      fontWeight: '600',
+    },
+    selectedTextOptionText: {
+      color: '#FFFFFF',
+    },
+    previewCard: {
+      marginTop: 20,
+      padding: 16,
+      backgroundColor: isDark ? '#0F172A' : '#F0FDF4',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#166534' : '#D1FAE5',
+    },
+    previewTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: isDark ? '#86EFAC' : '#059669',
+      marginBottom: 12,
+    },
+    previewDetails: {
+      gap: 10,
+      marginBottom: 12,
+    },
+    previewField: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    previewFieldName: {
+      fontSize: 13,
+      color: isDark ? '#94A3B8' : '#6B7280',
+    },
+    previewFieldValue: {
+      fontSize: 14,
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      fontWeight: '600',
+    },
+    priceRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    priceLabel: {
+      fontSize: 14,
+      color: isDark ? '#94A3B8' : '#6B7280',
+    },
+    priceValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#10B981',
+    },
+    modalButtonContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 24,
+      marginBottom: 10,
+    },
+    modalCancelButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: isDark ? '#475569' : '#E5E7EB',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      alignItems: 'center',
+    },
+    modalCancelButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#E2E8F0' : '#374151',
+    },
+    modalApplyButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: '#10B981',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    modalApplyButtonText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    zoomModalOverlay: {
+      flex: 1,
+      backgroundColor: '#000000',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    zoomCloseButton: {
+      position: 'absolute',
+      top: 50,
+      right: 20,
+      zIndex: 100,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    zoomContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '100%',
+    },
+    zoomArrowLeft: {
+      position: 'absolute',
+      left: 16,
+      zIndex: 100,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    zoomArrowRight: {
+      position: 'absolute',
+      right: 16,
+      zIndex: 100,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    zoomImageContainer: {
+      width: width,
+      height: height * 0.7,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    zoomImage: {
+      width: '100%',
+      height: '100%',
+    },
+    imageCounter: {
+      position: 'absolute',
+      bottom: 40,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+    },
+    imageCounterText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+  });
 
 export default ProductImages;

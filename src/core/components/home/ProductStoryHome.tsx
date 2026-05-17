@@ -136,7 +136,7 @@ const ProductStories: React.FC<ProductStoriesProps> = ({
   const currentStory = stories[currentStoryIndex];
   const duration = currentStory?.duration || 5000;
 
-  const BASE_URL = 'http://192.168.251.121:5000';
+  const BASE_URL = 'http://172.20.10.12:5000';
 
   const contentOptions = [
     {

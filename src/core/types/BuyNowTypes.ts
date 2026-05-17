@@ -12,6 +12,8 @@ export type Product = {
   category: string;
   delivery: string;
   freeDelivery?: boolean;
+  sellerId?: string;           // ✅ ADD THIS
+  vendorCodeUID?: string;      // ✅ ADD THIS
   
   // Seller Location
   sellerLocation?: {
@@ -102,7 +104,7 @@ export type CalculatedData = {
   productGstRate: number;
   productGst: number;
   deliveryCharge: number;
-  totalFinalPrice: number;
+  grandTotal: number;
   discountApplied: number;
   couponUsed: string | null;
   coFundApplied: boolean;
@@ -403,7 +405,7 @@ export function isCalculatedData(obj: any): obj is CalculatedData {
     obj &&
     typeof obj === 'object' &&
     'finalPrice' in obj &&
-    'totalFinalPrice' in obj
+    'grandTotal' in obj
   );
 }
 

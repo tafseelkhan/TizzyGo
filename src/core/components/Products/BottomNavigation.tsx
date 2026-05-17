@@ -9,15 +9,12 @@ import {
   Easing,
   Dimensions,
   Platform,
-  PanResponder,
 } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
-// ✅ REPLACED: Using react-native-vector-icons instead of @expo/vector-icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Feather from 'react-native-vector-icons/Feather';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-// ✅ REPLACED: expo-haptics with react-native-haptic-feedback
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import {
   useSafeAreaInsets,
@@ -33,13 +30,11 @@ import EmiOption from './EmiOption';
 import BuyNow from './BuyNow';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 
-// ✅ Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// ✅ Simple haptic feedback (replaces expo-haptics)
 const triggerFeedback = async () => {
   try {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
@@ -72,7 +67,6 @@ interface Product {
   variants?: ProductVariant[];
 }
 
-// ✅ FIXED: Proper route param type definition
 type RootStackParamList = {
   Home: undefined;
   ProductDetail: {
@@ -84,10 +78,9 @@ type RootStackParamList = {
 
 type ProductDetailRouteProp = RouteProp<RootStackParamList, 'ProductDetail'>;
 
-// Fetch product with variants
 const fetchProduct = async (productId: string): Promise<Product> => {
   try {
-    const apiUrl = `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`;
+    const apiUrl = `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`;
 
     const response = await fetch(apiUrl);
 
@@ -141,7 +134,6 @@ const BottomNavigation = ({
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
 
-  // ✅ Fixed: Access route.params safely
   const params = route.params;
   const productId = params?.productId;
   const routeCategory = params?.category;
@@ -159,65 +151,12 @@ const BottomNavigation = ({
   const [selectedVariant, setSelectedVariant] =
     useState<SelectedVariant | null>(null);
   const [scaleAnim] = useState(new Animated.Value(1));
-  const [showTabs, setShowTabs] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(0));
-  const [showSwipeHint, setShowSwipeHint] = useState(true);
-
-  const hintPulseAnim = useState(new Animated.Value(1))[0];
-  const panY = useRef(new Animated.Value(0)).current;
 
   const showToast = {
     error: (message: string) => Alert.alert('Error', message),
     success: (message: string) => Alert.alert('Success', message),
     info: (message: string) => Alert.alert('Info', message),
   };
-
-  // ✅ Create PanResponder for swipe detection
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Detect upward swipe (negative dy)
-        return (
-          gestureState.dy < -20 &&
-          Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
-        );
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // If swiped up more than 50 pixels, open tabs
-        if (gestureState.dy < -50) {
-          handleSwipeUp();
-        }
-      },
-    }),
-  ).current;
-
-  // ✅ Hint animation useEffect
-  useEffect(() => {
-    if (showSwipeHint && !showTabs) {
-      const pulseAnimation = Animated.sequence([
-        Animated.timing(hintPulseAnim, {
-          toValue: 1.1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(hintPulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]);
-
-      const animationLoop = Animated.loop(pulseAnimation);
-      animationLoop.start();
-
-      return () => {
-        animationLoop.stop();
-      };
-    } else {
-      hintPulseAnim.setValue(1);
-    }
-  }, [showSwipeHint, showTabs, hintPulseAnim]);
 
   const handleVariantSelect = (variant: SelectedVariant | null) => {
     setSelectedVariant(variant);
@@ -226,40 +165,6 @@ const BottomNavigation = ({
   const handleAddToCartSuccess = () => {
     setIsInCart(true);
     setQuantity(1);
-  };
-
-  // ✅ Handle swipe up to show tabs
-  const handleSwipeUp = async () => {
-    if (!showTabs) {
-      await triggerFeedback();
-      setShowTabs(true);
-      setShowSwipeHint(false);
-      Animated.timing(slideAnim, {
-        toValue: 1,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    }
-  };
-
-  // ✅ Handle close tabs
-  const handleCloseTabs = async () => {
-    if (showTabs) {
-      await triggerFeedback();
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => {
-        setShowTabs(false);
-        // Show hint again after 5 seconds
-        setTimeout(() => {
-          setShowSwipeHint(true);
-        }, 5000);
-      });
-    }
   };
 
   const handleTabPress = async (tabName: string) => {
@@ -366,7 +271,6 @@ const BottomNavigation = ({
     loadData();
   }, [id, routeProductData]);
 
-  // ✅ Theme-based colors
   const getThemeColors = () => {
     return {
       navBg: isDark ? '#1E293B' : '#FFFFFF',
@@ -375,17 +279,14 @@ const BottomNavigation = ({
       activeTabIconBg: isDark ? '#134E4A' : '#E6F7F1',
       tabIconBg: isDark ? '#334155' : '#F3F4F6',
       tabContentBg: isDark ? '#1E293B' : '#FFFFFF',
-      hintBg: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
       closeButtonBg: isDark ? '#334155' : '#F3F4F6',
       loadingBg: isDark ? '#1E293B' : '#FFFFFF',
       errorBg: isDark ? '#1E293B' : '#FFFFFF',
 
-      hintBorder: isDark ? '#0D9488' : '#10B981',
       navBorder: isDark ? '#334155' : '#E5E7EB',
       navTopBorder: isDark ? '#475569' : '#F3F4F6',
       activeTabBorder: isDark ? '#2DD4BF' : '#10B981',
 
-      hintText: isDark ? '#2DD4BF' : '#10B981',
       tabLabel: isDark ? '#94A3B8' : '#6B7280',
       activeTabLabel: isDark ? '#2DD4BF' : '#10B981',
       loadingText: isDark ? '#CBD5E1' : '#666',
@@ -396,8 +297,6 @@ const BottomNavigation = ({
       activeTabIcon: isDark ? '#2DD4BF' : '#10B981',
       inactiveTabIcon: isDark ? '#94A3B8' : '#6B7280',
       closeIcon: isDark ? '#CBD5E1' : '#6B7280',
-      hintIcon: isDark ? '#2DD4BF' : '#10B981',
-      swipeIcon: isDark ? '#94A3B8' : '#6B7280',
 
       tabIndicator: isDark ? '#2DD4BF' : '#10B981',
       retryButtonBg: isDark ? '#0D9488' : '#10B981',
@@ -489,21 +388,6 @@ const BottomNavigation = ({
       }
     : null;
 
-  const slideStyle = {
-    transform: [
-      {
-        translateY: slideAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [height * 0.4, 0],
-        }),
-      },
-    ],
-    opacity: slideAnim.interpolate({
-      inputRange: [0, 0.5, 1],
-      outputRange: [0, 0.5, 1],
-    }),
-  };
-
   return (
     <SafeAreaView
       edges={['bottom']}
@@ -512,334 +396,271 @@ const BottomNavigation = ({
         { backgroundColor: themeColors.safeAreaBg },
       ]}
     >
-      {/* Swipe Hint - Only shows when tabs are hidden */}
-      {showSwipeHint && !showTabs && (
-        <Animated.View
+      {/* Bottom Navigation - Always Visible, No Swipe Needed */}
+      <View
+        style={[
+          styles.bottomNav,
+          {
+            backgroundColor: themeColors.navBg,
+            borderColor: themeColors.navBorder,
+            shadowColor: themeColors.shadowColor,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
+        {/* Tab Content Area */}
+        <View
           style={[
-            styles.swipeHintContainer,
-            { transform: [{ scale: hintPulseAnim }] },
+            styles.tabContentArea,
+            { backgroundColor: themeColors.tabContentBg },
           ]}
-          {...panResponder.panHandlers}
         >
-          <View
-            style={[
-              styles.swipeHintContent,
-              {
-                backgroundColor: themeColors.hintBg,
-                borderColor: themeColors.hintBorder,
-              },
-            ]}
-          >
-            <Feather name="arrow-up" size={24} color={themeColors.hintIcon} />
-            <Text
-              style={[styles.swipeHintText, { color: themeColors.hintText }]}
-            >
-              Swipe up to show options
-            </Text>
-            <Icon name="swipe" size={20} color={themeColors.swipeIcon} />
-          </View>
-        </Animated.View>
-      )}
+          {activeTabs === 'cart' && (
+            <View style={styles.tabPanel}>
+              <AddToCart
+                productId={product?.id || id}
+                productData={product}
+                initialIsInCart={isInCart}
+                initialQuantity={quantity}
+                productLoading={productLoading}
+                productAvailable={!!product}
+                variants={variants}
+                selectedVariant={selectedVariant}
+                onVariantSelect={handleVariantSelect}
+                onAddToCartSuccess={handleAddToCartSuccess}
+              />
+            </View>
+          )}
 
-      {/* Touchable area for swipe detection when tabs are hidden */}
-      {!showTabs && (
-        <View style={styles.swipeArea} {...panResponder.panHandlers} />
-      )}
+          {activeTabs === 'emi' && (
+            <View style={styles.tabPanel}>
+              <EmiOption />
+            </View>
+          )}
 
-      {/* Tabs Container - Always visible when showTabs is true */}
-      {showTabs && (
-        <Animated.View
+          {activeTabs === 'buy' && (
+            <View style={styles.tabPanel}>
+              <BuyNow
+                product={buyNowProduct}
+                productLoading={productLoading}
+                productAvailable={!!product}
+                variants={variants}
+                selectedVariant={selectedVariant}
+                onVariantSelect={handleVariantSelect}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Tabs Navigation */}
+        <View
           style={[
-            styles.bottomNav,
-            slideStyle,
+            styles.navContent,
             {
+              borderTopColor: themeColors.navTopBorder,
               backgroundColor: themeColors.navBg,
-              borderColor: themeColors.navBorder,
-              shadowColor: themeColors.shadowColor,
             },
           ]}
         >
-          {/* Tab Content Area */}
-          <View
-            style={[
-              styles.tabContentArea,
-              { backgroundColor: themeColors.tabContentBg },
-            ]}
-          >
-            {activeTabs === 'cart' && (
-              <View style={styles.tabPanel}>
-                <AddToCart
-                  productId={product?.id || id}
-                  productData={product}
-                  initialIsInCart={isInCart}
-                  initialQuantity={quantity}
-                  productLoading={productLoading}
-                  productAvailable={!!product}
-                  variants={variants}
-                  selectedVariant={selectedVariant}
-                  onVariantSelect={handleVariantSelect}
-                  onAddToCartSuccess={handleAddToCartSuccess}
-                />
-              </View>
-            )}
-
-            {activeTabs === 'emi' && (
-              <View style={styles.tabPanel}>
-                <EmiOption />
-              </View>
-            )}
-
-            {activeTabs === 'buy' && (
-              <View style={styles.tabPanel}>
-                <BuyNow
-                  product={buyNowProduct}
-                  productLoading={productLoading}
-                  productAvailable={!!product}
-                  variants={variants}
-                  selectedVariant={selectedVariant}
-                  onVariantSelect={handleVariantSelect}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Close button */}
-          <TouchableOpacity
-            style={[
-              styles.closeButton,
-              { backgroundColor: themeColors.closeButtonBg },
-            ]}
-            onPress={handleCloseTabs}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="close-circle"
-              size={24}
-              color={themeColors.closeIcon}
-            />
-          </TouchableOpacity>
-
-          {/* Tabs Navigation with Safe Area */}
-          <SafeAreaView
-            edges={['bottom']}
-            style={[styles.navSafeArea, { backgroundColor: themeColors.navBg }]}
-          >
-            <View
+          {/* Tab 1: Add to Cart */}
+          <View style={styles.navButtonWrapper}>
+            <Animated.View
               style={[
-                styles.navContent,
+                styles.navButton,
+                activeTabs === 'cart' && [
+                  styles.activeNavButton,
+                  { backgroundColor: themeColors.activeNavButtonBg },
+                ],
                 {
-                  borderTopColor: themeColors.navTopBorder,
-                  backgroundColor: themeColors.navBg,
+                  transform: [{ scale: activeTabs === 'cart' ? scaleAnim : 1 }],
                 },
               ]}
             >
-              {/* Tab 1: Add to Cart */}
-              <View style={styles.navButtonWrapper}>
-                <Animated.View
-                  style={[
-                    styles.navButton,
-                    activeTabs === 'cart' && [
-                      styles.activeNavButton,
-                      { backgroundColor: themeColors.activeNavButtonBg },
-                    ],
-                    {
-                      transform: [
-                        { scale: activeTabs === 'cart' ? scaleAnim : 1 },
+              <TouchableOpacity
+                style={styles.tabButton}
+                onPress={() => handleTabPress('cart')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <View
+                    style={[
+                      styles.tabIconContainer,
+                      activeTabs === 'cart' && [
+                        styles.activeTabIconContainer,
+                        {
+                          backgroundColor: themeColors.activeTabIconBg,
+                          borderColor: themeColors.activeTabBorder,
+                        },
                       ],
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.tabButton}
-                    onPress={() => handleTabPress('cart')}
-                    activeOpacity={0.7}
+                      { backgroundColor: themeColors.tabIconBg },
+                    ]}
                   >
-                    <View style={styles.tabContent}>
-                      <View
-                        style={[
-                          styles.tabIconContainer,
-                          activeTabs === 'cart' && [
-                            styles.activeTabIconContainer,
-                            {
-                              backgroundColor: themeColors.activeTabIconBg,
-                              borderColor: themeColors.activeTabBorder,
-                            },
-                          ],
-                          { backgroundColor: themeColors.tabIconBg },
-                        ]}
-                      >
-                        <Icon
-                          name="add-shopping-cart"
-                          size={20}
-                          color={
-                            activeTabs === 'cart'
-                              ? themeColors.activeTabIcon
-                              : themeColors.inactiveTabIcon
-                          }
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          activeTabs === 'cart' && styles.activeTabLabel,
-                          { color: themeColors.tabLabel },
-                        ]}
-                      >
-                        Cart
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {activeTabs === 'cart' && (
-                    <View
-                      style={[
-                        styles.tabIndicator,
-                        { backgroundColor: themeColors.tabIndicator },
-                      ]}
+                    <Icon
+                      name="add-shopping-cart"
+                      size={20}
+                      color={
+                        activeTabs === 'cart'
+                          ? themeColors.activeTabIcon
+                          : themeColors.inactiveTabIcon
+                      }
                     />
-                  )}
-                </Animated.View>
-              </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      activeTabs === 'cart' && styles.activeTabLabel,
+                      { color: themeColors.tabLabel },
+                    ]}
+                  >
+                    Cart
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-              {/* Tab 2: EMI Options */}
-              <View style={styles.navButtonWrapper}>
-                <Animated.View
+              {activeTabs === 'cart' && (
+                <View
                   style={[
-                    styles.navButton,
-                    activeTabs === 'emi' && [
-                      styles.activeNavButton,
-                      { backgroundColor: themeColors.activeNavButtonBg },
-                    ],
-                    {
-                      transform: [
-                        { scale: activeTabs === 'emi' ? scaleAnim : 1 },
-                      ],
-                    },
+                    styles.tabIndicator,
+                    { backgroundColor: themeColors.tabIndicator },
                   ]}
-                >
-                  <TouchableOpacity
-                    style={styles.tabButton}
-                    onPress={() => handleTabPress('emi')}
-                    activeOpacity={0.7}
+                />
+              )}
+            </Animated.View>
+          </View>
+
+          {/* Tab 2: EMI Options */}
+          <View style={styles.navButtonWrapper}>
+            <Animated.View
+              style={[
+                styles.navButton,
+                activeTabs === 'emi' && [
+                  styles.activeNavButton,
+                  { backgroundColor: themeColors.activeNavButtonBg },
+                ],
+                {
+                  transform: [{ scale: activeTabs === 'emi' ? scaleAnim : 1 }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.tabButton}
+                onPress={() => handleTabPress('emi')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <View
+                    style={[
+                      styles.tabIconContainer,
+                      activeTabs === 'emi' && [
+                        styles.activeTabIconContainer,
+                        {
+                          backgroundColor: themeColors.activeTabIconBg,
+                          borderColor: themeColors.activeTabBorder,
+                        },
+                      ],
+                      { backgroundColor: themeColors.tabIconBg },
+                    ]}
                   >
-                    <View style={styles.tabContent}>
-                      <View
-                        style={[
-                          styles.tabIconContainer,
-                          activeTabs === 'emi' && [
-                            styles.activeTabIconContainer,
-                            {
-                              backgroundColor: themeColors.activeTabIconBg,
-                              borderColor: themeColors.activeTabBorder,
-                            },
-                          ],
-                          { backgroundColor: themeColors.tabIconBg },
-                        ]}
-                      >
-                        <Icon
-                          name="credit-card"
-                          size={20}
-                          color={
-                            activeTabs === 'emi'
-                              ? themeColors.activeTabIcon
-                              : themeColors.inactiveTabIcon
-                          }
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          activeTabs === 'emi' && styles.activeTabLabel,
-                          { color: themeColors.tabLabel },
-                        ]}
-                      >
-                        EMI
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {activeTabs === 'emi' && (
-                    <View
-                      style={[
-                        styles.tabIndicator,
-                        { backgroundColor: themeColors.tabIndicator },
-                      ]}
+                    <Icon
+                      name="credit-card"
+                      size={20}
+                      color={
+                        activeTabs === 'emi'
+                          ? themeColors.activeTabIcon
+                          : themeColors.inactiveTabIcon
+                      }
                     />
-                  )}
-                </Animated.View>
-              </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      activeTabs === 'emi' && styles.activeTabLabel,
+                      { color: themeColors.tabLabel },
+                    ]}
+                  >
+                    EMI
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-              {/* Tab 3: Buy Now */}
-              <View style={styles.navButtonWrapper}>
-                <Animated.View
+              {activeTabs === 'emi' && (
+                <View
                   style={[
-                    styles.navButton,
-                    activeTabs === 'buy' && [
-                      styles.activeNavButton,
-                      { backgroundColor: themeColors.activeNavButtonBg },
-                    ],
-                    {
-                      transform: [
-                        { scale: activeTabs === 'buy' ? scaleAnim : 1 },
-                      ],
-                    },
+                    styles.tabIndicator,
+                    { backgroundColor: themeColors.tabIndicator },
                   ]}
-                >
-                  <TouchableOpacity
-                    style={styles.tabButton}
-                    onPress={() => handleTabPress('buy')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.tabContent}>
-                      <View
-                        style={[
-                          styles.tabIconContainer,
-                          activeTabs === 'buy' && [
-                            styles.activeTabIconContainer,
-                            {
-                              backgroundColor: themeColors.activeTabIconBg,
-                              borderColor: themeColors.activeTabBorder,
-                            },
-                          ],
-                          { backgroundColor: themeColors.tabIconBg },
-                        ]}
-                      >
-                        <FontAwesome5
-                          name="bolt"
-                          size={18}
-                          color={
-                            activeTabs === 'buy'
-                              ? themeColors.activeTabIcon
-                              : themeColors.inactiveTabIcon
-                          }
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          activeTabs === 'buy' && styles.activeTabLabel,
-                          { color: themeColors.tabLabel },
-                        ]}
-                      >
-                        Buy Now
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                />
+              )}
+            </Animated.View>
+          </View>
 
-                  {activeTabs === 'buy' && (
-                    <View
-                      style={[
-                        styles.tabIndicator,
-                        { backgroundColor: themeColors.tabIndicator },
-                      ]}
+          {/* Tab 3: Buy Now */}
+          <View style={styles.navButtonWrapper}>
+            <Animated.View
+              style={[
+                styles.navButton,
+                activeTabs === 'buy' && [
+                  styles.activeNavButton,
+                  { backgroundColor: themeColors.activeNavButtonBg },
+                ],
+                {
+                  transform: [{ scale: activeTabs === 'buy' ? scaleAnim : 1 }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.tabButton}
+                onPress={() => handleTabPress('buy')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <View
+                    style={[
+                      styles.tabIconContainer,
+                      activeTabs === 'buy' && [
+                        styles.activeTabIconContainer,
+                        {
+                          backgroundColor: themeColors.activeTabIconBg,
+                          borderColor: themeColors.activeTabBorder,
+                        },
+                      ],
+                      { backgroundColor: themeColors.tabIconBg },
+                    ]}
+                  >
+                    <FontAwesome5
+                      name="bolt"
+                      size={18}
+                      color={
+                        activeTabs === 'buy'
+                          ? themeColors.activeTabIcon
+                          : themeColors.inactiveTabIcon
+                      }
                     />
-                  )}
-                </Animated.View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </Animated.View>
-      )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      activeTabs === 'buy' && styles.activeTabLabel,
+                      { color: themeColors.tabLabel },
+                    ]}
+                  >
+                    Buy Now
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {activeTabs === 'buy' && (
+                <View
+                  style={[
+                    styles.tabIndicator,
+                    { backgroundColor: themeColors.tabIndicator },
+                  ]}
+                />
+              )}
+            </Animated.View>
+          </View>
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
@@ -848,50 +669,7 @@ const styles = StyleSheet.create({
   safeAreaContainer: {
     backgroundColor: 'transparent',
   },
-  swipeArea: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100, // Area where swipe can be detected
-    zIndex: 998,
-  },
-  swipeHintContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 999,
-  },
-  swipeHintContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 1.5,
-    borderColor: '#10B981',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 6,
-    gap: 10,
-  },
-  swipeHintText: {
-    fontSize: 14,
-    color: '#10B981',
-    fontWeight: '600',
-  },
   bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -905,9 +683,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: '#E5E7EB',
-  },
-  navSafeArea: {
-    backgroundColor: '#FFFFFF',
   },
   navContent: {
     flexDirection: 'row',
@@ -980,19 +755,6 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: '#10B981',
     borderRadius: 2,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 16,
-    padding: 4,
-    zIndex: 1001,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   tabContentArea: {
     padding: 16,

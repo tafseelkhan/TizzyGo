@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const CART_API_URL = 'http://192.168.251.121:5000';
+const CART_API_URL = 'http://172.20.10.12:5000';
 
 interface CartItemParams {
   productId: string;

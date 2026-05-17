@@ -20,9 +20,9 @@ export type RootStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   Settings: undefined;
-  ProductDetail: undefined;
+  ProductDetail: { productId: string };
   OrderSuccessScreen: undefined;
-  BuyNow: undefined;
+  BuyNow: { productId: string };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -42,7 +42,10 @@ export default function AppNavigator() {
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
-        <Stack.Screen name="OrderSuccessScreen" component={OrderSuccessScreen} />
+        <Stack.Screen
+          name="OrderSuccessScreen"
+          component={OrderSuccessScreen}
+        />
         <Stack.Screen name="BuyNow" component={BuyNowScreen} />
       </Stack.Navigator>
     </NavigationContainer>

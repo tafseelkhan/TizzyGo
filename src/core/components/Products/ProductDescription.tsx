@@ -32,6 +32,34 @@ type RootStackParamList = {
   };
 };
 
+// ============= UPDATED INTERFACES FOR NEW DATA STRUCTURE =============
+
+interface VariantFields {
+  [key: string]: string;
+}
+
+interface Variant {
+  fields?: VariantFields;
+  combinationKey?: string;
+  mrp?: number;
+  price?: number;
+  savedAmount?: number;
+  discount?: number;
+  offerText?: string;
+  finalPrice?: number;
+  weight?: string;
+  height?: string;
+  width?: string;
+  length?: string;
+  inStock?: boolean;
+  quantityAvailable?: number;
+  sku?: string;
+  images?: string[];
+  video?: string;
+  isDefault?: boolean;
+  variantId?: string;
+}
+
 interface Product {
   _id: string;
   title: string;
@@ -58,6 +86,9 @@ interface Product {
   shortDescription: string;
   fullDescription: string;
   highlights: string[];
+  variants?: Variant[];
+  variantOptions?: string[];
+  variantValues?: Record<string, string[]>;
   sellerLocation?: {
     address: string;
     latitude: number;
@@ -68,6 +99,15 @@ interface Product {
   createdAt: string;
   updatedAt: string;
   verified?: boolean;
+  protectPromiseFees?: number;
+  freeDelivery?: boolean;
+  fastDelivery?: boolean;
+  safety?: boolean;
+  productQuality?: boolean;
+  paymentOptions?: boolean;
+  manufacturer?: boolean;
+  cashOnDelivery?: boolean;
+  deliveryVehicleType?: boolean;
   [key: string]: any;
 }
 
@@ -93,12 +133,12 @@ interface RatingStats {
   totalReviews: number;
 }
 
-const RATING_API_BASE = 'http://192.168.251.121:5000/api/rating-review/rating';
+const RATING_API_BASE = 'http://172.20.10.12:5000/api/rating-review/rating';
 
 const ProductDetailInfo: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { isDark, theme } = useTheme(); // Add theme context
+  const { isDark, theme } = useTheme();
 
   const params = route.params as any;
   const productId = params?.productId || params?.id || null;
@@ -618,40 +658,52 @@ const ProductDetailInfo: React.FC = () => {
     }
   };
 
+  // Helper: Filter out variant fields and return clean product data
+  const extractProductWithoutVariants = (productData: any): Product => {
+    // List of fields that belong to variant, not product
+    const variantFields = ['variants', 'variantOptions', 'variantValues'];
+
+    const cleanData: any = {};
+
+    for (const key in productData) {
+      if (!variantFields.includes(key)) {
+        cleanData[key] = productData[key];
+      }
+    }
+
+    return cleanData as Product;
+  };
+
   const fetchProduct = async () => {
     try {
       console.log('📡 Fetching product from API with ID:', productId);
 
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
+        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
         { timeout: 10000 },
       );
 
       console.log('✅ Product API Response received');
 
-      const productData =
+      let productData =
         response.data.product || response.data.data || response.data;
+
+      if (response.data.success && response.data.product) {
+        productData = response.data.product;
+      }
 
       if (!productData?._id) {
         throw new Error('Invalid product data received from server');
       }
 
-      const { variants, ...productWithoutVariants } = productData;
+      // Extract product without variant data for this component
+      const cleanProduct = extractProductWithoutVariants(productData);
 
-      console.log(
-        '✅ Product loaded successfully:',
-        productWithoutVariants.title,
-      );
-      console.log(
-        '🔍 shortDescription:',
-        productWithoutVariants.shortDescription,
-      );
-      console.log(
-        '🔍 fullDescription:',
-        productWithoutVariants.fullDescription,
-      );
+      console.log('✅ Product loaded successfully:', cleanProduct.title);
+      console.log('🔍 shortDescription:', cleanProduct.shortDescription);
+      console.log('🔍 fullDescription:', cleanProduct.fullDescription);
 
-      setProduct(productWithoutVariants);
+      setProduct(cleanProduct);
     } catch (err: any) {
       console.error('❌ Product fetch error:', {
         message: err.message,
@@ -700,7 +752,7 @@ const ProductDetailInfo: React.FC = () => {
 
       console.log('📡 Fetching reviews for:', productId);
       const response = await axios.get(
-        `${RATING_API_BASE}/reviews/${productId}?limit=5`,
+        `${RATING_API_BASE}/reviews/${productId}?limit=10`,
         { timeout: 5000 },
       );
 
@@ -771,13 +823,23 @@ const ProductDetailInfo: React.FC = () => {
     const specs: Array<{ label: string; value: string }> = [];
 
     Object.entries(product.specs).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && String(value).trim()) {
-        specs.push({
-          label:
-            key.charAt(0).toUpperCase() +
-            key.slice(1).replace(/([A-Z])/g, ' $1'),
-          value: String(value),
-        });
+      if (
+        value !== null &&
+        value !== undefined &&
+        String(value).trim() &&
+        String(value) !== 'undefined'
+      ) {
+        let cleanValue = String(value);
+        // Filter out placeholder values like "Rur", "R6r", "R7r", "Gdyd", etc.
+        const placeholderPattern = /^[A-Z0-9]{2,4}$/i;
+        if (!placeholderPattern.test(cleanValue) && cleanValue.length > 1) {
+          specs.push({
+            label:
+              key.charAt(0).toUpperCase() +
+              key.slice(1).replace(/([A-Z])/g, ' $1'),
+            value: cleanValue,
+          });
+        }
       }
     });
 
@@ -801,8 +863,9 @@ const ProductDetailInfo: React.FC = () => {
     ];
 
     infoFields.forEach(({ key, label }) => {
-      if (product[key] && String(product[key]).trim()) {
-        generalInfo.push({ label, value: String(product[key]) });
+      const value = product[key];
+      if (value && String(value).trim() && String(value) !== 'undefined') {
+        generalInfo.push({ label, value: String(value) });
       }
     });
 
@@ -813,7 +876,9 @@ const ProductDetailInfo: React.FC = () => {
     if (!product || !product.highlights || !Array.isArray(product.highlights)) {
       return [];
     }
-    return product.highlights.filter(h => h && String(h).trim());
+    return product.highlights.filter(
+      h => h && String(h).trim() && String(h).length > 1,
+    );
   };
 
   const getSellerInfo = () => {
@@ -830,15 +895,27 @@ const ProductDetailInfo: React.FC = () => {
   const getDescriptionText = () => {
     if (!product) return '';
 
-    if (product.fullDescription && product.fullDescription.trim()) {
+    if (
+      product.fullDescription &&
+      product.fullDescription.trim() &&
+      product.fullDescription.length > 5
+    ) {
       return product.fullDescription;
     }
 
-    if (product.description && product.description.trim()) {
+    if (
+      product.description &&
+      product.description.trim() &&
+      product.description.length > 5
+    ) {
       return product.description;
     }
 
-    if (product.shortDescription && product.shortDescription.trim()) {
+    if (
+      product.shortDescription &&
+      product.shortDescription.trim() &&
+      product.shortDescription.length > 5
+    ) {
       return product.shortDescription;
     }
 
@@ -878,14 +955,14 @@ const ProductDetailInfo: React.FC = () => {
     const features: string[] = [];
 
     const booleanFeatures = [
-      { key: 'protectPromiseFees', label: 'Protect Promise Fees' },
+      { key: 'protectPromiseFees', label: 'Protect Promise Coverage' },
+      { key: 'freeDelivery', label: 'Free Delivery' },
       { key: 'fastDelivery', label: 'Fast Delivery' },
       { key: 'safety', label: 'Safety Certified' },
-      { key: 'productQuality', label: 'Premium Quality' },
+      { key: 'productQuality', label: 'Premium Quality Assured' },
       { key: 'paymentOptions', label: 'Multiple Payment Options' },
       { key: 'manufacturer', label: 'Direct from Manufacturer' },
-      { key: 'cashOnDelivery', label: 'Cash on Delivery' },
-      { key: 'deliveryVehicleType', label: 'Special Delivery Vehicle' },
+      { key: 'cashOnDelivery', label: 'Cash on Delivery Available' },
     ];
 
     booleanFeatures.forEach(({ key, label }) => {
@@ -994,6 +1071,17 @@ const ProductDetailInfo: React.FC = () => {
             <MaterialIcons name="category" size={16} color="#666" />
             <Text style={dynamicStyles.metaText}>{product.category}</Text>
           </View>
+          {product.subcategory && (
+            <>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <FontAwesome5 name="layer-group" size={14} color="#666" />
+                <Text style={dynamicStyles.metaText}>
+                  {product.subcategory}
+                </Text>
+              </View>
+            </>
+          )}
           <View style={styles.metaDivider} />
           <View style={styles.metaItem}>
             <FontAwesome5 name="tag" size={14} color="#666" />
@@ -1001,12 +1089,12 @@ const ProductDetailInfo: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.brandRow}>
-          <MaterialIcons name="business" size={18} color="#4B5563" />
-          <Text style={dynamicStyles.brandText}>
-            {product.brand || 'No Brand'}
-          </Text>
-        </View>
+        {product.brand && (
+          <View style={styles.brandRow}>
+            <MaterialIcons name="business" size={18} color="#4B5563" />
+            <Text style={dynamicStyles.brandText}>{product.brand}</Text>
+          </View>
+        )}
       </View>
 
       {/* ⚠️ Stock Status */}
@@ -1049,36 +1137,22 @@ const ProductDetailInfo: React.FC = () => {
       )}
 
       {/* 📝 Description Sections */}
-      <View style={styles.descriptionSection}>
-        {/* Short Description */}
-        {product.shortDescription && product.shortDescription.trim() && (
-          <View style={dynamicStyles.descriptionCard}>
-            <View style={styles.descriptionHeader}>
-              <MaterialIcons name="description" size={20} color="#2E8B57" />
-              <Text style={dynamicStyles.descriptionTitle}>Quick Overview</Text>
-            </View>
-            <Text style={dynamicStyles.descriptionText}>
-              {product.shortDescription}
-            </Text>
-          </View>
-        )}
-
-        {/* Full Description */}
-        {product.fullDescription && product.fullDescription.trim() && (
+      {descriptionText && (
+        <View style={styles.descriptionSection}>
           <View style={dynamicStyles.descriptionCard}>
             <View style={styles.descriptionHeader}>
               <MaterialIcons name="article" size={20} color="#3B82F6" />
               <Text style={dynamicStyles.descriptionTitle}>
-                Detailed Description
+                Product Description
               </Text>
             </View>
             <Text
               style={dynamicStyles.descriptionText}
-              numberOfLines={showFullDescription ? undefined : 3}
+              numberOfLines={showFullDescription ? undefined : 4}
             >
-              {product.fullDescription}
+              {descriptionText}
             </Text>
-            {product.fullDescription.length > 200 && (
+            {descriptionText.length > 200 && (
               <TouchableOpacity
                 onPress={() => setShowFullDescription(!showFullDescription)}
                 style={styles.readMoreButton}
@@ -1094,8 +1168,28 @@ const ProductDetailInfo: React.FC = () => {
               </TouchableOpacity>
             )}
           </View>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* 🎯 Product Features */}
+      {features.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconTitle}>
+              <MaterialIcons name="verified" size={22} color="#10B981" />
+              <Text style={dynamicStyles.sectionTitle}>Product Features</Text>
+            </View>
+          </View>
+          <View style={styles.highlightsGrid}>
+            {features.map((feature, index) => (
+              <View key={index} style={dynamicStyles.highlightCard}>
+                <MaterialIcons name="verified" size={18} color="#10B981" />
+                <Text style={dynamicStyles.highlightText}>{feature}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* 📊 Specifications Section */}
       {(specs.length > 0 || generalInfo.length > 0) && (
@@ -1205,39 +1299,43 @@ const ProductDetailInfo: React.FC = () => {
             </View>
 
             {/* Review Cards */}
-            <View style={styles.reviewsContainer}>
-              {reviews.slice(0, 3).map(review => (
-                <View key={review._id} style={dynamicStyles.reviewCard}>
-                  <View style={styles.reviewHeader}>
-                    <View style={styles.reviewerInfo}>
-                      <View style={styles.reviewerAvatar}>
-                        <Text style={styles.avatarText}>
-                          {review.userId.name.charAt(0).toUpperCase()}
-                        </Text>
+            {reviews.length > 0 && (
+              <View style={styles.reviewsContainer}>
+                {reviews.slice(0, 3).map(review => (
+                  <View key={review._id} style={dynamicStyles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <View style={styles.reviewerInfo}>
+                        <View style={styles.reviewerAvatar}>
+                          <Text style={styles.avatarText}>
+                            {review.userId.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={dynamicStyles.reviewerName}>
+                            {review.userId.name}
+                          </Text>
+                          {renderStars(review.rating, 14)}
+                        </View>
                       </View>
-                      <View>
-                        <Text style={dynamicStyles.reviewerName}>
-                          {review.userId.name}
-                        </Text>
-                        {renderStars(review.rating, 14)}
-                      </View>
-                    </View>
-                    <Text style={dynamicStyles.reviewDate}>
-                      {formatDate(review.createdAt)}
-                    </Text>
-                  </View>
-                  <Text style={dynamicStyles.reviewText}>{review.review}</Text>
-                  {review.helpful && (
-                    <View style={styles.helpfulRow}>
-                      <MaterialIcons name="thumb-up" size={14} color="#666" />
-                      <Text style={dynamicStyles.helpfulText}>
-                        {review.helpful} found helpful
+                      <Text style={dynamicStyles.reviewDate}>
+                        {formatDate(review.createdAt)}
                       </Text>
                     </View>
-                  )}
-                </View>
-              ))}
-            </View>
+                    <Text style={dynamicStyles.reviewText}>
+                      {review.review}
+                    </Text>
+                    {review.helpful && review.helpful > 0 && (
+                      <View style={styles.helpfulRow}>
+                        <MaterialIcons name="thumb-up" size={14} color="#666" />
+                        <Text style={dynamicStyles.helpfulText}>
+                          {review.helpful} found helpful
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* View All Reviews Button */}
             {ratingStats.totalReviews > 3 && (
@@ -1265,30 +1363,45 @@ const ProductDetailInfo: React.FC = () => {
 
       {/* 📦 Additional Info */}
       <View style={dynamicStyles.additionalInfo}>
-        <View style={dynamicStyles.infoRow}>
-          <MaterialIcons name="local-shipping" size={20} color="#3B82F6" />
-          <Text style={dynamicStyles.infoText}>
-            Delivery: {product.deliveryTime || '3-7 days'}
-          </Text>
-        </View>
-        <View style={dynamicStyles.infoRow}>
-          <MaterialIcons name="verified" size={20} color="#10B981" />
-          <Text style={dynamicStyles.infoText}>
-            Warranty: {product.warranty || '1 year'}
-          </Text>
-        </View>
-        <View style={dynamicStyles.infoRow}>
-          <MaterialIcons name="assignment-return" size={20} color="#8B5CF6" />
-          <Text style={dynamicStyles.infoText}>
-            Return: {product.returnPolicy || '30 days'}
-          </Text>
-        </View>
+        {product.deliveryTime && (
+          <View style={dynamicStyles.infoRow}>
+            <MaterialIcons name="local-shipping" size={20} color="#3B82F6" />
+            <Text style={dynamicStyles.infoText}>
+              Delivery: {product.deliveryTime}
+            </Text>
+          </View>
+        )}
+        {product.warranty && (
+          <View style={dynamicStyles.infoRow}>
+            <MaterialIcons name="verified" size={20} color="#10B981" />
+            <Text style={dynamicStyles.infoText}>
+              Warranty: {product.warranty}
+            </Text>
+          </View>
+        )}
+        {product.returnPolicy && (
+          <View style={dynamicStyles.infoRow}>
+            <MaterialIcons name="assignment-return" size={20} color="#8B5CF6" />
+            <Text style={dynamicStyles.infoText}>
+              Return: {product.returnPolicy}
+            </Text>
+          </View>
+        )}
+        {product.mrp && product.finalPrice && (
+          <View style={dynamicStyles.infoRow}>
+            <MaterialIcons name="currency-rupee" size={20} color="#F59E0B" />
+            <Text style={dynamicStyles.infoText}>
+              Price: ₹{product.finalPrice}{' '}
+              {product.mrp > product.finalPrice && `(MRP: ₹${product.mrp})`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* 📝 Product Meta */}
       <View style={dynamicStyles.footer}>
         <Text style={dynamicStyles.footerText}>
-          Product added on {formatDate(product.createdAt)}
+          Added on {formatDate(product.createdAt)}
         </Text>
         {product.verified && (
           <View style={styles.verifiedTag}>
@@ -1342,7 +1455,7 @@ const ProductDetailInfo: React.FC = () => {
                   </Text>
                 </View>
                 <Text style={dynamicStyles.reviewText}>{review.review}</Text>
-                {review.helpful && (
+                {review.helpful && review.helpful > 0 && (
                   <View style={styles.helpfulRow}>
                     <MaterialIcons name="thumb-up" size={14} color="#666" />
                     <Text style={dynamicStyles.helpfulText}>

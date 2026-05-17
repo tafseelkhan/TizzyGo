@@ -33,13 +33,32 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// ============= UPDATED INTERFACES FOR NEW DATA STRUCTURE =============
+
+interface VariantFields {
+  [key: string]: string;
+}
+
 interface Variant {
-  fields?: Array<{
-    [key: string]: any;
-    images?: string[];
-  }>;
+  fields?: VariantFields;
+  combinationKey?: string;
+  mrp?: number;
+  price?: number;
+  savedAmount?: number;
+  discount?: number;
+  offerText?: string;
+  finalPrice?: number;
+  weight?: string;
+  height?: string;
+  width?: string;
+  length?: string;
+  inStock?: boolean;
+  quantityAvailable?: number;
+  sku?: string;
   images?: string[];
   video?: string;
+  isDefault?: boolean;
+  variantId?: string;
 }
 
 // Define navigation param list
@@ -69,6 +88,8 @@ interface Product {
   offerText: string;
   finalPrice: number;
   variants: Variant[];
+  variantOptions?: string[];
+  variantValues?: Record<string, string[]>;
   weight: string;
   height: string;
   width: string;
@@ -102,6 +123,13 @@ interface Product {
   updatedAt: string;
   protectPromiseFees?: number;
   save?: number;
+  freeDelivery?: boolean;
+  fastDelivery?: boolean;
+  safety?: boolean;
+  productQuality?: boolean;
+  paymentOptions?: boolean;
+  manufacturer?: boolean;
+  cashOnDelivery?: boolean;
   [key: string]: any;
 }
 
@@ -123,6 +151,67 @@ interface Review {
   review?: string;
   createdAt?: string;
 }
+
+// ============= HELPER FUNCTIONS =============
+
+const getVariantDisplayName = (variant: Variant | null): string => {
+  if (!variant) return '';
+
+  // New structure: fields is an object
+  if (variant.fields && typeof variant.fields === 'object') {
+    return Object.entries(variant.fields)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(' • ');
+  }
+
+  // Use combinationKey if available
+  if (variant.combinationKey) {
+    return variant.combinationKey.replace(/\|/g, ' • ');
+  }
+
+  return '';
+};
+
+const getVariantPrice = (variant: Variant | null): number => {
+  if (!variant) return 0;
+  if (variant.finalPrice) return variant.finalPrice;
+  if (variant.price) return variant.price;
+  return 0;
+};
+
+const getVariantMrp = (variant: Variant | null): number => {
+  if (!variant) return 0;
+  return variant.mrp || 0;
+};
+
+const getVariantDiscount = (variant: Variant | null): number => {
+  if (!variant) return 0;
+  return variant.discount || 0;
+};
+
+const getVariantStock = (variant: Variant | null): number => {
+  if (!variant) return 0;
+  return variant.quantityAvailable || (variant.inStock ? 1 : 0);
+};
+
+const getVariantInStock = (variant: Variant | null): boolean => {
+  if (!variant) return false;
+  if (variant.inStock !== undefined) return variant.inStock;
+  if (variant.quantityAvailable !== undefined && variant.quantityAvailable > 0)
+    return true;
+  return false;
+};
+
+const getVariantSave = (variant: Variant | null): number => {
+  if (!variant) return 0;
+  if (variant.savedAmount) return variant.savedAmount;
+  if (variant.mrp && variant.finalPrice)
+    return variant.mrp - variant.finalPrice;
+  if (variant.mrp && variant.price) return variant.mrp - variant.price;
+  return 0;
+};
+
+// ============= COMPONENTS =============
 
 // 🎨 Stock Status Component
 interface StockStatusProps {
@@ -209,7 +298,6 @@ const ProtectPromiseFees: React.FC<ProtectPromiseFeesProps> = ({
         </View>
       </TouchableOpacity>
 
-      {/* Protect Promise Modal */}
       <Modal
         visible={showModal}
         animationType="slide"
@@ -271,88 +359,64 @@ const ProtectPromiseFees: React.FC<ProtectPromiseFeesProps> = ({
                 <Text style={styles.protectSectionTitle}>
                   Why Choose Protect Promise?
                 </Text>
-
-                <View style={styles.protectBenefitItem}>
-                  <View style={styles.protectBenefitIcon}>
-                    <Icon name="verified-user" size={22} color="#10B981" />
+                {[
+                  {
+                    icon: 'verified-user',
+                    color: '#10B981',
+                    title: 'Extended Warranty',
+                    text: 'Get additional warranty coverage beyond the standard period.',
+                  },
+                  {
+                    icon: 'policy',
+                    color: '#3B82F6',
+                    title: 'Accidental Damage Protection',
+                    text: 'Protection against accidental drops, spills, and other mishaps.',
+                  },
+                  {
+                    icon: 'support-agent',
+                    color: '#8B5CF6',
+                    title: 'Priority Support',
+                    text: '24/7 dedicated support line for quick assistance.',
+                  },
+                  {
+                    icon: 'local-shipping',
+                    color: '#F59E0B',
+                    title: 'Express Replacement',
+                    text: 'Fast-track replacement service in case of defects.',
+                  },
+                ].map((item, idx) => (
+                  <View key={idx} style={styles.protectBenefitItem}>
+                    <View
+                      style={[
+                        styles.protectBenefitIcon,
+                        { backgroundColor: isDark ? '#0F172A' : '#F3F4F6' },
+                      ]}
+                    >
+                      <Icon name={item.icon} size={22} color={item.color} />
+                    </View>
+                    <View style={styles.protectBenefitContent}>
+                      <Text style={styles.protectBenefitTitle}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.protectBenefitText}>{item.text}</Text>
+                    </View>
                   </View>
-                  <View style={styles.protectBenefitContent}>
-                    <Text style={styles.protectBenefitTitle}>
-                      Extended Warranty
-                    </Text>
-                    <Text style={styles.protectBenefitText}>
-                      Get additional warranty coverage beyond the standard
-                      period.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.protectBenefitItem}>
-                  <View style={styles.protectBenefitIcon}>
-                    <Icon name="policy" size={22} color="#3B82F6" />
-                  </View>
-                  <View style={styles.protectBenefitContent}>
-                    <Text style={styles.protectBenefitTitle}>
-                      Accidental Damage Protection
-                    </Text>
-                    <Text style={styles.protectBenefitText}>
-                      Protection against accidental drops, spills, and other
-                      mishaps.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.protectBenefitItem}>
-                  <View style={styles.protectBenefitIcon}>
-                    <Icon name="support-agent" size={22} color="#8B5CF6" />
-                  </View>
-                  <View style={styles.protectBenefitContent}>
-                    <Text style={styles.protectBenefitTitle}>
-                      Priority Support
-                    </Text>
-                    <Text style={styles.protectBenefitText}>
-                      24/7 dedicated support line for quick assistance.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.protectBenefitItem}>
-                  <View style={styles.protectBenefitIcon}>
-                    <Icon name="local-shipping" size={22} color="#F59E0B" />
-                  </View>
-                  <View style={styles.protectBenefitContent}>
-                    <Text style={styles.protectBenefitTitle}>
-                      Express Replacement
-                    </Text>
-                    <Text style={styles.protectBenefitText}>
-                      Fast-track replacement service in case of defects.
-                    </Text>
-                  </View>
-                </View>
+                ))}
               </View>
 
               <View style={styles.protectCoverageContainer}>
                 <Text style={styles.protectSectionTitle}>What's Covered</Text>
-
-                <View style={styles.coverageItem}>
-                  <Icon name="check-circle" size={18} color="#10B981" />
-                  <Text style={styles.coverageText}>Manufacturing defects</Text>
-                </View>
-
-                <View style={styles.coverageItem}>
-                  <Icon name="check-circle" size={18} color="#10B981" />
-                  <Text style={styles.coverageText}>Accidental damage</Text>
-                </View>
-
-                <View style={styles.coverageItem}>
-                  <Icon name="check-circle" size={18} color="#10B981" />
-                  <Text style={styles.coverageText}>Battery replacement</Text>
-                </View>
-
-                <View style={styles.coverageItem}>
-                  <Icon name="check-circle" size={18} color="#10B981" />
-                  <Text style={styles.coverageText}>Screen replacement</Text>
-                </View>
+                {[
+                  'Manufacturing defects',
+                  'Accidental damage',
+                  'Battery replacement',
+                  'Screen replacement',
+                ].map((item, idx) => (
+                  <View key={idx} style={styles.coverageItem}>
+                    <Icon name="check-circle" size={18} color="#10B981" />
+                    <Text style={styles.coverageText}>{item}</Text>
+                  </View>
+                ))}
               </View>
 
               <View style={styles.protectTermsContainer}>
@@ -397,53 +461,46 @@ const InstructionsSection = ({ isDark }: { isDark: boolean }) => {
       </View>
 
       <View style={styles.instructionsGrid}>
-        <View style={styles.instructionCard}>
-          <View
-            style={[styles.instructionIcon, { backgroundColor: '#DCFCE7' }]}
-          >
-            <Icon name="verified-user" size={22} color="#16A34A" />
+        {[
+          {
+            icon: 'verified-user',
+            color: '#DCFCE7',
+            iconColor: '#16A34A',
+            title: 'Quality Checked',
+            text: 'Every product undergoes thorough quality checks',
+          },
+          {
+            icon: 'local-shipping',
+            color: '#DBEAFE',
+            iconColor: '#2563EB',
+            title: 'Fast Delivery',
+            text: 'Quick delivery with real-time tracking',
+          },
+          {
+            icon: 'policy',
+            color: '#F3E8FF',
+            iconColor: '#7C3AED',
+            title: 'Easy Returns',
+            text: '7-day easy return policy',
+          },
+          {
+            icon: 'support-agent',
+            color: '#FEF3C7',
+            iconColor: '#D97706',
+            title: '24/7 Support',
+            text: 'Our team is always ready to help',
+          },
+        ].map((item, idx) => (
+          <View key={idx} style={styles.instructionCard}>
+            <View
+              style={[styles.instructionIcon, { backgroundColor: item.color }]}
+            >
+              <Icon name={item.icon} size={22} color={item.iconColor} />
+            </View>
+            <Text style={styles.instructionCardTitle}>{item.title}</Text>
+            <Text style={styles.instructionCardText}>{item.text}</Text>
           </View>
-          <Text style={styles.instructionCardTitle}>Quality Checked</Text>
-          <Text style={styles.instructionCardText}>
-            Every product undergoes thorough quality checks
-          </Text>
-        </View>
-
-        <View style={styles.instructionCard}>
-          <View
-            style={[styles.instructionIcon, { backgroundColor: '#DBEAFE' }]}
-          >
-            <Icon name="local-shipping" size={22} color="#2563EB" />
-          </View>
-          <Text style={styles.instructionCardTitle}>Fast Delivery</Text>
-          <Text style={styles.instructionCardText}>
-            Quick delivery with real-time tracking
-          </Text>
-        </View>
-
-        <View style={styles.instructionCard}>
-          <View
-            style={[styles.instructionIcon, { backgroundColor: '#F3E8FF' }]}
-          >
-            <Icon name="policy" size={22} color="#7C3AED" />
-          </View>
-          <Text style={styles.instructionCardTitle}>Easy Returns</Text>
-          <Text style={styles.instructionCardText}>
-            7-day easy return policy
-          </Text>
-        </View>
-
-        <View style={styles.instructionCard}>
-          <View
-            style={[styles.instructionIcon, { backgroundColor: '#FEF3C7' }]}
-          >
-            <Icon name="support-agent" size={22} color="#D97706" />
-          </View>
-          <Text style={styles.instructionCardTitle}>24/7 Support</Text>
-          <Text style={styles.instructionCardText}>
-            Our team is always ready to help
-          </Text>
-        </View>
+        ))}
       </View>
     </View>
   );
@@ -500,8 +557,6 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
   title,
   brand,
   productId,
-  category,
-  subcategory,
   verified,
   inStock,
   quantityAvailable,
@@ -538,7 +593,6 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
             <Text style={styles.brandText}>{brand}</Text>
           </View>
         )}
-
         <View style={styles.metaItem}>
           <Icon
             name="qr-code-scanner"
@@ -552,34 +606,28 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
   );
 };
 
-// 🎨 PriceDisplay Component
+// 🎨 PriceDisplay Component (UPDATED for variant data)
 interface PriceDisplayProps {
-  mrp: number;
-  price: number;
-  save?: number;
-  finalPrice: number;
-  discount: number;
-  offerText?: string;
+  variant: Variant | null;
   protectPromiseFees?: number;
   inStock?: boolean;
   isDark: boolean;
 }
 
 const PriceDisplay: React.FC<PriceDisplayProps> = ({
-  mrp,
-  price,
-  save = 0,
-  finalPrice,
-  discount,
-  offerText,
+  variant,
   protectPromiseFees,
   inStock,
   isDark,
 }) => {
   const styles = PriceDisplayStyles(isDark);
-
-  const parsedSave = typeof save === 'string' ? parseInt(save, 10) : save;
   const isOutOfStock = inStock === false;
+
+  const finalPrice = getVariantPrice(variant);
+  const mrp = getVariantMrp(variant);
+  const discount = getVariantDiscount(variant);
+  const savedAmount = getVariantSave(variant);
+  const offerText = variant?.offerText;
 
   return (
     <View style={styles.priceContainer}>
@@ -600,31 +648,25 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
               <Text style={styles.discountPercent}>{discount}%</Text>
             </View>
           )}
-
           <Text style={styles.sellingPrice}>
-            FinalPrice: ₹{finalPrice.toLocaleString()}
+            ₹{finalPrice.toLocaleString()}
           </Text>
-
-          {price > finalPrice && (
+          {mrp > finalPrice && (
             <Text style={styles.originalPrice}>
-              Price: ₹{price.toLocaleString()}
+              MRP: ₹{mrp.toLocaleString()}
             </Text>
           )}
         </View>
       </View>
 
-      {price > 0 && parsedSave > 0 && (
+      {savedAmount > 0 && (
         <View style={styles.savingsContainer}>
           <Icon name="savings" size={20} color="#059669" />
           <Text style={styles.savingsText}>
-            • You-Save ₹{parsedSave.toLocaleString()}
+            You Save ₹{savedAmount.toLocaleString()}
           </Text>
         </View>
       )}
-
-      <View style={styles.mrpContainer}>
-        <Text style={styles.mrpPrice}>• MRP: ₹{mrp.toLocaleString()}</Text>
-      </View>
 
       {offerText && (
         <View style={styles.offerContainer}>
@@ -637,6 +679,90 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
         protectPromiseFees={protectPromiseFees}
         isDark={isDark}
       />
+    </View>
+  );
+};
+
+// 🎨 Variant Selector Component (NEW)
+interface VariantSelectorProps {
+  variantOptions?: string[];
+  variantValues?: Record<string, string[]>;
+  variants?: Variant[];
+  selectedVariant: Variant | null;
+  onVariantSelect: (variant: Variant) => void;
+  isDark: boolean;
+}
+
+const VariantSelector: React.FC<VariantSelectorProps> = ({
+  variantOptions,
+  variantValues,
+  variants,
+  selectedVariant,
+  onVariantSelect,
+  isDark,
+}) => {
+  const styles = VariantSelectorStyles(isDark);
+  const [selectedOptions, setSelectedOptions] = useState<
+    Record<string, string>
+  >({});
+
+  useEffect(() => {
+    if (selectedVariant?.fields) {
+      setSelectedOptions(selectedVariant.fields);
+    }
+  }, [selectedVariant]);
+
+  if (!variantOptions || variantOptions.length === 0) return null;
+
+  const handleOptionSelect = (option: string, value: string) => {
+    const newSelectedOptions = { ...selectedOptions, [option]: value };
+    setSelectedOptions(newSelectedOptions);
+
+    // Find matching variant
+    const matchingVariant = variants?.find(v => {
+      if (!v.fields) return false;
+      return Object.entries(newSelectedOptions).every(
+        ([key, val]) => v.fields?.[key] === val,
+      );
+    });
+
+    if (matchingVariant) {
+      onVariantSelect(matchingVariant);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Select Options</Text>
+      {variantOptions.map((option, idx) => (
+        <View key={idx} style={styles.optionGroup}>
+          <Text style={styles.optionLabel}>{option}</Text>
+          <View style={styles.valuesContainer}>
+            {(variantValues?.[option] || []).map((value, vIdx) => {
+              const isSelected = selectedOptions[option] === value;
+              return (
+                <TouchableOpacity
+                  key={vIdx}
+                  style={[
+                    styles.valueChip,
+                    isSelected && styles.valueChipSelected,
+                  ]}
+                  onPress={() => handleOptionSelect(option, value)}
+                >
+                  <Text
+                    style={[
+                      styles.valueText,
+                      isSelected && styles.valueTextSelected,
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      ))}
     </View>
   );
 };
@@ -789,15 +915,49 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   );
 };
 
-// 🎨 MAIN ProductInfo Component
+// 🎨 Selected Variant Info Component (UPDATED)
+interface SelectedVariantInfoProps {
+  variant: Variant | null;
+  isDark: boolean;
+}
+
+const SelectedVariantInfo: React.FC<SelectedVariantInfoProps> = ({
+  variant,
+  isDark,
+}) => {
+  const styles = SelectedVariantInfoStyles(isDark);
+
+  if (!variant || !variant.fields) return null;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Icon name="check-circle" size={20} color="#10B981" />
+        <Text style={styles.title}>Selected Configuration</Text>
+      </View>
+      <View style={styles.fieldsContainer}>
+        {Object.entries(variant.fields).map(([key, value], index) => (
+          <View key={index} style={styles.fieldRow}>
+            <Text style={styles.fieldKey}>{key}:</Text>
+            <Text style={styles.fieldValue}>{value}</Text>
+          </View>
+        ))}
+      </View>
+      {variant.sku && <Text style={styles.skuText}>SKU: {variant.sku}</Text>}
+    </View>
+  );
+};
+
+// ============= MAIN ProductInfo Component (UPDATED) =============
+
 const ProductInfo: React.FC<any> = props => {
   const {
     category,
     id: propId,
-    variantName,
-    currentPrice,
-    originalPrice,
-    discount,
+    variantName: propVariantName,
+    currentPrice: propCurrentPrice,
+    originalPrice: propOriginalPrice,
+    discount: propDiscount,
     stock: propStock,
     inStock: propInStock,
   } = props;
@@ -805,12 +965,13 @@ const ProductInfo: React.FC<any> = props => {
   const { user } = useUser();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute();
-  const { isDark, theme } = useTheme();
+  const { isDark } = useTheme();
 
   const params = (route.params as { productId?: string }) || {};
   const productId = params.productId || propId || null;
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
@@ -820,172 +981,22 @@ const ProductInfo: React.FC<any> = props => {
 
   const currentUserId = user?._id ?? '';
 
-  const dynamicStyles = StyleSheet.create({
-    mainContainer: {
-      flex: 1,
-      backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
-    },
-    scrollContent: {
-      paddingBottom: 24,
-    },
-    contentContainer: {
-      padding: 16,
-    },
-    loadingContainer: {
-      flex: 1,
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    loadingContent: {
-      alignItems: 'center',
-      padding: 40,
-    },
-    loadingText: {
-      fontSize: 16,
-      color: isDark ? '#E2E8F0' : '#6B7280',
-      marginTop: 16,
-      fontWeight: '500',
-    },
-    errorContainer: {
-      flex: 1,
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    errorContent: {
-      alignItems: 'center',
-      padding: 32,
-    },
-    errorTitle: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      marginTop: 16,
-      marginBottom: 8,
-    },
-    errorMessage: {
-      fontSize: 16,
-      color: isDark ? '#CBD5E1' : '#6B7280',
-      textAlign: 'center',
-      marginBottom: 24,
-      lineHeight: 24,
-    },
-    retryButton: {
-      backgroundColor: '#2E8B57',
-      paddingHorizontal: 32,
-      paddingVertical: 14,
-      borderRadius: 8,
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    retryButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    highlightsContainer: {
-      marginBottom: 24,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 16,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-    },
-    highlightsList: {
-      gap: 12,
-    },
-    highlightItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
-    },
-    highlightText: {
-      fontSize: 14,
-      color: isDark ? '#E2E8F0' : '#4B5563',
-      flex: 1,
-      lineHeight: 20,
-    },
-    descriptionContainer: {
-      marginBottom: 24,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    descriptionText: {
-      fontSize: 15,
-      color: isDark ? '#CBD5E1' : '#6B7280',
-      lineHeight: 24,
-    },
-    highlightsIconsContainer: {
-      marginBottom: 24,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    ratingSystemContainer: {
-      marginBottom: 24,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-    },
-    modalContent: {
-      flex: 1,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 18,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    modalBackButton: {
-      padding: 8,
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: isDark ? '#F1F5F9' : '#1F2937',
-      flex: 1,
-      textAlign: 'center',
-    },
-    modalScroll: {
-      flex: 1,
-      padding: 16,
-    },
-  });
+  const dynamicStyles = getDynamicStyles(isDark);
 
   const getDisplayInStock = (): boolean => {
-    if (propInStock !== undefined) {
-      return propInStock;
-    }
-
-    if (product?.inStock !== undefined) {
-      return product.inStock;
-    }
-
+    if (propInStock !== undefined) return propInStock;
+    if (selectedVariant) return getVariantInStock(selectedVariant);
+    if (product?.inStock !== undefined) return product.inStock;
     const availableStock =
       product?.quantityAvailable || propStock || product?.stock;
-    if (availableStock !== undefined && availableStock !== null) {
+    if (availableStock !== undefined && availableStock !== null)
       return availableStock > 0;
-    }
-
     return false;
+  };
+
+  const filterValidVariants = (variants: any[]): Variant[] => {
+    if (!variants || !Array.isArray(variants)) return [];
+    return variants.filter(v => v && (v.fields || v.combinationKey || v.sku));
   };
 
   const fetchProductData = async () => {
@@ -993,26 +1004,37 @@ const ProductInfo: React.FC<any> = props => {
       setLoading(true);
       setError(null);
 
-      if (!productId) {
-        throw new Error('Product ID is required');
-      }
+      if (!productId) throw new Error('Product ID is required');
 
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
-        {
-          timeout: 10000,
-        },
+        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
+        { timeout: 10000 },
       );
 
+      let productData =
+        response.data.product || response.data.data || response.data;
+
       if (response.data.success && response.data.product) {
-        const productData: Product = {
-          ...response.data.product,
-          id: response.data.product._id,
-        };
-        setProduct(productData);
-      } else {
-        throw new Error('Invalid product data received');
+        productData = response.data.product;
       }
+
+      if (!productData?._id) throw new Error('Invalid product data received');
+
+      // Filter valid variants
+      if (productData.variants) {
+        productData.variants = filterValidVariants(productData.variants);
+      }
+
+      setProduct(productData);
+
+      // Set default variant (first one or the one with isDefault)
+      let defaultVariant = null;
+      if (productData.variants && productData.variants.length > 0) {
+        defaultVariant =
+          productData.variants.find((v: Variant) => v.isDefault) ||
+          productData.variants[0];
+      }
+      setSelectedVariant(defaultVariant);
     } catch (err: any) {
       console.error('❌ Product fetch error:', err);
       setError(
@@ -1028,16 +1050,12 @@ const ProductInfo: React.FC<any> = props => {
 
   const fetchRatingStats = async () => {
     if (!productId) return;
-
     try {
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/rating-review/rating/stats/${productId}`,
+        `http://172.20.10.12:5000/api/rating-review/rating/stats/${productId}`,
         { timeout: 5000 },
       );
-
-      if (response.data.success) {
-        setRatingStats(response.data.data);
-      }
+      if (response.data.success) setRatingStats(response.data.data);
     } catch (err: any) {
       console.error('Error fetching rating stats:', err);
     }
@@ -1045,16 +1063,12 @@ const ProductInfo: React.FC<any> = props => {
 
   const fetchReviews = async () => {
     if (!productId) return;
-
     try {
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/rating-review/rating/reviews/${productId}?limit=6`,
+        `http://172.20.10.12:5000/api/rating-review/rating/reviews/${productId}?limit=6`,
         { timeout: 5000 },
       );
-
-      if (response.data.success) {
-        setReviews(response.data.data);
-      }
+      if (response.data.success) setReviews(response.data.data);
     } catch (err: any) {
       console.error('Error fetching reviews:', err);
     }
@@ -1068,11 +1082,11 @@ const ProductInfo: React.FC<any> = props => {
       );
       return;
     }
+    navigation.navigate('TizzyChat', { userId: currentUserId, id: productId });
+  };
 
-    navigation.navigate('TizzyChat', {
-      userId: currentUserId,
-      id: productId,
-    });
+  const handleVariantSelect = (variant: Variant) => {
+    setSelectedVariant(variant);
   };
 
   useEffect(() => {
@@ -1167,21 +1181,29 @@ const ProductInfo: React.FC<any> = props => {
             category={product.category}
             verified={product.verified}
             inStock={displayInStock}
-            quantityAvailable={product.quantityAvailable}
+            quantityAvailable={getVariantStock(selectedVariant)}
             isDark={isDark}
           />
 
           <PriceDisplay
-            mrp={product.mrp}
-            price={product.price}
-            save={product.save}
-            finalPrice={product.finalPrice}
-            discount={product.discount}
-            offerText={product.offerText}
+            variant={selectedVariant}
             protectPromiseFees={product.protectPromiseFees}
             inStock={displayInStock}
             isDark={isDark}
           />
+
+          {/* NEW: Variant Selector */}
+          <VariantSelector
+            variantOptions={product.variantOptions}
+            variantValues={product.variantValues}
+            variants={product.variants}
+            selectedVariant={selectedVariant}
+            onVariantSelect={handleVariantSelect}
+            isDark={isDark}
+          />
+
+          {/* NEW: Selected Variant Info */}
+          <SelectedVariantInfo variant={selectedVariant} isDark={isDark} />
 
           {product.highlights && product.highlights.length > 0 && (
             <View style={dynamicStyles.highlightsContainer}>
@@ -1284,7 +1306,6 @@ const ProductInfo: React.FC<any> = props => {
               <Text style={dynamicStyles.modalTitle}>Customer Reviews</Text>
               <View style={{ width: 40 }} />
             </View>
-
             <ScrollView style={dynamicStyles.modalScroll}>
               <RatingReviewSystem
                 productId={product.id}
@@ -1304,6 +1325,118 @@ const ProductInfo: React.FC<any> = props => {
 
 // =============== STYLE FUNCTIONS ===============
 
+const getDynamicStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    mainContainer: { flex: 1, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' },
+    scrollContent: { paddingBottom: 24 },
+    contentContainer: { padding: 16 },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingContent: { alignItems: 'center', padding: 40 },
+    loadingText: {
+      fontSize: 16,
+      color: isDark ? '#E2E8F0' : '#6B7280',
+      marginTop: 16,
+      fontWeight: '500',
+    },
+    errorContainer: {
+      flex: 1,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    errorContent: { alignItems: 'center', padding: 32 },
+    errorTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    errorMessage: {
+      fontSize: 16,
+      color: isDark ? '#CBD5E1' : '#6B7280',
+      textAlign: 'center',
+      marginBottom: 24,
+      lineHeight: 24,
+    },
+    retryButton: {
+      backgroundColor: '#2E8B57',
+      paddingHorizontal: 32,
+      paddingVertical: 14,
+      borderRadius: 8,
+      elevation: 2,
+    },
+    retryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+    highlightsContainer: {
+      marginBottom: 24,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+    },
+    highlightsList: { gap: 12 },
+    highlightItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    highlightText: {
+      fontSize: 14,
+      color: isDark ? '#E2E8F0' : '#4B5563',
+      flex: 1,
+      lineHeight: 20,
+    },
+    descriptionContainer: {
+      marginBottom: 24,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    descriptionText: {
+      fontSize: 15,
+      color: isDark ? '#CBD5E1' : '#6B7280',
+      lineHeight: 24,
+    },
+    highlightsIconsContainer: {
+      marginBottom: 24,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    ratingSystemContainer: { marginBottom: 24 },
+    modalOverlay: { flex: 1, backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+    modalContent: { flex: 1 },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    modalBackButton: { padding: 8 },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      flex: 1,
+      textAlign: 'center',
+    },
+    modalScroll: { flex: 1, padding: 16 },
+  });
+
 const StockStatusStyles = (isDark: boolean) =>
   StyleSheet.create({
     stockBadge: {
@@ -1314,27 +1447,11 @@ const StockStatusStyles = (isDark: boolean) =>
       borderRadius: 16,
       gap: 4,
     },
-    inStockBadge: {
-      backgroundColor: '#D1FAE5',
-    },
-    outOfStockBadge: {
-      backgroundColor: '#FEE2E2',
-    },
-    inStockText: {
-      fontSize: 12,
-      color: '#059669',
-      fontWeight: '600',
-    },
-    outOfStockText: {
-      fontSize: 12,
-      color: '#DC2626',
-      fontWeight: '600',
-    },
-    lowStockText: {
-      fontSize: 11,
-      color: '#D97706',
-      fontWeight: '500',
-    },
+    inStockBadge: { backgroundColor: '#D1FAE5' },
+    outOfStockBadge: { backgroundColor: '#FEE2E2' },
+    inStockText: { fontSize: 12, color: '#059669', fontWeight: '600' },
+    outOfStockText: { fontSize: 12, color: '#DC2626', fontWeight: '600' },
+    lowStockText: { fontSize: 11, color: '#D97706', fontWeight: '500' },
   });
 
 const ProtectPromiseStyles = (isDark: boolean) =>
@@ -1359,9 +1476,7 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       borderWidth: 1,
       borderColor: '#10B981',
     },
-    protectPromiseContent: {
-      flex: 1,
-    },
+    protectPromiseContent: { flex: 1 },
     protectPromiseTitle: {
       fontSize: 16,
       fontWeight: '600',
@@ -1372,16 +1487,8 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       fontSize: 13,
       color: isDark ? '#94A3B8' : '#6B7280',
     },
-    protectPromiseRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    protectPromiseValue: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: '#059669',
-    },
+    protectPromiseRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    protectPromiseValue: { fontSize: 18, fontWeight: 'bold', color: '#059669' },
     protectModalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -1411,12 +1518,8 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       fontWeight: 'bold',
       color: isDark ? '#F1F5F9' : '#1F2937',
     },
-    protectModalCloseButton: {
-      padding: 4,
-    },
-    protectModalScroll: {
-      padding: 20,
-    },
+    protectModalCloseButton: { padding: 4 },
+    protectModalScroll: { padding: 20 },
     protectModalImageContainer: {
       height: 180,
       borderRadius: 12,
@@ -1424,10 +1527,7 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       marginBottom: 20,
       position: 'relative',
     },
-    protectModalImage: {
-      width: '100%',
-      height: '100%',
-    },
+    protectModalImage: { width: '100%', height: '100%' },
     protectModalImageOverlay: {
       position: 'absolute',
       top: 0,
@@ -1445,11 +1545,7 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       color: '#FFFFFF',
       marginTop: 12,
     },
-    protectModalImageSubtitle: {
-      fontSize: 14,
-      color: '#FFFFFF',
-      opacity: 0.9,
-    },
+    protectModalImageSubtitle: { fontSize: 14, color: '#FFFFFF', opacity: 0.9 },
     protectFeesDisplay: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1466,14 +1562,8 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       fontWeight: '600',
       color: isDark ? '#E2E8F0' : '#1E40AF',
     },
-    protectFeesValue: {
-      fontSize: 28,
-      fontWeight: 'bold',
-      color: '#059669',
-    },
-    protectBenefitsContainer: {
-      marginBottom: 20,
-    },
+    protectFeesValue: { fontSize: 28, fontWeight: 'bold', color: '#059669' },
+    protectBenefitsContainer: { marginBottom: 20 },
     protectSectionTitle: {
       fontSize: 18,
       fontWeight: 'bold',
@@ -1489,14 +1579,11 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: isDark ? '#0F172A' : '#F3F4F6',
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 12,
     },
-    protectBenefitContent: {
-      flex: 1,
-    },
+    protectBenefitContent: { flex: 1 },
     protectBenefitTitle: {
       fontSize: 16,
       fontWeight: '600',
@@ -1508,9 +1595,7 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       color: isDark ? '#CBD5E1' : '#6B7280',
       lineHeight: 20,
     },
-    protectCoverageContainer: {
-      marginBottom: 20,
-    },
+    protectCoverageContainer: { marginBottom: 20 },
     coverageItem: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1521,9 +1606,7 @@ const ProtectPromiseStyles = (isDark: boolean) =>
       color: isDark ? '#E2E8F0' : '#374151',
       marginLeft: 8,
     },
-    protectTermsContainer: {
-      marginBottom: 20,
-    },
+    protectTermsContainer: { marginBottom: 20 },
     protectTermsText: {
       fontSize: 14,
       color: isDark ? '#94A3B8' : '#6B7280',
@@ -1551,10 +1634,6 @@ const InstructionsStyles = (isDark: boolean) =>
       backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
       borderRadius: 16,
       elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
     },
     instructionsHeader: {
       flexDirection: 'row',
@@ -1571,14 +1650,10 @@ const InstructionsStyles = (isDark: boolean) =>
       fontSize: 14,
       color: isDark ? '#94A3B8' : '#6B7280',
     },
-    instructionsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-    },
+    instructionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     instructionCard: {
       width: (screenWidth - 60) / 2,
-      backgroundColor: isDark ? '#0F172A' : '#ffffffff',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       padding: 12,
       justifyContent: 'center',
       left: 65,
@@ -1610,33 +1685,22 @@ const InstructionsStyles = (isDark: boolean) =>
 const TizzyChatStyles = (isDark: boolean) =>
   StyleSheet.create({
     tizzyChatButton: {
-      backgroundColor: isDark ? '#1E293B' : '#ffffffff',
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
       borderRadius: 12,
       marginBottom: 16,
       elevation: 4,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
     },
     tizzyChatButtonContent: {
       flexDirection: 'row',
       alignItems: 'center',
       padding: 16,
     },
-    tizzyChatLogo: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      marginRight: 12,
-    },
-    tizzyChatTextContainer: {
-      flex: 1,
-    },
+    tizzyChatLogo: { width: 40, height: 40, borderRadius: 8, marginRight: 12 },
+    tizzyChatTextContainer: { flex: 1 },
     tizzyChatTitle: {
       fontSize: 18,
       fontWeight: '600',
-      color: isDark ? '#F1F5F9' : '#000000ff',
+      color: isDark ? '#F1F5F9' : '#000000',
       marginBottom: 2,
     },
     tizzyChatSubtitle: {
@@ -1668,11 +1732,7 @@ const ProductHeaderStyles = (isDark: boolean) =>
       borderRadius: 16,
       gap: 4,
     },
-    verifiedText: {
-      fontSize: 12,
-      color: '#059669',
-      fontWeight: '600',
-    },
+    verifiedText: { fontSize: 12, color: '#059669', fontWeight: '600' },
     productTitle: {
       fontSize: 24,
       fontWeight: 'bold',
@@ -1680,25 +1740,14 @@ const ProductHeaderStyles = (isDark: boolean) =>
       lineHeight: 32,
       marginBottom: 12,
     },
-    productMeta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-    },
-    metaItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
+    productMeta: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     brandText: {
       fontSize: 14,
       color: isDark ? '#E2E8F0' : '#4B5563',
       fontWeight: '500',
     },
-    productIdText: {
-      fontSize: 14,
-      color: isDark ? '#94A3B8' : '#6B7280',
-    },
+    productIdText: { fontSize: 14, color: isDark ? '#94A3B8' : '#6B7280' },
   });
 
 const PriceDisplayStyles = (isDark: boolean) =>
@@ -1732,13 +1781,11 @@ const PriceDisplayStyles = (isDark: boolean) =>
       justifyContent: 'space-between',
       marginBottom: 8,
     },
-    pricingSection: {
-      marginBottom: 6,
-    },
+    pricingSection: { marginBottom: 6 },
     discountWithArrow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? '#1E293B' : '#ffffffff',
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
       paddingHorizontal: 5,
       paddingVertical: 1,
       borderRadius: 3,
@@ -1779,21 +1826,101 @@ const PriceDisplayStyles = (isDark: boolean) =>
       gap: 6,
       marginBottom: 8,
     },
-    savingsText: {
-      fontSize: 14,
-      color: '#059669',
-      fontWeight: '600',
-    },
+    savingsText: { fontSize: 14, color: '#059669', fontWeight: '600' },
     offerContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
       marginBottom: 16,
     },
-    offerText: {
+    offerText: { fontSize: 14, color: '#DC2626', fontWeight: '500' },
+  });
+
+const VariantSelectorStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      marginBottom: 20,
+      padding: 16,
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#E5E7EB',
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+      marginBottom: 12,
+    },
+    optionGroup: { marginBottom: 16 },
+    optionLabel: {
       fontSize: 14,
-      color: '#DC2626',
       fontWeight: '500',
+      color: isDark ? '#CBD5E1' : '#4B5563',
+      marginBottom: 8,
+    },
+    valuesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    valueChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDark ? '#475569' : '#D1D5DB',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+    },
+    valueChipSelected: {
+      borderColor: '#3B82F6',
+      backgroundColor: '#EFF6FF',
+      borderWidth: 2,
+    },
+    valueText: { fontSize: 14, color: isDark ? '#E2E8F0' : '#374151' },
+    valueTextSelected: { color: '#2563EB', fontWeight: '600' },
+  });
+
+const SelectedVariantInfoStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      marginBottom: 20,
+      padding: 16,
+      backgroundColor: isDark ? '#1E293B' : '#F0F9FF',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#E0F2FE',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#93C5FD' : '#1E40AF',
+    },
+    fieldsContainer: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 8,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#E5E7EB',
+      marginBottom: 8,
+    },
+    fieldRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    fieldKey: { fontSize: 13, color: isDark ? '#94A3B8' : '#6B7280' },
+    fieldValue: {
+      fontSize: 13,
+      color: isDark ? '#E2E8F0' : '#1F2937',
+      fontWeight: '500',
+    },
+    skuText: {
+      fontSize: 12,
+      color: isDark ? '#94A3B8' : '#6B7280',
+      fontStyle: 'italic',
     },
   });
 
@@ -1811,15 +1938,8 @@ const RatingSectionStyles = (isDark: boolean) =>
       justifyContent: 'space-between',
       marginBottom: 16,
     },
-    ratingLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    ratingScore: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-    },
+    ratingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    ratingScore: { flexDirection: 'row', alignItems: 'baseline' },
     ratingNumber: {
       fontSize: 32,
       fontWeight: 'bold',
@@ -1830,16 +1950,8 @@ const RatingSectionStyles = (isDark: boolean) =>
       color: isDark ? '#94A3B8' : '#9CA3AF',
       fontWeight: '500',
     },
-    starsContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 2,
-    },
-    ratingRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
+    starsContainer: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    ratingRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     reviewCountText: {
       fontSize: 14,
       color: isDark ? '#94A3B8' : '#6B7280',
@@ -1850,10 +1962,7 @@ const RatingSectionStyles = (isDark: boolean) =>
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    avatarsContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
+    avatarsContainer: { flexDirection: 'row', alignItems: 'center' },
     avatar: {
       width: 36,
       height: 36,
@@ -1864,11 +1973,7 @@ const RatingSectionStyles = (isDark: boolean) =>
       borderWidth: 2,
       borderColor: isDark ? '#1E293B' : '#FFFFFF',
     },
-    moreCount: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: 'bold',
-    },
+    moreCount: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
     verifiedBuyersText: {
       fontSize: 14,
       color: isDark ? '#94A3B8' : '#6B7280',
@@ -1890,9 +1995,7 @@ const ActionButtonsStyles = (isDark: boolean) =>
       alignItems: 'center',
       marginTop: 12,
     },
-    actionItem: {
-      alignItems: 'center',
-    },
+    actionItem: { alignItems: 'center' },
     actionLabel: {
       fontSize: 12,
       color: isDark ? '#94A3B8' : '#565959',
@@ -1918,9 +2021,7 @@ const ActionButtonsStyles = (isDark: boolean) =>
   });
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
 });
 
-export default ProductInfo;   
+export default ProductInfo;

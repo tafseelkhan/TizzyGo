@@ -124,7 +124,7 @@ const RelatedSecond: React.FC<Props> = ({
         setError(null);
 
         // Slot = 2 for RelatedSecond
-        const url = `http://192.168.251.121:5000/api/public/related/${id}?slot=2`;
+        const url = `http://172.20.10.12:5000/api/public/related/${id}?slot=2`;
         console.log('Fetching related products from URL:', url);
         const response = await fetch(url);
 

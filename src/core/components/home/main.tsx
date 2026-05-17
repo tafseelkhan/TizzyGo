@@ -1,4 +1,4 @@
-// app/index.tsx (Home Page) - Fixed with Full Theme Support
+// app/index.tsx (Home Page) - COMPLETELY FIXED VERSION
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -49,7 +49,7 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://192.168.251.121:5000';
+const API_BASE_URL = 'http://172.20.10.12:5000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -57,7 +57,6 @@ const getColorGradient = (
   isDark: boolean,
 ): string[] => {
   if (!colorName) {
-    // Default gradient based on theme
     if (isDark) {
       return ['#0f172a', '#1e293b', '#0f172a'];
     }
@@ -82,7 +81,7 @@ const getUserIdFromToken = async (): Promise<string | null> => {
   }
 };
 
-// Fetch user color from API with proper error handling and caching
+// Fetch user color from API
 const fetchUserColor = async (token: string): Promise<string | null> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/fav/color`, {
@@ -132,6 +131,7 @@ interface FullProduct {
   comments?: any[];
   createdAt?: string;
   updatedAt?: string;
+  offerText?: string;
 }
 
 interface GridProduct {
@@ -139,29 +139,10 @@ interface GridProduct {
   fullProduct: FullProduct;
 }
 
-interface ApiProduct {
-  _id: string;
-  title: string;
-  brand: string;
-  description: string;
-  category: string;
-  subcategory: string;
-  mrp: number;
-  price: number;
-  discount: number;
-  finalPrice: number;
-  variants?: Array<{
-    images?: string[];
-    [key: string]: any;
-  }>;
-  averageRating?: number;
-  reviewCount?: number;
-  images?: string[];
-  seller?: any;
-  likes?: number;
-  comments?: any[];
-  createdAt?: string;
-  updatedAt?: string;
+// API Response type - CORRECTED
+interface ApiProductResponse {
+  productId: string;
+  fullProduct: FullProduct;
 }
 
 interface BannerItem {
@@ -560,7 +541,6 @@ const HomeScreen: React.FC = () => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
-  // Get gradient based on user color AND theme
   const gradientColors = getColorGradient(userColor, isDark);
 
   // Load user data on mount
@@ -643,33 +623,48 @@ const HomeScreen: React.FC = () => {
     return await AuthUtils.checkAuthAndRedirect();
   };
 
-  const convertToGridProducts = (apiProducts: ApiProduct[]): GridProduct[] => {
-    return apiProducts.map(apiProduct => ({
-      productId: apiProduct._id,
-      fullProduct: {
-        _id: apiProduct._id,
-        title: apiProduct.title,
-        brand: apiProduct.brand,
-        description: apiProduct.description,
-        category: apiProduct.category,
-        subcategory: apiProduct.subcategory,
-        mrp: apiProduct.mrp,
-        price: apiProduct.price,
-        discount: apiProduct.discount,
-        finalPrice: apiProduct.finalPrice,
-        variants: apiProduct.variants,
-        averageRating: apiProduct.averageRating,
-        reviewCount: apiProduct.reviewCount,
-        images: apiProduct.images || [],
-        seller: apiProduct.seller || null,
-        likes: apiProduct.likes || 0,
-        comments: apiProduct.comments || [],
-        createdAt: apiProduct.createdAt || new Date().toISOString(),
-        updatedAt: apiProduct.updatedAt || new Date().toISOString(),
-      },
-    }));
+  // ✅ FIXED: convertToGridProducts - Direct mapping from API response
+  const convertToGridProducts = (
+    apiProducts: ApiProductResponse[],
+  ): GridProduct[] => {
+    if (!apiProducts || !Array.isArray(apiProducts)) {
+      console.error('❌ convertToGridProducts: Invalid input', apiProducts);
+      return [];
+    }
+
+    console.log('🔄 Converting products count:', apiProducts.length);
+
+    return apiProducts.map(item => {
+      // API already returns { productId, fullProduct }
+      return {
+        productId: item.productId || item.fullProduct?._id || '',
+        fullProduct: {
+          _id: item.fullProduct?._id || '',
+          title: item.fullProduct?.title || 'Untitled',
+          brand: item.fullProduct?.brand || '',
+          description: item.fullProduct?.description || '',
+          category: item.fullProduct?.category || '',
+          subcategory: item.fullProduct?.subcategory || '',
+          mrp: item.fullProduct?.mrp || 0,
+          price: item.fullProduct?.price || 0,
+          discount: item.fullProduct?.discount || 0,
+          finalPrice: item.fullProduct?.finalPrice || 0,
+          variants: item.fullProduct?.variants || [],
+          averageRating: item.fullProduct?.averageRating || 0,
+          reviewCount: item.fullProduct?.reviewCount || 0,
+          images: item.fullProduct?.images || [],
+          seller: item.fullProduct?.seller || null,
+          likes: item.fullProduct?.likes || 0,
+          comments: item.fullProduct?.comments || [],
+          createdAt: item.fullProduct?.createdAt || new Date().toISOString(),
+          updatedAt: item.fullProduct?.updatedAt || new Date().toISOString(),
+          offerText: item.fullProduct?.offerText || '',
+        },
+      };
+    });
   };
 
+  // ✅ FIXED: fetchProducts
   const fetchProducts = async () => {
     try {
       const isAuthenticated = await checkAuthAndRedirect();
@@ -677,27 +672,42 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.251.121:5000/api/seller/forms/categories',
+        'http://172.20.10.12:5000/api/seller/forms/categories',
       );
       const data = await response.json();
 
-      if (Array.isArray(data.products)) {
-        let filteredApiProducts: ApiProduct[] = data.products;
+      console.log('📦 API Response success:', data.success);
+      console.log('📦 Products array length:', data.products?.length);
+
+      if (data.products && Array.isArray(data.products)) {
+        let filteredProducts = data.products;
 
         if (searchQuery) {
-          filteredApiProducts = filteredApiProducts.filter((p: ApiProduct) =>
-            p.title?.toLowerCase().includes(searchQuery.toLowerCase()),
+          filteredProducts = filteredProducts.filter((p: ApiProductResponse) =>
+            p.fullProduct?.title
+              ?.toLowerCase()
+              .includes(searchQuery.toLowerCase()),
           );
         }
 
-        const gridProducts = convertToGridProducts(filteredApiProducts);
+        const gridProducts = convertToGridProducts(filteredProducts);
+        console.log('✅ Set products count:', gridProducts.length);
+
+        // Debug first product
+        if (gridProducts.length > 0) {
+          console.log('✅ First product:', {
+            productId: gridProducts[0].productId,
+            title: gridProducts[0].fullProduct?.title,
+          });
+        }
+
         setProducts(gridProducts);
       } else {
-        console.error('API did not return an array:', data);
+        console.error('❌ Invalid API response structure:', data);
         setProducts([]);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('❌ Error fetching products:', error);
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -711,12 +721,14 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.251.121:5000/api/seller/forms/categories',
+        'http://172.20.10.12:5000/api/seller/forms/categories',
       );
       const data = await response.json();
-      if (data.success && Array.isArray(data.products)) {
-        const product = data.products.find((p: ProductType) => p._id === id);
-        setSelectedProduct(product || null);
+      if (data.products && Array.isArray(data.products)) {
+        const product = data.products.find(
+          (p: ApiProductResponse) => p.fullProduct?._id === id,
+        );
+        setSelectedProduct(product?.fullProduct || null);
       } else {
         console.error('Invalid API response:', data);
         setSelectedProduct(null);
@@ -785,7 +797,6 @@ const HomeScreen: React.FC = () => {
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
         <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Header with higher zIndex to stay on top */}
         <View style={[styles.headerWrapper, { zIndex: 10 }]}>
           <Header
             location={location}
@@ -884,6 +895,7 @@ const HomeScreen: React.FC = () => {
   );
 };
 
+// ✅ FIXED: Changed absoluteFillObject to absoluteFill
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -926,14 +938,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bannerImageContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   bannerImage: {
     width: '100%',
     height: '100%',
   },
   bannerContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1050,7 +1062,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   staticBannerImageContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   staticBannerImage: {
     width: '100%',
@@ -1067,7 +1079,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   staticBannerContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     padding: 20,
   },

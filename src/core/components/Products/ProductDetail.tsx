@@ -1,5 +1,5 @@
-// screens/ProductDetailScreen.tsx
-import React, { useEffect, useState } from 'react';
+// screens/ProductDetailScreen.tsx - FIXED VERSION
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   RefreshControl,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -16,9 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '../../contexts/auth/UserContext';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import axios from 'axios';
-import ProductImages, {
-  Variant,
-} from '../../components/Products/ProductImages';
+import ProductImages from '../../components/Products/ProductImages';
 import ProductVideo from '../../components/Products/ProductVideos';
 import ProductInfo from '../../components/Products/ProductInfo';
 import RelatedProducts from './RelatedProducts';
@@ -37,6 +37,10 @@ type RootStackParamList = {
   CategoryProducts: {
     category: string;
   };
+  ProductMore: {
+    productId: string;
+    productTitle: string;
+  };
 };
 
 type ProductDetailScreenNavigationProp = StackNavigationProp<
@@ -44,7 +48,33 @@ type ProductDetailScreenNavigationProp = StackNavigationProp<
   'ProductDetail'
 >;
 
-// Extended Product interface with variants
+interface VariantFields {
+  [key: string]: string;
+}
+
+interface Variant {
+  fields?: VariantFields;
+  combinationKey?: string;
+  mrp?: number;
+  price?: number;
+  savedAmount?: number;
+  discount?: number;
+  offerText?: string;
+  finalPrice?: number;
+  weight?: string;
+  height?: string;
+  width?: string;
+  length?: string;
+  inStock?: boolean;
+  quantityAvailable?: number;
+  sku?: string;
+  images?: string[];
+  video?: string;
+  isDefault?: boolean;
+  variantId?: string;
+  stock?: number;
+}
+
 interface Product {
   _id: string;
   title?: string;
@@ -56,6 +86,8 @@ interface Product {
   description?: string;
   images?: string[];
   variants?: Variant[];
+  variantOptions?: string[];
+  variantValues?: Record<string, string[]>;
   shortDescription?: string;
   fullDescription?: string;
   highlights?: string[];
@@ -63,6 +95,21 @@ interface Product {
   inStock?: boolean | string;
   quantityAvailable?: number;
   sellerLocation?: any;
+  sellerId?: string;
+  vendorCodeUID?: string;
+  deliveryTime?: string;
+  warranty?: string;
+  returnPolicy?: string;
+  finalPrice?: number;
+  protectPromiseFees?: number;
+  freeDelivery?: boolean;
+  fastDelivery?: boolean;
+  safety?: boolean;
+  productQuality?: boolean;
+  paymentOptions?: boolean;
+  manufacturer?: boolean;
+  cashOnDelivery?: boolean;
+  verified?: boolean;
 }
 
 const { width } = Dimensions.get('window');
@@ -70,11 +117,12 @@ const { width } = Dimensions.get('window');
 const ProductDetailScreen: React.FC = () => {
   const navigation = useNavigation<ProductDetailScreenNavigationProp>();
   const route = useRoute();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isMountedRef = useRef(true);
+  const fetchInProgressRef = useRef(false);
 
   const params = route.params as any;
   const productId = params?.productId || params?.id || null;
-
-  console.log('🔍 ProductDetailScreen - productId:', productId);
 
   const { user } = useUser();
   const { theme, isDark, resolvedTheme } = useTheme();
@@ -88,70 +136,72 @@ const ProductDetailScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [localDescription, setLocalDescription] = useState<string>('');
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [validVariants, setValidVariants] = useState<Variant[]>([]);
 
-  // ✅ थीम के हिसाब से स्टाइल्स डायनामिक बनाएं
   const dynamicStyles = getDynamicStyles(isDark);
 
-  useEffect(() => {
-    console.log('🔍 useEffect running with productId:', productId);
+  // Helper: Filter valid variants
+  const filterValidVariants = useCallback((variants: any[]): Variant[] => {
+    if (!variants || !Array.isArray(variants)) return [];
+    return variants.filter(
+      v => v && (v.fields || v.combinationKey || v.sku || v.variantId),
+    );
+  }, []);
 
-    if (!productId) {
-      console.error('❌ Product ID is undefined or null!');
-      setError('Product ID is missing. Please go back and try again.');
-      setLoading(false);
+  // Fetch product function - wrapped in useCallback
+  const fetchProduct = useCallback(async () => {
+    // Prevent multiple simultaneous fetches
+    if (fetchInProgressRef.current) {
+      console.log('⏳ Fetch already in progress, skipping...');
       return;
     }
 
-    fetchProduct();
-  }, [productId]);
-
-  // ✅ थीम डिबगिंग (optional)
-  useEffect(() => {
-    console.log('🎨 Current Theme:', theme);
-    console.log('🌙 Is Dark Mode:', isDark);
-    console.log('🔧 Resolved Theme:', resolvedTheme);
-  }, [theme, isDark, resolvedTheme]);
-
-  // ✅ Local description update on product change
-  useEffect(() => {
-    if (product) {
-      const newDescription =
-        product.fullDescription ||
-        product.description ||
-        product.shortDescription ||
-        '';
-
-      setLocalDescription(newDescription);
-      console.log('✅ Local description updated:', newDescription);
+    if (!productId) {
+      if (isMountedRef.current) {
+        setError('Product ID is missing. Please go back and try again.');
+        setLoading(false);
+      }
+      return;
     }
-  }, [product]);
 
-  const fetchProduct = async () => {
     try {
-      setLoading(true);
+      fetchInProgressRef.current = true;
+
+      if (!refreshing) {
+        setLoading(true);
+      }
+
       console.log('📡 Fetching product with ID:', productId);
 
       const response = await axios.get(
-        `http://192.168.251.121:5000/api/seller/forms/categories/${productId}`,
+        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
       );
 
-      console.log('✅ API Response:', response.data);
+      if (!isMountedRef.current) return;
 
-      const productData =
+      let productData =
         response.data.product || response.data.data || response.data;
 
+      if (response.data.success && response.data.product) {
+        productData = response.data.product;
+      }
+
       if (!productData?._id) {
-        console.error('❌ Product data not found in response');
         throw new Error('Product not found in response');
       }
 
-      console.log('✅ Product data loaded:', productData.title);
-      console.log('✅ Product variants:', productData.variants?.length || 0);
+      // Filter valid variants
+      if (productData.variants && Array.isArray(productData.variants)) {
+        const filteredVariants = filterValidVariants(productData.variants);
+        productData.variants = filteredVariants;
+        setValidVariants(filteredVariants);
+      }
 
       setProduct(productData);
       setSelectedVariantIndex(0);
       setError(null);
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('❌ Fetch error:', err);
       const errorMessage =
         err.response?.data?.message || err.message || 'Product load failed';
@@ -162,48 +212,132 @@ const ProductDetailScreen: React.FC = () => {
         text2: errorMessage,
       });
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+        fetchInProgressRef.current = false;
+      }
     }
-  };
+  }, [productId, refreshing, filterValidVariants]);
 
-  const handleVariantChange = (variantIndex: number) => {
+  // MAIN FIXED useEffect - with cleanup and mounted flag
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchProduct();
+
+    return () => {
+      isMountedRef.current = false;
+      fetchInProgressRef.current = false;
+    };
+  }, [productId]); // Only runs when productId changes
+
+  // FIXED: Remove theme logging useEffect OR make it run once
+  useEffect(() => {
+    // Only log in development and only once
+    if (__DEV__) {
+      console.log('Theme mode:', isDark ? 'Dark' : 'Light');
+    }
+  }, []); // Empty dependency array - runs only once
+
+  // FIXED: Description update with compare
+  useEffect(() => {
+    if (product) {
+      const newDescription =
+        product.fullDescription ||
+        product.description ||
+        product.shortDescription ||
+        '';
+
+      // Only update if changed
+      if (newDescription !== localDescription) {
+        setLocalDescription(newDescription);
+      }
+    }
+  }, [product, localDescription]); // Added localDescription dependency
+
+  const handleVariantChange = useCallback((variantIndex: number) => {
     console.log('🔄 Variant changed to:', variantIndex);
     setSelectedVariantIndex(variantIndex);
-  };
+  }, []);
 
-  const getSelectedVariant = (): Variant | null => {
-    if (!product?.variants || product.variants.length === 0) return null;
-    return product.variants[selectedVariantIndex];
-  };
+  const getSelectedVariant = useCallback((): Variant | null => {
+    const variants =
+      validVariants.length > 0 ? validVariants : product?.variants;
+    if (!variants || variants.length === 0) return null;
+    if (selectedVariantIndex >= variants.length) return variants[0];
+    return variants[selectedVariantIndex];
+  }, [validVariants, product?.variants, selectedVariantIndex]);
 
-  const getVariantDisplayName = (): string => {
+  const getVariantDisplayName = useCallback((): string => {
     const variant = getSelectedVariant();
-    if (!variant || !variant.fields) return '';
+    if (!variant) return '';
 
-    return variant.fields?.map(field => field.value).join(' • ') || '';
-  };
+    if (
+      variant.fields &&
+      typeof variant.fields === 'object' &&
+      Object.keys(variant.fields).length > 0
+    ) {
+      return Object.entries(variant.fields)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(' • ');
+    }
 
-  const getCurrentPrice = (): number => {
+    if (variant.combinationKey) {
+      return variant.combinationKey.replace(/\|/g, ' • ');
+    }
+
+    return '';
+  }, [getSelectedVariant]);
+
+  const getCurrentPrice = useCallback((): number => {
     const variant = getSelectedVariant();
+    if (variant?.finalPrice) return variant.finalPrice;
     if (variant?.price) return variant.price;
+    if (product?.finalPrice) return product.finalPrice;
     return product?.price || 0;
-  };
+  }, [getSelectedVariant, product]);
 
-  const getCurrentStock = (): number | undefined => {
+  const getCurrentMrp = useCallback((): number => {
     const variant = getSelectedVariant();
-    if (variant?.stock !== undefined) return variant.stock;
-    return product?.quantityAvailable;
-  };
+    if (variant?.mrp) return variant.mrp;
+    return product?.mrp || 0;
+  }, [getSelectedVariant, product]);
 
-  const getCurrentImages = (): string[] => {
+  const getCurrentDiscount = useCallback((): number => {
+    const variant = getSelectedVariant();
+    if (variant?.discount) return variant.discount;
+    return product?.discount || 0;
+  }, [getSelectedVariant, product]);
+
+  const getCurrentImages = useCallback((): string[] => {
     const variant = getSelectedVariant();
     if (variant?.images && variant.images.length > 0) return variant.images;
     return product?.images || [];
-  };
+  }, [getSelectedVariant, product]);
 
-  // ✅ Stock status logic
-  const getStockStatus = () => {
+  const getCurrentVideo = useCallback((): string | undefined => {
+    const variant = getSelectedVariant();
+    return variant?.video;
+  }, [getSelectedVariant]);
+
+  const getCurrentSku = useCallback((): string | undefined => {
+    const variant = getSelectedVariant();
+    return variant?.sku;
+  }, [getSelectedVariant]);
+
+  const getVariantFieldsArray = useCallback((): {
+    name: string;
+    value: string;
+  }[] => {
+    const variant = getSelectedVariant();
+    if (!variant?.fields) return [];
+    return Object.entries(variant.fields).map(([name, value]) => ({
+      name,
+      value: String(value),
+    }));
+  }, [getSelectedVariant]);
+
+  const getStockStatus = useCallback(() => {
     if (!product) {
       return {
         isInStock: false,
@@ -213,18 +347,31 @@ const ProductDetailScreen: React.FC = () => {
       };
     }
 
-    const inStockValue = product.inStock;
+    const variant = getSelectedVariant();
     let isInStock: boolean;
+    let finalStock: number;
 
-    if (typeof inStockValue === 'boolean') {
-      isInStock = inStockValue;
-    } else if (typeof inStockValue === 'string') {
-      isInStock = inStockValue.toLowerCase() === 'true';
+    if (variant) {
+      if (variant.inStock !== undefined) {
+        isInStock = variant.inStock;
+      } else if (variant.quantityAvailable !== undefined) {
+        isInStock = variant.quantityAvailable > 0;
+      } else {
+        isInStock = true;
+      }
+      finalStock = variant.quantityAvailable || variant.stock || 0;
     } else {
-      isInStock = false;
+      const inStockValue = product.inStock;
+      if (typeof inStockValue === 'boolean') {
+        isInStock = inStockValue;
+      } else if (typeof inStockValue === 'string') {
+        isInStock = inStockValue.toLowerCase() === 'true';
+      } else {
+        isInStock = false;
+      }
+      finalStock = product.quantityAvailable || 0;
     }
 
-    const finalStock = getCurrentStock();
     const shouldShowSoldOut =
       !isInStock || (finalStock !== undefined && finalStock <= 0);
 
@@ -238,40 +385,68 @@ const ProductDetailScreen: React.FC = () => {
         : 'In Stock',
       showSoldOutBanner: shouldShowSoldOut,
     };
-  };
+  }, [product, getSelectedVariant]);
 
-  const handleGoHome = () => {
+  const handleGoHome = useCallback(() => {
     navigation.navigate('Home');
-  };
+  }, [navigation]);
 
-  const handleCategoryPress = () => {
+  const handleCategoryPress = useCallback(() => {
     if (product?.category) {
       navigation.navigate('CategoryProducts', {
         category: product.category,
       });
     }
-  };
+  }, [navigation, product?.category]);
 
-  const handleGoBack = () => {
+  const handleGoBack = useCallback(() => {
     navigation.goBack();
-  };
+  }, [navigation]);
 
-  const onRefresh = () => {
+  const handleMorePress = useCallback(() => {
+    if (product?._id) {
+      navigation.navigate('ProductMore', {
+        productId: product._id,
+        productTitle: product.title || 'Product Details',
+      });
+    } else {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Unable to load more details',
+      });
+    }
+  }, [navigation, product]);
+
+  const onRefresh = useCallback(() => {
     console.log('🔄 Manual refresh triggered');
     setRefreshing(true);
     fetchProduct();
-  };
+  }, [fetchProduct]);
 
-  // ✅ Get description text with priority
-  const getDescriptionText = () => {
+  const getDescriptionText = useCallback(() => {
     if (localDescription) return localDescription;
     if (product?.fullDescription) return product.fullDescription;
     if (product?.description) return product.description;
     if (product?.shortDescription) return product.shortDescription;
     return '';
-  };
+  }, [localDescription, product]);
 
-  // ✅ Loading State
+  // Memoized values to prevent unnecessary re-renders
+  const selectedVariant = getSelectedVariant();
+  const variantName = getVariantDisplayName();
+  const currentPrice = getCurrentPrice();
+  const currentMrp = getCurrentMrp();
+  const currentDiscount = getCurrentDiscount();
+  const currentImages = getCurrentImages();
+  const currentVideo = getCurrentVideo();
+  const currentSku = getCurrentSku();
+  const variantFieldsArray = getVariantFieldsArray();
+  const stockStatus = getStockStatus();
+  const descriptionText = getDescriptionText();
+  const variantsToShow =
+    validVariants.length > 0 ? validVariants : product?.variants || [];
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView
@@ -295,7 +470,6 @@ const ProductDetailScreen: React.FC = () => {
     );
   }
 
-  // ✅ Error State
   if (error || !product) {
     return (
       <SafeAreaView
@@ -346,391 +520,338 @@ const ProductDetailScreen: React.FC = () => {
     );
   }
 
-  const selectedVariant = getSelectedVariant();
-  const variantName = getVariantDisplayName();
-  const currentPrice = getCurrentPrice();
-  const currentImages = getCurrentImages();
-  const stockStatus = getStockStatus();
-  const descriptionText = getDescriptionText();
-
   return (
-    <SafeAreaView
-      style={[styles.safeArea, dynamicStyles.safeArea]}
-      edges={['top', 'left', 'right']}
-    >
-      <View style={[styles.mainContainer, dynamicStyles.mainContainer]}>
-        {/* ✅ Sold Out Banner */}
-        {stockStatus.showSoldOutBanner && (
-          <View style={styles.soldOutBanner}>
-            <Icon name="close-circle" size={24} color="#FFFFFF" />
-            <Text style={styles.soldOutText}>SOLD OUT</Text>
-          </View>
-        )}
+    <>
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle="light-content"
+      />
+      <SafeAreaView
+        style={[styles.safeArea, dynamicStyles.safeArea]}
+        edges={['left', 'right']}
+      >
+        <View style={[styles.mainContainer, dynamicStyles.mainContainer]}>
 
-        {/* Header */}
-        <View style={[styles.header, dynamicStyles.header]}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-            <Icon
-              name="arrow-back"
-              size={24}
-              color={isDark ? '#FFFFFF' : '#374151'}
-            />
-          </TouchableOpacity>
-          <Text
-            style={[styles.headerTitle, dynamicStyles.headerTitle]}
-            numberOfLines={1}
-          >
-            {product.title || 'Product'}
-          </Text>
-          <TouchableOpacity style={styles.shareButton} />
-        </View>
+          {stockStatus.showSoldOutBanner && (
+            <View style={styles.soldOutBanner}>
+              <Icon name="close-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.soldOutText}>SOLD OUT</Text>
+            </View>
+          )}
 
-        <ScrollView
-          style={[styles.container, dynamicStyles.container]}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#FFA41C']}
-              tintColor="#FFA41C"
-              style={dynamicStyles.refreshControl}
-            />
-          }
-        >
-          {/* Breadcrumbs */}
-          <View
-            style={[
-              styles.breadcrumbContainer,
-              dynamicStyles.breadcrumbContainer,
-            ]}
+          <ScrollView
+            ref={scrollViewRef}
+            style={[styles.container, dynamicStyles.container]}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#FFA41C']}
+                tintColor="#FFA41C"
+                progressViewOffset={80}
+                size="default"
+              />
+            }
           >
-            <TouchableOpacity
-              onPress={handleGoHome}
-              style={styles.breadcrumbItem}
-            >
-              <Text
-                style={[styles.breadcrumbLink, dynamicStyles.breadcrumbLink]}
-              >
-                Home
-              </Text>
-            </TouchableOpacity>
-            <Text
-              style={[
-                styles.breadcrumbSeparator,
-                dynamicStyles.breadcrumbSeparator,
-              ]}
-            >
-              {' '}
-              ›{' '}
-            </Text>
-            <TouchableOpacity
-              onPress={handleCategoryPress}
-              style={styles.breadcrumbItem}
-            >
-              <Text
-                style={[styles.breadcrumbLink, dynamicStyles.breadcrumbLink]}
-              >
-                {product.category || 'Category'}
-              </Text>
-            </TouchableOpacity>
-            {product.brand && (
-              <>
-                <Text
+            <View>
+              <View style={styles.productImagesWrapper}>
+                {variantsToShow.length > 0 ? (
+                  <ProductImages
+                    variants={variantsToShow as any}
+                    onVariantChange={handleVariantChange}
+                    initialVariantIndex={selectedVariantIndex}
+                  />
+                ) : currentImages.length > 0 ? (
+                  <View style={styles.noVariantsImageContainer} />
+                ) : null}
+              </View>
+
+              {(variantName || variantFieldsArray.length > 0) && (
+                <View
                   style={[
-                    styles.breadcrumbSeparator,
-                    dynamicStyles.breadcrumbSeparator,
+                    styles.variantInfoCard,
+                    dynamicStyles.variantInfoCard,
                   ]}
                 >
-                  {' '}
-                  ›{' '}
-                </Text>
-                <Text
-                  style={[
-                    styles.breadcrumbCurrent,
-                    dynamicStyles.breadcrumbCurrent,
-                  ]}
-                >
-                  {product.brand}
-                </Text>
-              </>
-            )}
-          </View>
-
-          {/* Product Images */}
-          {product.variants && product.variants.length > 0 ? (
-            <ProductImages
-              variants={product.variants}
-              onVariantChange={handleVariantChange}
-              initialVariantIndex={selectedVariantIndex}
-            />
-          ) : currentImages.length > 0 ? (
-            <View
-              style={[
-                styles.noVariantsContainer,
-                dynamicStyles.noVariantsContainer,
-              ]}
-            >
-              <View
-                style={[
-                  {
-                    backgroundColor: isDark ? '#1F2937' : 'white',
-                    padding: 16,
-                  },
-                ]}
-              >
-                {currentImages.length > 0 && (
-                  <View style={styles.simpleImageContainer}>
+                  <View style={styles.variantInfoHeader}>
+                    <Icon name="options-outline" size={20} color="#3B82F6" />
                     <Text
                       style={[
-                        styles.imageCountText,
-                        dynamicStyles.imageCountText,
+                        styles.variantInfoTitle,
+                        dynamicStyles.variantInfoTitle,
                       ]}
                     >
-                      {currentImages.length} image
-                      {currentImages.length > 1 ? 's' : ''} available
+                      Selected Configuration
+                    </Text>
+                  </View>
+
+                  {variantName ? (
+                    <Text
+                      style={[styles.variantName, dynamicStyles.variantName]}
+                    >
+                      {variantName}
+                    </Text>
+                  ) : null}
+
+                  {variantFieldsArray.length > 0 && (
+                    <View
+                      style={[
+                        styles.variantDetails,
+                        dynamicStyles.variantDetails,
+                      ]}
+                    >
+                      {variantFieldsArray.map((field, index) => (
+                        <View key={index} style={styles.variantField}>
+                          <Text
+                            style={[
+                              styles.variantFieldName,
+                              dynamicStyles.variantFieldName,
+                            ]}
+                          >
+                            {field.name}:
+                          </Text>
+                          <Text
+                            style={[
+                              styles.variantFieldValue,
+                              dynamicStyles.variantFieldValue,
+                            ]}
+                          >
+                            {field.value}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {currentSku && (
+                    <Text
+                      style={[
+                        styles.variantSkuText,
+                        dynamicStyles.variantSkuText,
+                      ]}
+                    >
+                      SKU: {currentSku}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {currentVideo && (
+                <ProductVideo
+                  videoUrl={currentVideo}
+                  title={`${product.title || ''} ${variantName}`}
+                />
+              )}
+
+              <View style={{ padding: 16 }}>
+                <ProductInfo
+                  category={product.category || ''}
+                  id={product._id}
+                  variantName={variantName}
+                  currentPrice={currentPrice}
+                  originalPrice={currentMrp}
+                  discount={currentDiscount}
+                  stock={stockStatus.stock}
+                  inStock={stockStatus.isInStock}
+                  isDark={isDark}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.stockStatusCard,
+                  stockStatus.isInStock
+                    ? styles.inStockCard
+                    : styles.outOfStockCard,
+                  dynamicStyles.stockStatusCard,
+                ]}
+              >
+                <View style={styles.stockStatusHeader}>
+                  <Icon
+                    name={
+                      stockStatus.isInStock
+                        ? 'checkmark-circle'
+                        : 'close-circle'
+                    }
+                    size={24}
+                    color={stockStatus.isInStock ? '#059669' : '#DC2626'}
+                  />
+                  <Text
+                    style={[
+                      styles.stockStatusText,
+                      { color: stockStatus.isInStock ? '#059669' : '#DC2626' },
+                    ]}
+                  >
+                    {stockStatus.message}
+                  </Text>
+                </View>
+
+                {stockStatus.isInStock && stockStatus.stock > 0 && (
+                  <Text
+                    style={[styles.stockQuantity, dynamicStyles.stockQuantity]}
+                  >
+                    Hurry! Only {stockStatus.stock} units left
+                  </Text>
+                )}
+
+                {!stockStatus.isInStock && (
+                  <View style={styles.outOfStockDetails}>
+                    <Text style={styles.outOfStockMessage}>
+                      This item is currently out of stock
+                    </Text>
+                    <Text
+                      style={[
+                        styles.outOfStockSubtext,
+                        dynamicStyles.outOfStockSubtext,
+                      ]}
+                    >
+                      Check back later or browse similar products
                     </Text>
                   </View>
                 )}
+
+                {selectedVariant && (
+                  <Text style={[styles.variantNote, dynamicStyles.variantNote]}>
+                    Availability is for selected variant only
+                  </Text>
+                )}
               </View>
-            </View>
-          ) : null}
 
-          {/* Selected Variant Info */}
-          {variantName && (
-            <View
-              style={[styles.variantInfoCard, dynamicStyles.variantInfoCard]}
-            >
-              <View style={styles.variantInfoHeader}>
-                <Icon name="options-outline" size={20} color="#3B82F6" />
-                <Text
-                  style={[
-                    styles.variantInfoTitle,
-                    dynamicStyles.variantInfoTitle,
-                  ]}
-                >
-                  Selected Variant
-                </Text>
-              </View>
-              <Text style={[styles.variantName, dynamicStyles.variantName]}>
-                {variantName}
-              </Text>
-              {selectedVariant?.fields && (
-                <View
-                  style={[styles.variantDetails, dynamicStyles.variantDetails]}
-                >
-                  {selectedVariant.fields.map((field, index) => (
-                    <View key={index} style={styles.variantField}>
-                      <Text
-                        style={[
-                          styles.variantFieldName,
-                          dynamicStyles.variantFieldName,
-                        ]}
-                      >
-                        {field.name}:
-                      </Text>
-                      <Text
-                        style={[
-                          styles.variantFieldValue,
-                          dynamicStyles.variantFieldValue,
-                        ]}
-                      >
-                        {field.value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Product Video */}
-          {selectedVariant?.video && (
-            <ProductVideo
-              videoUrl={selectedVariant.video}
-              title={`${product.title || ''} ${variantName}`}
-            />
-          )}
-
-          {/* Product Info */}
-          <View style={{ padding: 16 }}>
-            <ProductInfo
-              category={product.category || ''}
-              id={product._id}
-              variantName={variantName}
-              currentPrice={currentPrice}
-              originalPrice={product.mrp}
-              discount={product.discount}
-              stock={stockStatus.stock}
-              inStock={stockStatus.isInStock}
-              isDark={isDark}
-            />
-          </View>
-
-          {/* Stock Status Display */}
-          <View
-            style={[
-              styles.stockStatusCard,
-              stockStatus.isInStock
-                ? styles.inStockCard
-                : styles.outOfStockCard,
-              dynamicStyles.stockStatusCard,
-            ]}
-          >
-            <View style={styles.stockStatusHeader}>
-              <Icon
-                name={
-                  stockStatus.isInStock ? 'checkmark-circle' : 'close-circle'
-                }
-                size={24}
-                color={stockStatus.isInStock ? '#059669' : '#DC2626'}
-              />
               <Text
                 style={[
-                  styles.stockStatusText,
-                  { color: stockStatus.isInStock ? '#059669' : '#DC2626' },
+                  styles.productDescriptionTitle,
+                  dynamicStyles.productDescriptionTitle,
                 ]}
               >
-                {stockStatus.message}
+                Product Description
               </Text>
-            </View>
 
-            {stockStatus.isInStock && stockStatus.stock > 0 && (
-              <Text style={[styles.stockQuantity, dynamicStyles.stockQuantity]}>
-                Hurry! Only {stockStatus.stock} units left
-              </Text>
-            )}
-
-            {!stockStatus.isInStock && (
-              <View style={styles.outOfStockDetails}>
-                <Text style={styles.outOfStockMessage}>
-                  This item is currently out of stock
-                </Text>
+              <View
+                style={[styles.descriptionCard, dynamicStyles.descriptionCard]}
+              >
                 <Text
                   style={[
-                    styles.outOfStockSubtext,
-                    dynamicStyles.outOfStockSubtext,
+                    styles.descriptionText,
+                    dynamicStyles.descriptionText,
+                  ]}
+                  numberOfLines={showFullDescription ? undefined : 4}
+                >
+                  {descriptionText || 'No description available'}
+                </Text>
+                {descriptionText.length > 200 && (
+                  <TouchableOpacity
+                    onPress={() => setShowFullDescription(!showFullDescription)}
+                    style={styles.readMoreButton}
+                  >
+                    <Text style={styles.readMoreText}>
+                      {showFullDescription ? 'Show Less' : 'Read More'}
+                    </Text>
+                    <Icon
+                      name={showFullDescription ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color="#3B82F6"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {product.highlights && product.highlights.length > 0 && (
+                <>
+                  <Text
+                    style={[styles.sectionTitle, dynamicStyles.sectionTitle]}
+                  >
+                    Key Highlights
+                  </Text>
+                  <View style={styles.highlightsContainer}>
+                    {product.highlights.map((highlight, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.highlightItem,
+                          dynamicStyles.highlightItem,
+                        ]}
+                      >
+                        <Icon
+                          name="checkmark-circle"
+                          size={18}
+                          color="#10B981"
+                        />
+                        <Text
+                          style={[
+                            styles.highlightText,
+                            dynamicStyles.highlightText,
+                          ]}
+                        >
+                          {highlight}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              <View
+                style={[
+                  styles.relatedProductsContainer,
+                  dynamicStyles.relatedProductsContainer,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.relatedProductsTitle,
+                    dynamicStyles.relatedProductsTitle,
                   ]}
                 >
-                  Check back later or browse similar products
+                  Similar Products
                 </Text>
-              </View>
-            )}
-
-            {selectedVariant && (
-              <Text style={[styles.variantNote, dynamicStyles.variantNote]}>
-                Availability is for selected variant only
-              </Text>
-            )}
-          </View>
-
-          {/* ✅ Product Description Section */}
-          <Text
-            style={[
-              styles.productDescriptionTitle,
-              dynamicStyles.productDescriptionTitle,
-            ]}
-          >
-            Product Description
-          </Text>
-
-          <View style={[styles.descriptionCard, dynamicStyles.descriptionCard]}>
-            <Text
-              style={[styles.descriptionText, dynamicStyles.descriptionText]}
-              numberOfLines={showFullDescription ? undefined : 4}
-            >
-              {descriptionText || 'No description available'}
-            </Text>
-            {descriptionText.length > 200 && (
-              <TouchableOpacity
-                onPress={() => setShowFullDescription(!showFullDescription)}
-                style={styles.readMoreButton}
-              >
-                <Text style={styles.readMoreText}>
-                  {showFullDescription ? 'Show Less' : 'Read More'}
-                </Text>
-                <Icon
-                  name={showFullDescription ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color="#3B82F6"
+                <RelatedProducts
+                  id={product._id}
+                  userId={currentUserId || 'userId123'}
+                  category={product.category}
                 />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Highlights Section */}
-          {product.highlights && product.highlights.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>
-                Key Highlights
-              </Text>
-              <View style={styles.highlightsContainer}>
-                {product.highlights.map((highlight, index) => (
-                  <View
-                    key={index}
-                    style={[styles.highlightItem, dynamicStyles.highlightItem]}
-                  >
-                    <Icon name="checkmark-circle" size={18} color="#10B981" />
-                    <Text
-                      style={[
-                        styles.highlightText,
-                        dynamicStyles.highlightText,
-                      ]}
-                    >
-                      {highlight}
-                    </Text>
-                  </View>
-                ))}
+                <RelatedSecond
+                  id={product._id}
+                  userId={currentUserId || 'userId123'}
+                />
+                <RelatedThird
+                  id={product._id}
+                  userId={currentUserId || 'userId123'}
+                />
               </View>
-            </>
-          )}
+            </View>
+          </ScrollView>
+        </View>
 
-          {/* Related products */}
-          <View
-            style={[
-              styles.relatedProductsContainer,
-              dynamicStyles.relatedProductsContainer,
-            ]}
-          >
-            <Text
-              style={[
-                styles.relatedProductsTitle,
-                dynamicStyles.relatedProductsTitle,
-              ]}
-            >
-              Similar Products
-            </Text>
-            <RelatedProducts
-              id={product._id}
-              userId={currentUserId || 'userId123'}
-              category={product.category}
-            />
-            <RelatedSecond
-              id={product._id}
-              userId={currentUserId || 'userId123'}
-            />
-            <RelatedThird
-              id={product._id}
-              userId={currentUserId || 'userId123'}
-            />
-          </View>
-        </ScrollView>
-      </View>
+        <BottomNavigation
+          activeTabs={activeTabs}
+          setActiveTabs={setActiveTabs}
+        />
 
-      {/* Bottom Navigation */}
-      <BottomNavigation activeTabs={activeTabs} setActiveTabs={setActiveTabs} />
-
-      <Toast />
-    </SafeAreaView>
+        <Toast />
+      </SafeAreaView>
+    </>
   );
 };
 
-// ✅ थीम के हिसाब से डायनामिक स्टाइल्स फंक्शन
 const getDynamicStyles = (isDark: boolean) => {
   return StyleSheet.create({
-    safeArea: { backgroundColor: isDark ? '#0F172A' : 'white' },
-    mainContainer: { backgroundColor: isDark ? '#0F172A' : 'white' },
+    safeArea: { flex: 1, backgroundColor: isDark ? '#0F172A' : 'white' },
+    whiteCapsuleBackground: {
+      backgroundColor: isDark ? '#2f3a53' : '#FFFFFF',
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      textAlign: 'center',
+      color: isDark ? '#F1F5F9' : '#1F2937',
+    },
+    whiteCircleBackground: {
+      backgroundColor: isDark ? '#2f3a53' : '#FFFFFF',
+    },
+    mainContainer: { flex: 1, backgroundColor: isDark ? '#0F172A' : 'white' },
     container: { backgroundColor: isDark ? '#0F172A' : 'white' },
     loadingContainer: { backgroundColor: isDark ? '#0F172A' : 'white' },
     loadingText: { color: isDark ? '#E2E8F0' : '#666' },
@@ -740,15 +861,6 @@ const getDynamicStyles = (isDark: boolean) => {
     errorMessage: { color: isDark ? '#CBD5E1' : '#6B7280' },
     secondaryButton: { backgroundColor: isDark ? '#334155' : '#E5E7EB' },
     secondaryButtonText: { color: isDark ? '#E2E8F0' : '#374151' },
-    header: {
-      backgroundColor: isDark ? '#1E293B' : 'white',
-      borderBottomColor: isDark ? '#334155' : '#E5E7EB',
-    },
-    headerTitle: { color: isDark ? '#F1F5F9' : '#1F2937' },
-    breadcrumbContainer: { backgroundColor: isDark ? '#1E293B' : '#F9FAFB' },
-    breadcrumbLink: { color: isDark ? '#60A5FA' : '#3B82F6' },
-    breadcrumbSeparator: { color: isDark ? '#94A3B8' : '#6B7280' },
-    breadcrumbCurrent: { color: isDark ? '#E2E8F0' : '#374151' },
     noVariantsContainer: { backgroundColor: isDark ? '#1E293B' : '#F9FAFB' },
     imageCountText: { color: isDark ? '#CBD5E1' : '#6B7280' },
     variantInfoCard: {
@@ -757,6 +869,12 @@ const getDynamicStyles = (isDark: boolean) => {
     },
     variantInfoTitle: { color: isDark ? '#93C5FD' : '#1E40AF' },
     variantName: { color: isDark ? '#F1F5F9' : '#1F2937' },
+    variantSkuText: {
+      color: isDark ? '#94A3B8' : '#6B7280',
+      fontSize: 12,
+      marginTop: 8,
+      fontStyle: 'italic',
+    },
     variantDetails: {
       backgroundColor: isDark ? '#0F172A' : 'white',
       borderColor: isDark ? '#334155' : '#E5E7EB',
@@ -781,10 +899,20 @@ const getDynamicStyles = (isDark: boolean) => {
   });
 };
 
-// ✅ Base styles
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   mainContainer: { flex: 1 },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    zIndex: 1,
+  },
+  productImagesWrapper: {
+    zIndex: 2,
+  },
   soldOutBanner: {
     backgroundColor: '#DC2626',
     flexDirection: 'row',
@@ -793,7 +921,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     gap: 8,
-    zIndex: 10,
+    zIndex: 20,
   },
   soldOutText: {
     color: '#FFFFFF',
@@ -801,23 +929,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: { padding: 4 },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  shareButton: { padding: 4, width: 40 },
   container: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
   loadingContainer: {
@@ -875,23 +986,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'System',
   },
-  breadcrumbContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  breadcrumbItem: { maxWidth: 100 },
-  breadcrumbLink: { fontSize: 12, fontFamily: 'System', fontWeight: '500' },
-  breadcrumbSeparator: {
-    fontSize: 12,
-    marginHorizontal: 4,
-    fontFamily: 'System',
-  },
-  breadcrumbCurrent: { fontSize: 12, fontFamily: 'System', fontWeight: '600' },
-  noVariantsContainer: { marginBottom: 16 },
+  noVariantsImageContainer: { height: 300, backgroundColor: '#f0f0f0' },
   simpleImageContainer: { padding: 16, borderRadius: 12, alignItems: 'center' },
   imageCountText: { fontSize: 14, fontFamily: 'System' },
   variantInfoCard: {
@@ -922,6 +1017,12 @@ const styles = StyleSheet.create({
   },
   variantFieldName: { fontSize: 13, fontFamily: 'System' },
   variantFieldValue: { fontSize: 13, fontFamily: 'System', fontWeight: '500' },
+  variantSkuText: {
+    fontSize: 12,
+    fontFamily: 'System',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
   stockStatusCard: {
     borderRadius: 12,
     padding: 16,

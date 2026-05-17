@@ -471,7 +471,7 @@ const renderPriceBreakdown = (
           <Text
             style={[styles.totalLabel, { color: isDark ? '#CBD5E0' : '#333' }]}
           >
-            totalFinalPrice:
+            grandTotal:
           </Text>
           <Text
             style={[
@@ -479,7 +479,7 @@ const renderPriceBreakdown = (
               { color: isDark ? '#68D391' : '#2ecc71' },
             ]}
           >
-            ₹{formatPrice(calculatedData.totalFinalPrice)}
+            ₹{formatPrice(calculatedData.grandTotal)}
           </Text>
         </View>
       </View>
@@ -566,7 +566,7 @@ const renderPriceBreakdown = (
         >
           ₹
           {formatPrice(
-            calculatedData.totalFinalPrice +
+            calculatedData.grandTotal +
               (calculatedData.deliveryCharge || 0) -
               (calculatedData.discountApplied || 0),
           )}
