@@ -12,7 +12,9 @@ export const API_ENDPOINTS = {
   VERIFY_LOGIN: '/api/auth/verify-login',
   RESEND_OTP: '/api/auth/resend-otp',
 
-  //
+  // Profile endpoints
+  GET_PROFILE: '/api/profile/me',
+  UPDATE_PROFILE: '/api/profile/update',
 };
 
 /**
@@ -29,4 +31,8 @@ export const API_ENDPOINTS = {
  * @property {string} VERIFY_LOGIN - The endpoint for verifying the OTP during login and authenticating the user.
 
  * @property {string} RESEND_OTP - The endpoint for resending the OTP to the user.
+
+  * @property {string} GET_PROFILE - The endpoint for retrieving the authenticated user's profile information.
+
+  * @property {string} UPDATE_PROFILE - The endpoint for updating the authenticated user's profile information.
  */

@@ -1,6 +1,6 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/auth/fetchHandler';
+import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { setToken } from '../../connection/token/tokenSlice';
 
 // ================================

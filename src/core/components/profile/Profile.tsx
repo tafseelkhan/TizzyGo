@@ -1,4 +1,4 @@
-// screens/ProfileScreen.tsx
+// ProfileScreen.tsx (Cleaned)
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -21,11 +21,10 @@ import FA5Icon from "react-native-vector-icons/FontAwesome5";
 import FAIcon from "react-native-vector-icons/FontAwesome";
 import IIcon from "react-native-vector-icons/Ionicons";
 import BottomNavigation from '../home/BottomNavigationHome';
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../contexts/theme/ThemeContext";
+import { profileService } from "../../services/profile/profileService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const BASE_URL = "http://172.20.10.12:5000";
 
 interface ProfileData {
   _id: string;
@@ -38,12 +37,10 @@ interface ProfileData {
 }
 
 export default function ProfileScreen() {
-  const [previewImage, setPreviewImage] = useState("");
-  const { isDark, resolvedTheme } = useTheme();
+  const { isDark } = useTheme();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState<boolean>(true);
-  const [hasImage, setHasImage] = useState<boolean>(false);
   const [profileData, setProfileData] = useState<ProfileData>({
     _id: "",
     name: "",
@@ -54,16 +51,6 @@ export default function ProfileScreen() {
     verified: false,
   });
 
-  const getImageUrl = (image?: string): string => {
-    if (!image) return "";
-    if (image.startsWith("http")) return image;
-    // If it's a relative path, construct full URL
-    if (image.startsWith("/")) {
-      return `${BASE_URL}${image}`;
-    }
-    return "";
-  };
-
   // Dynamic colors based on theme
   const backgroundColor = isDark ? '#1E293B' : '#f9fafb';
   const textColor = isDark ? '#F1F5F9' : '#1a1a1a';
@@ -72,8 +59,9 @@ export default function ProfileScreen() {
   const cardBorder = isDark ? '#374151' : '#e5e7eb';
   const contactBackground = isDark ? '#374151' : '#f3f4f6';
   const statusBackground = isDark ? '#374151' : '#f3f4f6';
+  const statCardBackground = isDark ? '#374151' : '#ffffff';
+  const statCardBorder = isDark ? '#475569' : '#e5e7eb';
 
-  // Fixed gradient colors
   const gradientColors: string[] = isDark 
     ? ["#1E293B", "#1E293B", "#1E293B"] 
     : ["#f9fafb", "#f9fafb", "#f9fafb"];
@@ -85,94 +73,33 @@ export default function ProfileScreen() {
   const secondaryButtonGradient: string[] = isDark 
     ? ["#475569", "#374151"] 
     : ["#6b7280", "#374151"];
-  
-  const statCardBackground = isDark ? '#374151' : '#ffffff';
-  const statCardBorder = isDark ? '#475569' : '#e5e7eb';
 
   useEffect(() => {
     const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        const token = await AsyncStorage.getItem("authToken");
-
-        const response = await fetch(
-          `${BASE_URL}/api/profile/me`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-
-        if (response.ok) {
-          let imageUrl = "";
-          let hasValidImage = false;
-          
-          // Check if image exists and is valid
-          if (data?.image && data.image !== "" && data.image !== "null" && data.image !== "undefined") {
-            imageUrl = getImageUrl(data.image);
-            // Validate if it's a proper URL
-            hasValidImage = imageUrl.startsWith("http") && imageUrl.length > 10;
-            
-            console.log("Profile image data:", {
-              original: data.image,
-              processed: imageUrl,
-              isValid: hasValidImage
-            });
-          }
-
-          setProfileData({
-            _id: data?._id ?? "",
-            name: data?.name ?? "User",
-            email: data?.email ?? "Not provided",
-            phone: data?.phone ?? "Not provided",
-            joinDate: data?.joinDate ?? new Date().toLocaleDateString(),
-            verified: data?.verified ?? false,
-            image: hasValidImage ? imageUrl : "",
-          });
-
-          setHasImage(hasValidImage);
-          setPreviewImage(hasValidImage ? imageUrl : "");
-        } else {
-          console.error(
-            "Error fetching profile:",
-            data?.message ?? "Unknown error"
-          );
-          Alert.alert("Error", "Failed to load profile data");
-          setHasImage(false);
-        }
-      } catch (error) {
-        console.error("Profile fetch error:", error);
-        Alert.alert("Error", "Network error occurred");
-        setHasImage(false);
-      } finally {
-        setLoading(false);
+      setLoading(true);
+      const result = await profileService.fetchProfile();
+      
+      if (result.success && result.data) {
+        setProfileData(result.data);
+      } else {
+        Alert.alert("Error", result.message || "Failed to load profile data");
       }
+      
+      setLoading(false);
     };
 
     fetchProfile();
   }, []);
 
-  // Settings button press handler
   const handleSettingsPress = () => {
-    navigation.navigate("Settings" as never)
+    navigation.navigate("Settings" as never);
   };
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor }]}>
-        <LinearGradient
-          colors={gradientColors}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={[styles.loadingCard, { 
-          backgroundColor: cardBackground,
-          borderColor: cardBorder 
-        }]}>
+        <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFill} />
+        <View style={[styles.loadingCard, { backgroundColor: cardBackground, borderColor: cardBorder }]}>
           <ActivityIndicator size="large" color={isDark ? "#A78BFA" : "#8b5cf6"} />
           <Text style={[styles.loadingText, { color: subtitleColor }]}>
             Loading your profile...
@@ -182,12 +109,6 @@ export default function ProfileScreen() {
     );
   }
 
-  console.log("Rendering condition:", {
-    hasImage: hasImage,
-    imageValue: profileData.image,
-    shouldShowImage: hasImage && profileData.image !== ""
-  });
-
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <StatusBar 
@@ -195,36 +116,25 @@ export default function ProfileScreen() {
         barStyle={isDark ? "light-content" : "dark-content"} 
       />
 
-      <LinearGradient
-        colors={gradientColors}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFill} />
 
-      {/* Main Content with Fixed Bottom Navigation */}
       <View style={styles.mainContent}>
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Header with Settings Button */}
+          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <Text style={[styles.userName, { color: textColor }]}>
                 {profileData.name}
               </Text>
-              {/* Settings Button */}
               <TouchableOpacity 
-                style={[styles.settingsButton, { 
-                  backgroundColor: isDark ? '#374151' : '#e5e7eb' 
-                }]}
+                style={[styles.settingsButton, { backgroundColor: isDark ? '#374151' : '#e5e7eb' }]}
                 onPress={handleSettingsPress}
               >
-                <IIcon 
-                  name="settings" 
-                  size={30} 
-                  color={isDark ? "#F1F5F9" : "#4b5563"} 
-                />
+                <IIcon name="settings" size={30} color={isDark ? "#F1F5F9" : "#4b5563"} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.headerSubtitle, { color: subtitleColor }]}>
@@ -233,30 +143,16 @@ export default function ProfileScreen() {
           </View>
 
           {/* Main Profile Card */}
-          <View style={[styles.profileCard, { 
-            backgroundColor: cardBackground,
-            borderColor: cardBorder 
-          }]}>
+          <View style={[styles.profileCard, { backgroundColor: cardBackground, borderColor: cardBorder }]}>
             {/* Profile Image */}
             <View style={styles.imageSection}>
               <View style={styles.imageContainer}>
-                <View style={[
-                  styles.imageWrapper, 
-                  { 
-                    borderColor: isDark ? '#00000000' : '#00000000',
-                    backgroundColor: isDark ? '#00000000' : '#00000000'
-                  }
-                ]}>
-                  {/* Conditional rendering: Show user image if available, otherwise show Lottie animation */}
-                  {hasImage && profileData.image && profileData.image !== "" ? (
+                <View style={[styles.imageWrapper, { borderColor: '#00000000', backgroundColor: '#00000000' }]}>
+                  {profileData.image && profileData.image !== "" ? (
                     <Image
                       source={{ uri: profileData.image }}
                       style={styles.profileImage}
                       resizeMode="cover"
-                      onError={(e) => {
-                        console.log("Image load error:", e.nativeEvent.error);
-                        setHasImage(false); // Fallback to Lottie if image fails to load
-                      }}
                     />
                   ) : (
                     <LottieView
@@ -268,8 +164,6 @@ export default function ProfileScreen() {
                     />
                   )}
                 </View>
-
-                {/* Verified Badge */}
                 {profileData.verified && (
                   <View style={styles.verifiedBadge}>
                     <FAIcon name="check" size={10} color="white" />
@@ -280,46 +174,26 @@ export default function ProfileScreen() {
 
             {/* Contact Info */}
             <View style={styles.contactSection}>
-              {/* Email Field */}
               {profileData.email !== "Not provided" && (
                 <View style={[styles.contactItem, { backgroundColor: contactBackground }]}>
-                  <View
-                    style={[
-                      styles.contactIcon,
-                      { backgroundColor: isDark ? "rgba(239, 68, 68, 0.2)" : "rgba(239, 68, 68, 0.1)" },
-                    ]}
-                  >
+                  <View style={[styles.contactIcon, { backgroundColor: isDark ? "rgba(239, 68, 68, 0.2)" : "rgba(239, 68, 68, 0.1)" }]}>
                     <Icon name="email" size={16} color="#ef4444" />
                   </View>
                   <View style={styles.contactContent}>
-                    <Text style={[styles.contactLabel, { color: subtitleColor }]}>
-                      Email
-                    </Text>
-                    <Text style={[styles.contactValue, { color: textColor }]}>
-                      {profileData.email}
-                    </Text>
+                    <Text style={[styles.contactLabel, { color: subtitleColor }]}>Email</Text>
+                    <Text style={[styles.contactValue, { color: textColor }]}>{profileData.email}</Text>
                   </View>
                 </View>
               )}
 
-              {/* Phone Field */}
               {profileData.phone !== "Not provided" && (
                 <View style={[styles.contactItem, { backgroundColor: contactBackground }]}>
-                  <View
-                    style={[
-                      styles.contactIcon,
-                      { backgroundColor: isDark ? "rgba(16, 185, 129, 0.2)" : "rgba(16, 185, 129, 0.1)" },
-                    ]}
-                  >
+                  <View style={[styles.contactIcon, { backgroundColor: isDark ? "rgba(16, 185, 129, 0.2)" : "rgba(16, 185, 129, 0.1)" }]}>
                     <FA5Icon name="phone" size={12} color="#10b981" />
                   </View>
                   <View style={styles.contactContent}>
-                    <Text style={[styles.contactLabel, { color: subtitleColor }]}>
-                      Phone
-                    </Text>
-                    <Text style={[styles.contactValue, { color: textColor }]}>
-                      {profileData.phone}
-                    </Text>
+                    <Text style={[styles.contactLabel, { color: subtitleColor }]}>Phone</Text>
+                    <Text style={[styles.contactValue, { color: textColor }]}>{profileData.phone}</Text>
                   </View>
                 </View>
               )}
@@ -328,31 +202,17 @@ export default function ProfileScreen() {
             {/* Account Status */}
             <View style={styles.accountStatus}>
               <View style={[styles.statusItem, { backgroundColor: statusBackground }]}>
-                <View style={[
-                  styles.statusIcon, 
-                  { backgroundColor: isDark ? "#D97706" : "#f59e0b" }
-                ]}>
+                <View style={[styles.statusIcon, { backgroundColor: isDark ? "#D97706" : "#f59e0b" }]}>
                   <Icon name="security" size={16} color="white" />
                 </View>
                 <View style={styles.statusContent}>
-                  <Text style={[styles.statusLabel, { color: subtitleColor }]}>
-                    Account Status
-                  </Text>
+                  <Text style={[styles.statusLabel, { color: subtitleColor }]}>Account Status</Text>
                   <View style={styles.statusContainer}>
                     <Text style={[styles.statusValue, { color: textColor }]}>
                       {profileData.verified ? "Verified" : "Not Verified"}
                     </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        profileData.verified
-                          ? styles.verifiedStatus
-                          : styles.pendingStatus,
-                      ]}
-                    >
-                      <Text style={styles.statusText}>
-                        {profileData.verified ? "Secure" : "Pending"}
-                      </Text>
+                    <View style={[styles.statusBadge, profileData.verified ? styles.verifiedStatus : styles.pendingStatus]}>
+                      <Text style={styles.statusText}>{profileData.verified ? "Secure" : "Pending"}</Text>
                     </View>
                   </View>
                 </View>
@@ -362,30 +222,14 @@ export default function ProfileScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => navigation.navigate("EditProfile" as never)}
-            >
-              <LinearGradient
-                colors={buttonGradient}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              />
+            <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("EditProfile" as never)}>
+              <LinearGradient colors={buttonGradient} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />
               <Icon name="edit" size={18} color="white" />
               <Text style={styles.buttonText}>Edit Profile</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.navigate("Security" as never)}
-            >
-              <LinearGradient
-                colors={secondaryButtonGradient}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              />
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("Security" as never)}>
+              <LinearGradient colors={secondaryButtonGradient} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />
               <Icon name="security" size={18} color="white" />
               <Text style={styles.buttonText}>Security</Text>
             </TouchableOpacity>
@@ -393,49 +237,24 @@ export default function ProfileScreen() {
 
           {/* Stats Cards */}
           <View style={styles.statsContainer}>
-            <View style={[styles.statCard, { 
-              backgroundColor: statCardBackground,
-              borderColor: statCardBorder 
-            }]}>
-              <Text style={[styles.statNumber, { color: isDark ? "#A78BFA" : "#8b5cf6" }]}>
-                0
-              </Text>
-              <Text style={[styles.statLabel, { color: subtitleColor }]}>
-                Orders
-              </Text>
+            <View style={[styles.statCard, { backgroundColor: statCardBackground, borderColor: statCardBorder }]}>
+              <Text style={[styles.statNumber, { color: isDark ? "#A78BFA" : "#8b5cf6" }]}>0</Text>
+              <Text style={[styles.statLabel, { color: subtitleColor }]}>Orders</Text>
             </View>
-
-            <View style={[styles.statCard, { 
-              backgroundColor: statCardBackground,
-              borderColor: statCardBorder 
-            }]}>
-              <Text style={[styles.statNumber, { color: isDark ? "#60A5FA" : "#3b82f6" }]}>
-                0
-              </Text>
-              <Text style={[styles.statLabel, { color: subtitleColor }]}>
-                Reviews
-              </Text>
+            <View style={[styles.statCard, { backgroundColor: statCardBackground, borderColor: statCardBorder }]}>
+              <Text style={[styles.statNumber, { color: isDark ? "#60A5FA" : "#3b82f6" }]}>0</Text>
+              <Text style={[styles.statLabel, { color: subtitleColor }]}>Reviews</Text>
             </View>
-
-            <View style={[styles.statCard, { 
-              backgroundColor: statCardBackground,
-              borderColor: statCardBorder 
-            }]}>
-              <Text style={[styles.statNumber, { color: isDark ? "#34D399" : "#10b981" }]}>
-                0
-              </Text>
-              <Text style={[styles.statLabel, { color: subtitleColor }]}>
-                Likes
-              </Text>
+            <View style={[styles.statCard, { backgroundColor: statCardBackground, borderColor: statCardBorder }]}>
+              <Text style={[styles.statNumber, { color: isDark ? "#34D399" : "#10b981" }]}>0</Text>
+              <Text style={[styles.statLabel, { color: subtitleColor }]}>Likes</Text>
             </View>
           </View>
 
-          {/* Bottom Spacer for Navigation */}
           <View style={styles.bottomSpacer} />
         </ScrollView>
       </View>
 
-      {/* Fixed Bottom Navigation */}
       <View style={styles.bottomNavContainer}>
         <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
       </View>
