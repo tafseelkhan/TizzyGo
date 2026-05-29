@@ -1,4 +1,5 @@
-// LoginScreen.tsx
+// LoginScreen.tsx - Sirf upar ke imports change karo
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -19,13 +20,23 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import LottieView from 'lottie-react-native';
-import { login, verifyLogin } from '../../services/AuthService';
 import { RootStackParamList } from '../../types/NavigationTypes';
+
+// Yahan sirf ye 4 imports add karo
+import { loginService } from '../../services/auth/loginService';
+import {
+  validateIdentifier,
+  validateOTP,
+} from '../../utils/auth/loginValidation';
+import {
+  setupKeyboardAnimations,
+  startLoginAnimations,
+} from '../../utils/auth/loginAnimations';
+import { useCountdownTimer } from '../../utils/auth/loginTimer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -56,29 +67,23 @@ export default function LoginScreen() {
   const buttonTranslateY = useRef(new Animated.Value(20)).current;
   const lottieOpacity = useRef(new Animated.Value(1)).current;
 
-  // Keyboard listeners
+  // Use custom timer hook
+  useCountdownTimer(waitTime, setWaitTime);
+
+  // Keyboard listeners using utility
   useEffect(() => {
+    const { onKeyboardShow, onKeyboardHide } = setupKeyboardAnimations(
+      setIsKeyboardVisible,
+      lottieOpacity,
+    );
+
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
-      () => {
-        setIsKeyboardVisible(true);
-        Animated.timing(lottieOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      },
+      onKeyboardShow,
     );
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
-      () => {
-        setIsKeyboardVisible(false);
-        Animated.timing(lottieOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      },
+      onKeyboardHide,
     );
 
     return () => {
@@ -87,79 +92,19 @@ export default function LoginScreen() {
     };
   }, []);
 
-  // Initial animations
+  // Initial animations using utility
   useEffect(() => {
-    // Header animation
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerTranslateY, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Form animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(formOpacity, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.spring(formScale, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 200);
-
-    // Input animations
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(identifierInputOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(identifierInputTranslateX, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 400);
-
-    // Button animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(buttonOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonTranslateY, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 600);
+    startLoginAnimations(
+      headerOpacity,
+      headerTranslateY,
+      formOpacity,
+      formScale,
+      identifierInputOpacity,
+      identifierInputTranslateX,
+      buttonOpacity,
+      buttonTranslateY,
+    );
   }, []);
-
-  // Wait time countdown
-  useEffect(() => {
-    if (waitTime > 0) {
-      const timer = setTimeout(() => setWaitTime(waitTime - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [waitTime]);
 
   const handleIdentifierFocus = () => {
     setTimeout(() => {
@@ -175,79 +120,43 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     clearErrors();
 
-    if (!identifier.trim()) {
-      setError('Please enter your email or phone number');
-      return;
-    }
-
-    // Simple validation for both email and phone
-    const isEmail = identifier.includes('@');
-    const isPhone = /^\d+$/.test(identifier.replace(/\D/g, ''));
-
-    if (isEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(identifier.trim())) {
-        setError('Please enter a valid email address');
-        return;
-      }
-    } else if (isPhone) {
-      const cleanPhone = identifier.replace(/\D/g, '');
-      if (cleanPhone.length !== 10) {
-        setError('Please enter a valid 10-digit phone number');
-        return;
-      }
-    } else {
-      setError('Please enter a valid email or phone number');
+    const validation = validateIdentifier(identifier);
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
 
     setIsLoading(true);
-    try {
-      let formattedIdentifier = identifier.trim();
-      if (!identifier.includes('@')) {
-        formattedIdentifier = identifier.replace(/\D/g, '');
-      }
+    const result = await loginService.sendOTP(identifier);
 
-      const res = await login({ identifier: formattedIdentifier });
-
-      if (res.msg?.toLowerCase().includes('otp sent')) {
-        setMsg(`OTP sent to ${identifier}`);
-        setStep('otp');
-        setWaitTime(30);
-      } else {
-        setError(res.msg || 'User not found. Please sign up first.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
+    if (result.success) {
+      setMsg(result.message);
+      setStep('otp');
+      setWaitTime(30);
+    } else {
+      setError(result.message);
     }
+    setIsLoading(false);
   };
 
   const handleVerify = async () => {
     clearErrors();
 
-    if (!otp) {
-      setError('Please enter the OTP');
+    const validation = validateOTP(otp);
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
 
     setIsLoading(true);
-    try {
-      const res = await verifyLogin({ identifier, otp });
+    const result = await loginService.verifyOTP(identifier, otp);
 
-      if (res.token && res.user && res.user._id) {
-        await AsyncStorage.setItem('authToken', res.token);
-        await AsyncStorage.setItem('userId', res.user._id);
-        navigation.navigate('Home');
-      } else {
-        setError('Invalid OTP. Please try again.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'OTP verification failed');
-    } finally {
-      setIsLoading(false);
+    if (result.success) {
+      navigation.navigate('Home');
+    } else {
+      setError(result.message);
     }
+    setIsLoading(false);
   };
 
   const handleResendOTP = async () => {
@@ -255,22 +164,19 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     clearErrors();
-    try {
-      const res = await login({ identifier });
-      if (res.msg?.toLowerCase().includes('otp sent')) {
-        setMsg(`OTP resent to ${identifier}`);
-        setWaitTime(30);
-      } else {
-        setError(res.msg || 'Failed to resend OTP');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong while resending OTP');
-    } finally {
-      setIsLoading(false);
+
+    const result = await loginService.resendOTP(identifier);
+
+    if (result.success) {
+      setMsg(result.message);
+      setWaitTime(30);
+    } else {
+      setError(result.message);
     }
+    setIsLoading(false);
   };
 
-  // Animated styles
+  // Animated styles (same as before)
   const headerAnimatedStyle = {
     opacity: headerOpacity,
     transform: [{ translateY: headerTranslateY }],
@@ -394,13 +300,18 @@ export default function LoginScreen() {
                         onFocus={handleIdentifierFocus}
                       />
                     </View>
-                    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                    {error ? (
+                      <Text style={styles.errorText}>{error}</Text>
+                    ) : null}
                   </Animated.View>
 
                   {/* Login Button */}
                   <Animated.View style={buttonAnimatedStyle}>
                     <TouchableOpacity
-                      style={[styles.button, isLoading && styles.buttonDisabled]}
+                      style={[
+                        styles.button,
+                        isLoading && styles.buttonDisabled,
+                      ]}
                       onPress={handleLogin}
                       disabled={isLoading}
                       activeOpacity={0.9}
@@ -449,7 +360,11 @@ export default function LoginScreen() {
                 <View style={styles.otpContent}>
                   {/* OTP Message */}
                   <View style={styles.otpMessage}>
-                    <MaterialIcon name="mail-outline" size={32} color="#059669" />
+                    <MaterialIcon
+                      name="mail-outline"
+                      size={32}
+                      color="#059669"
+                    />
                     <Text style={styles.otpMessageText}>{msg}</Text>
                     <Text style={styles.otpMessageSubtext}>
                       Check your messages for the OTP
@@ -480,7 +395,9 @@ export default function LoginScreen() {
                         onFocus={handleIdentifierFocus}
                       />
                     </View>
-                    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                    {error ? (
+                      <Text style={styles.errorText}>{error}</Text>
+                    ) : null}
                   </View>
 
                   {/* Verify Button */}
@@ -511,7 +428,8 @@ export default function LoginScreen() {
                   <TouchableOpacity
                     style={[
                       styles.resendButton,
-                      (waitTime > 0 || isLoading) && styles.resendButtonDisabled,
+                      (waitTime > 0 || isLoading) &&
+                        styles.resendButtonDisabled,
                     ]}
                     onPress={handleResendOTP}
                     disabled={waitTime > 0 || isLoading}
@@ -566,10 +484,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   background: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gradientLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gradientStart: {
     backgroundColor: '#f0fdfa',
