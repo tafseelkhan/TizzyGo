@@ -1,4 +1,5 @@
-// SignupScreen.tsx
+// SignupScreen.tsx - Sirf upar ke imports change karo, baaki sab same rahega
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -18,13 +19,23 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import LottieView from 'lottie-react-native';
-import { signup, verifySignup } from '../../services/AuthService';
 import { RootStackParamList } from '../../types/NavigationTypes';
+
+// Yahan sirf ye 3 imports add karo
+import { signupService } from '../../services/auth/signupService';
+import {
+  validateSignupForm,
+  isPhoneNumber,
+} from '../../utils/auth/signupValidation';
+import {
+  setupKeyboardAnimations,
+  startInitialAnimations,
+} from '../../utils/auth/signupAnimations';
+import { useCountdownTimer } from '../../utils/auth/signupTimer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -61,32 +72,26 @@ export default function SignupScreen() {
   const buttonTranslateY = useRef(new Animated.Value(20)).current;
   const lottieOpacity = useRef(new Animated.Value(1)).current;
 
-  const isPhone = /^\d{4}/.test(emailOrPhone);
+  const isPhone = isPhoneNumber(emailOrPhone);
   const isEmail = emailOrPhone.includes('@');
 
-  // Keyboard listeners
+  // Use custom timer hook
+  useCountdownTimer(waitTime, setWaitTime);
+
+  // Keyboard listeners using utility
   useEffect(() => {
+    const { onKeyboardShow, onKeyboardHide } = setupKeyboardAnimations(
+      setIsKeyboardVisible,
+      lottieOpacity,
+    );
+
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
-      () => {
-        setIsKeyboardVisible(true);
-        Animated.timing(lottieOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      },
+      onKeyboardShow,
     );
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
-      () => {
-        setIsKeyboardVisible(false);
-        Animated.timing(lottieOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      },
+      onKeyboardHide,
     );
 
     return () => {
@@ -95,110 +100,23 @@ export default function SignupScreen() {
     };
   }, []);
 
-  // Initial animations
+  // Initial animations using utility
   useEffect(() => {
-    // Header animation
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerTranslateY, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Form animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(formOpacity, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.spring(formScale, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 200);
-
-    // Name input animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(nameInputOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(nameInputTranslateX, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 400);
-
-    // Email input animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(emailInputOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(emailInputTranslateX, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 600);
-
-    // Checkbox animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(checkboxOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(checkboxTranslateY, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 800);
-
-    // Button animation
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(buttonOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonTranslateY, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 1000);
+    startInitialAnimations(
+      headerOpacity,
+      headerTranslateY,
+      formOpacity,
+      formScale,
+      nameInputOpacity,
+      nameInputTranslateX,
+      emailInputOpacity,
+      emailInputTranslateX,
+      checkboxOpacity,
+      checkboxTranslateY,
+      buttonOpacity,
+      buttonTranslateY,
+    );
   }, []);
-
-  useEffect(() => {
-    if (waitTime > 0) {
-      const timer = setTimeout(() => setWaitTime(waitTime - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [waitTime]);
 
   const handleEmailPhoneFocus = () => {
     setTimeout(() => {
@@ -206,17 +124,12 @@ export default function SignupScreen() {
     }, 100);
   };
 
-  const validateForm = () => {
-    const newErrors = {
-      name: !name ? 'Please enter your name' : '',
-      emailOrPhone: !emailOrPhone ? 'Please enter your email or phone' : '',
-    };
-    setErrors(newErrors);
-    return !newErrors.name && !newErrors.emailOrPhone;
-  };
-
   const handleSignup = async () => {
-    if (!validateForm()) return;
+    const newErrors = validateSignupForm(name, emailOrPhone);
+    setErrors(newErrors);
+
+    if (newErrors.name || newErrors.emailOrPhone) return;
+
     if (!agreeTerms) {
       Alert.alert(
         'Terms Required',
@@ -226,14 +139,14 @@ export default function SignupScreen() {
     }
 
     setIsLoading(true);
-    const res = await signup({ identifier: emailOrPhone });
+    const res = await signupService.sendOTP(emailOrPhone);
 
-    if (res.identifier) {
-      setMsg(`OTP sent to ${res.identifier}`);
+    if (res.success) {
+      setMsg(res.message);
       setStep('otp');
       setWaitTime(30);
     } else {
-      Alert.alert('Error', res.msg || 'Something went wrong');
+      Alert.alert('Error', res.message);
     }
     setIsLoading(false);
   };
@@ -245,18 +158,12 @@ export default function SignupScreen() {
     }
 
     setIsLoading(true);
-    const res = await verifySignup({
-      identifier: emailOrPhone,
-      otp,
-      name,
-    });
+    const res = await signupService.verifyOTP(emailOrPhone, otp, name);
 
-    if (res.token && res.user && res.user._id) {
-      await AsyncStorage.setItem('authToken', res.token);
-      await AsyncStorage.setItem('userId', res.user._id);
+    if (res.success) {
       navigation.navigate('Home');
     } else {
-      Alert.alert('Error', res.msg || 'Invalid OTP');
+      Alert.alert('Error', res.message);
     }
     setIsLoading(false);
   };
@@ -264,17 +171,17 @@ export default function SignupScreen() {
   const handleResendOTP = async () => {
     if (waitTime > 0) return;
     setIsLoading(true);
-    const res = await signup({ identifier: emailOrPhone });
-    if (res.identifier) {
-      setMsg(`OTP resent to ${res.identifier}`);
+    const res = await signupService.resendOTP(emailOrPhone);
+    if (res.success) {
+      setMsg(res.message);
       setWaitTime(30);
     } else {
-      Alert.alert('Error', res.msg || 'Failed to resend OTP');
+      Alert.alert('Error', res.message);
     }
     setIsLoading(false);
   };
 
-  // Animated styles
+  // Animated styles (same as before)
   const headerAnimatedStyle = {
     opacity: headerOpacity,
     transform: [{ translateY: headerTranslateY }],
@@ -442,7 +349,9 @@ export default function SignupScreen() {
                       />
                     </View>
                     {errors.emailOrPhone ? (
-                      <Text style={styles.errorText}>{errors.emailOrPhone}</Text>
+                      <Text style={styles.errorText}>
+                        {errors.emailOrPhone}
+                      </Text>
                     ) : null}
                   </Animated.View>
 
@@ -473,7 +382,10 @@ export default function SignupScreen() {
                   {/* Signup Button */}
                   <Animated.View style={buttonAnimatedStyle}>
                     <TouchableOpacity
-                      style={[styles.button, isLoading && styles.buttonDisabled]}
+                      style={[
+                        styles.button,
+                        isLoading && styles.buttonDisabled,
+                      ]}
                       onPress={handleSignup}
                       disabled={isLoading}
                       activeOpacity={0.9}
@@ -489,7 +401,9 @@ export default function SignupScreen() {
                               color="#ffffff"
                               style={styles.buttonIcon}
                             />
-                            <Text style={styles.buttonText}>Create Account</Text>
+                            <Text style={styles.buttonText}>
+                              Create Account
+                            </Text>
                           </>
                         )}
                       </View>
@@ -500,7 +414,11 @@ export default function SignupScreen() {
                 <View style={styles.otpContent}>
                   {/* OTP Message */}
                   <View style={styles.otpMessage}>
-                    <MaterialIcon name="mail-outline" size={32} color="#059669" />
+                    <MaterialIcon
+                      name="mail-outline"
+                      size={32}
+                      color="#059669"
+                    />
                     <Text style={styles.otpMessageText}>{msg}</Text>
                     <Text style={styles.otpMessageSubtext}>
                       Check your messages for the OTP
@@ -548,7 +466,9 @@ export default function SignupScreen() {
                             color="#ffffff"
                             style={styles.buttonIcon}
                           />
-                          <Text style={styles.buttonText}>Verify & Continue</Text>
+                          <Text style={styles.buttonText}>
+                            Verify & Continue
+                          </Text>
                         </>
                       )}
                     </View>
@@ -558,7 +478,8 @@ export default function SignupScreen() {
                   <TouchableOpacity
                     style={[
                       styles.resendButton,
-                      (waitTime > 0 || isLoading) && styles.resendButtonDisabled,
+                      (waitTime > 0 || isLoading) &&
+                        styles.resendButtonDisabled,
                     ]}
                     onPress={handleResendOTP}
                     disabled={waitTime > 0 || isLoading}
@@ -610,10 +531,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   background: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gradientLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gradientStart: {
     backgroundColor: '#f0fdfa',
