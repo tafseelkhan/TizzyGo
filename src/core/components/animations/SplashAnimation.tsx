@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import Sound from 'react-native-sound';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { verifyToken } from '../../services/SplashService';
+import { verifyToken } from '../../../api/features/private/splashPrivateSlice';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -264,7 +264,7 @@ export default function TizzyGo() {
           }
 
           console.log('🔄 Verifying token with server...');
-          const { success } = await verifyToken(token);
+          const { success } = await verifyToken();
           console.log('Token verification result:', success);
 
           if (success) {

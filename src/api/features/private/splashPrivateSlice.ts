@@ -1,0 +1,83 @@
+// src/api/features/private/splashPrivateSlice.ts
+
+// This file is intentionally left blank as the splash screen does not require any state management at this time.
+import Config from 'react-native-config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from '../../connection/token/tokenSlice';
+
+// Interface for token verification response
+interface VerifyTokenResponse {
+  success: boolean;
+  message?: string;
+  user?: any;
+}
+
+/**
+ * @name VerifyTokenResponse
+ 
+ * @success 200 - Token is valid, user data returned
+
+ * @failure 401 - Token is invalid, user must log in again
+
+ * @user  - The user object returned on successful token verification, containing user details such as name, email, and any other relevant information.
+
+ * @message - A message string returned on failure, providing details about why the token verification failed (e.g., "Token invalid", "No token provided", "Network error").
+
+ */
+
+// Verify token with backend
+export const verifyToken = async (): Promise<VerifyTokenResponse> => {
+  try {
+    const token = await getToken();
+
+    console.log('📦 Token being sent to backend:', token);
+
+    if (!token) {
+      console.warn('⚠️ No token found before API call!');
+      return { success: false, message: 'No token provided' };
+    }
+
+    /**
+     * @route   GET /api/auth/check
+     * @desc    Check if the user's token is valid and retrieve user information.
+     * @access  Private
+     * @body    None
+     * @response
+     *  - Success: { success: true, user: { ...userData } }
+     *  - Failure: { success: false, message: 'Token invalid' }
+     */
+
+    const response = await fetch(
+      `${Config.API_AXIOS_BASE_URL}/api/auth/check`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    console.log('📡 Token verification response status:', response.status);
+
+    const data = await response.json();
+    console.log('✅ Token verification response:', data);
+
+    if (response.ok && data.success) {
+      return { success: true, user: data.user };
+
+      /**
+       * Note: The backend should return a 200 status code for valid tokens and include the user data in the response. If the token is invalid, it should return a 401 status code, which will be handled in the UI to redirect to the login screen.
+       */
+    } else {
+      return {
+        success: false,
+        message: data.message || 'Token invalid',
+      };
+    }
+    // Note: The backend should return a 401 status code for invalid tokens, which will be handled in the UI to redirect to the login screen.
+  } catch (error: any) {
+    console.error('❌ Token verification failed:', error?.message || error);
+    return { success: false, message: 'Network error' };
+  }
+};
