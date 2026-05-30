@@ -1,4 +1,4 @@
-// components/RatingComponent.tsx
+// components/RatingComponent.tsx (Updated)
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -11,19 +11,23 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { jwtDecode } from 'jwt-decode';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 
-// Types
-interface JwtPayload {
-  userId?: string;
-  _id?: string;
-  id?: string;
-}
+import { getToken } from '../../../api/connection/token/tokenSlice';
 
+// Import separated APIs
+import {
+  getCurrentUserId,
+  fetchRatingStatsAPI,
+  fetchReviewsWithUserDataAPI,
+  submitReviewAPI,
+  deleteReviewAPI,
+  fetchUserRatingAPI,
+} from '../../../api/features/private/RatingGlobalPrivateSlice';
+
+// Types (same as before)
 interface RatingStats {
   totalRatings: number;
   averageRating: string;
@@ -61,7 +65,6 @@ interface UserRating {
   images: ReviewImage[];
 }
 
-// ✅ FIXED: Added missing props
 interface RatingComponentProps {
   productId: string;
   onRatingSubmit?: (rating: number, review: string) => Promise<void>;
@@ -69,6 +72,7 @@ interface RatingComponentProps {
   initialReview?: string;
 }
 
+// Colors (same as before)
 const lightColors = {
   background: '#FFFFFF',
   card: '#F8F9FA',
@@ -95,13 +99,11 @@ const darkColors = {
   muted: '#64748B',
 };
 
-// Import components
+// Import UI components
 import RatingSummary from './ReviewSummaryGlobal';
 import ReviewList from './ReviewListGlobal';
 import ReviewForm from './ReviewFormGlobal';
-import * as api from '../../services/GlobalService';
 
-// ✅ FIXED: Added new props with defaults
 export default function RatingComponent({
   productId,
   onRatingSubmit,
@@ -126,28 +128,13 @@ export default function RatingComponent({
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Get current user ID from authToken
+  // Get current user ID from token using API
   useEffect(() => {
-    const getAuthToken = async () => {
-      try {
-        const token = await AsyncStorage.getItem('authToken');
-        if (token) {
-          const decoded = jwtDecode<JwtPayload>(token);
-          const userId = decoded.userId || decoded._id || decoded.id;
-
-          if (userId) {
-            setCurrentUserId(userId);
-          } else {
-            setCurrentUserId(null);
-          }
-        }
-      } catch (err) {
-        console.error('❌ JWT Decode Error:', err);
-        setError('Failed to authenticate user');
-        setSnackbarOpen(true);
-      }
+    const fetchUserId = async () => {
+      const userId = await getCurrentUserId();
+      setCurrentUserId(userId);
     };
-    getAuthToken();
+    fetchUserId();
   }, []);
 
   // Fetch stats on mount
@@ -155,16 +142,8 @@ export default function RatingComponent({
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
-        const statsData = await api.fetchStats(productId);
-
-        const transformedStats: RatingStats = {
-          totalRatings: statsData.totalRatings || 0,
-          averageRating: statsData.averageRating?.toString() || '0',
-          percentage: statsData.percentage || '0',
-          distribution: statsData.distribution || [0, 0, 0, 0, 0],
-          totalReviews: statsData.totalReviews || 0,
-        };
-        setStats(transformedStats);
+        const statsData = await fetchRatingStatsAPI(productId);
+        setStats(statsData);
       } catch (err: any) {
         console.error('❌ Error fetching stats:', err);
         setError('Failed to load rating statistics');
@@ -183,7 +162,7 @@ export default function RatingComponent({
     const fetchReviews = async () => {
       setLoadingReviews(true);
       try {
-        const fetchedReviews = await api.fetchReviewsWithUserData(
+        const fetchedReviews = await fetchReviewsWithUserDataAPI(
           productId,
           page,
         );
@@ -229,20 +208,12 @@ export default function RatingComponent({
     setError(null);
   };
 
-  // ✅ FIXED: Modified handleSubmit to call onRatingSubmit prop
   const handleSubmit = async (submitData: any, reviewId?: string) => {
     setLoadingSubmit(true);
     try {
-      // ✅ Call the parent's onRatingSubmit if provided
+      // Call parent's onRatingSubmit if provided
       if (onRatingSubmit) {
         await onRatingSubmit(submitData.rating, submitData.review);
-      }
-
-      const token = await api.getTokenFromStorage();
-      if (!token) {
-        setError('Please login to submit a review');
-        setSnackbarOpen(true);
-        return;
       }
 
       const completeSubmitData = {
@@ -250,10 +221,10 @@ export default function RatingComponent({
         productId: submitData.productId || productId,
       };
 
-      await api.submitReview(completeSubmitData, reviewId);
+      await submitReviewAPI(completeSubmitData, reviewId);
 
       // Refresh reviews
-      const updatedReviews = await api.fetchReviewsWithUserData(productId, 1);
+      const updatedReviews = await fetchReviewsWithUserDataAPI(productId, 1);
       setReviews(updatedReviews);
 
       // Update user rating
@@ -274,15 +245,8 @@ export default function RatingComponent({
       }
 
       // Refresh stats
-      const statsData = await api.fetchStats(productId);
-      const transformedStats: RatingStats = {
-        totalRatings: statsData.totalRatings || 0,
-        averageRating: statsData.averageRating?.toString() || '0',
-        percentage: statsData.percentage || '0',
-        distribution: statsData.distribution || [0, 0, 0, 0, 0],
-        totalReviews: statsData.totalReviews || 0,
-      };
-      setStats(transformedStats);
+      const statsData = await fetchRatingStatsAPI(productId);
+      setStats(statsData);
 
       // Reset form
       handleCancel();
@@ -297,8 +261,7 @@ export default function RatingComponent({
       );
     } catch (err: any) {
       console.error('❌ Error submitting review:', err);
-      const errorMessage =
-        err.response?.data?.error || err.message || 'Failed to submit review';
+      const errorMessage = err.message || 'Failed to submit review';
       setError(errorMessage);
       setSnackbarOpen(true);
     } finally {
@@ -310,7 +273,7 @@ export default function RatingComponent({
     async (reviewId: string) => {
       setLoadingDelete(true);
       try {
-        const token = await api.getTokenFromStorage();
+        const token = await getToken();
         if (!token) {
           setError('Please login to delete a review');
           setSnackbarOpen(true);
@@ -327,7 +290,7 @@ export default function RatingComponent({
               style: 'destructive',
               onPress: async () => {
                 try {
-                  await api.deleteReview(reviewId);
+                  await deleteReviewAPI(reviewId);
 
                   setReviews(prevReviews =>
                     prevReviews.filter(r => r._id !== reviewId),
@@ -337,15 +300,8 @@ export default function RatingComponent({
                   }
                   setShowReviewForm(false);
 
-                  const statsData = await api.fetchStats(productId);
-                  const transformedStats: RatingStats = {
-                    totalRatings: statsData.totalRatings || 0,
-                    averageRating: statsData.averageRating?.toString() || '0',
-                    percentage: statsData.percentage || '0',
-                    distribution: statsData.distribution || [0, 0, 0, 0, 0],
-                    totalReviews: statsData.totalReviews || 0,
-                  };
-                  setStats(transformedStats);
+                  const statsData = await fetchRatingStatsAPI(productId);
+                  setStats(statsData);
 
                   setError(null);
                   Alert.alert('Success', 'Review deleted successfully!');
@@ -360,8 +316,7 @@ export default function RatingComponent({
         );
       } catch (err: any) {
         console.error('❌ Error in delete process:', err);
-        const errorMessage =
-          err.response?.data?.error || err.message || 'Failed to delete review';
+        const errorMessage = err.message || 'Failed to delete review';
         setError(errorMessage);
         setSnackbarOpen(true);
       } finally {

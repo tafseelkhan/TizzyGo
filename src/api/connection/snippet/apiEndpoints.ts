@@ -18,6 +18,54 @@ export const API_ENDPOINTS = {
 
   // Orders endpoints
   MY_ORDERS: '/api/orders/yourorder/my',
+  ORDER_DETAILS: '/api/orders/delivery',
+  LIVE_TRACKING: '/api/orders/tracking/live',
+
+  // Cart endpoints
+  PRODUCT_VARIANTS: '/api/products',
+  ADD_TO_CART: '/api/cart/add',
+  UPDATE_CART: '/api/cart/update',
+  REMOVE_FROM_CART: '/api/cart/remove',
+  CHECK_CART: '/api/cart/check',
+
+  // Buy Now endpoints
+  BUYNOW_PRODUCT_VARIANTS: (productId: string) =>
+    `/api/products/${productId}/variants`,
+  CLEAR_BUY_NOW: '/api/buy-now/clear',
+  BUY_NOW: '/api/buy-now',
+
+  // Product endpoints
+  GET_PRODUCT: '/api/seller/forms/categories',
+
+  // Rating & Review endpoints
+  RATING_STATS: '/api/rating-review/rating/stats',
+  PRODUCT_REVIEWS: '/api/rating-review/rating/reviews',
+
+  // Share endpoints
+  CREATE_SHARE: '/api/shares/create',
+
+  // Comments endpoints
+  FETCH_COMMENTERS: '/api/comments/comments/unique-user-count',
+  FETCH_COMMENTS: '/api/comments/post',
+  ADD_COMMENT: '/api/comments/add',
+  ADD_REPLY: '/api/comments/reply',
+  TOGGLE_COMMENT_LIKE: '/api/comments/like',
+  TOGGLE_REPLY_LIKE: '/api/comments/like-reply',
+  DELETE_COMMENT: '/api/comments/delete',
+  DELETE_REPLY: '/api/comments/delete-reply',
+
+  // Users endpoints
+  USERS_BATCH: '/api/profile/users/batch',
+
+  // Likes endpoints
+  FETCH_LIKE_STATUS: '/api/likes',
+  TOGGLE_LIKE: '/api/likes',
+
+  // Rating & Review endpoints
+  RATING_GLOBAL_STATS: '/api/ratings/stats',
+  REVIEWS: '/api/ratings/reviews',
+  REVIEW: '/api/ratings/review',
+  USER_RATING: '/api/ratings/user-rating',
 };
 
 /**
@@ -42,4 +90,12 @@ export const API_ENDPOINTS = {
   * @property {string} UPDATE_PROFILE - The endpoint for updating the authenticated user's profile information.
 
   * @property {string} MY_ORDERS - The endpoint for fetching the authenticated user's order history.
+
+  * @property {string} ORDER_DETAILS - The endpoint for retrieving detailed information about a specific order.
+
+  * @property {string} LIVE_TRACKING - The endpoint for fetching live tracking information for a specific order.
+
+  * @property {string} PRODUCT_VARIANTS - The endpoint for fetching product variants based on category and subcategory.
+
+
  */

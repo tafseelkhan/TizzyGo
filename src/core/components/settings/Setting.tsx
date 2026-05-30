@@ -58,33 +58,29 @@ export const SettingsScreen: React.FC = () => {
     fetchProfile();
   }, []);
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      // ✅ Ab profileApi use karo
-      const response = await profileApi.getProfile();
+const fetchProfile = async () => {
+  try {
+    setLoading(true);
+    const data = await profileApi.getProfile();
+    
+    console.log('Profile data:', data);
 
-      if (response && response.data) {
-        const data = response.data;
-        const normalized = getImageUrl(data?.image);
-
-        setProfileData({
-          _id: data?._id ?? '',
-          name: data?.name ?? 'User',
-          image: normalized,
-        });
-
-        setPreviewImage(normalized);
-      } else {
-        Alert.alert('Error', 'Failed to load profile');
-      }
-    } catch (error: any) {
-      console.error('Profile fetch error:', error);
-      Alert.alert('Error', error.message || 'Failed to load profile');
-    } finally {
-      setLoading(false);
+    // 🔥 Response mein userId hai, _id nahi
+    if (data && (data.userId || data._id)) {
+      const userId = data.userId || data._id; // Both handle karne ke liye
+      const normalized = getImageUrl(data?.image);
+      
+      setPreviewImage(normalized);
+    } else {
+      throw new Error('Invalid profile data received');
     }
-  };
+  } catch (error: any) {
+    console.error('Profile fetch error:', error);
+    Alert.alert('Error', error.message || 'Failed to load profile');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Rest of your code remains the same...
   const Sparkles = () => (

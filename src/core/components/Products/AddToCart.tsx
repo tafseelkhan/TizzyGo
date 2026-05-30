@@ -1,3 +1,4 @@
+// components/AddToCart.tsx
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -11,279 +12,34 @@ import {
   Dimensions,
   ScrollView,
   Image,
-  Vibration,
-  Platform,
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
+import {
+  AddToCartProps,
+  CartState,
+  SelectedVariant,
+  ProductVariant,
+  VariantField,
+} from '../../types/CartTypes';
+import {
+  isVideoUrl,
+  normalizeMedia,
+  formatPrice,
+  triggerVibration,
+  createSelectedVariant,
+  getThemeColors,
+} from '../../utils/products/cartUtils';
+import { CartService } from '../../services/products/addToCartService'; // Import service
+
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-const CART_API_URL = 'http://172.20.10.12:5000';
-
-// Types
-export interface VariantField {
-  name: string;
-  value: string;
-  price?: number;
-  stock?: number;
-  sku?: string;
-  image?: string;
-}
-
-export interface ProductVariant {
-  _id?: string;
-  variantId?: string;
-  mrp?: number;
-  price?: number;
-  savedAmount?: number;
-  discount?: number;
-  finalPrice?: number;
-  fields?: VariantField[];
-  images?: string[];
-  video?: string;
-  combinationKey?: string;
-  inStock?: boolean;
-  quantityAvailable?: number;
-  sku?: string;
-  isDefault?: boolean;
-}
-
-export interface SelectedVariant {
-  variantId: string;
-  _id?: string;
-  mrp?: number;
-  price?: number;
-  savedAmount?: number;
-  discount?: number;
-  finalPrice?: number;
-  variantImages?: string[];
-  variantVideo?: string;
-  variantImage?: string;
-  variantSku?: string;
-  [key: string]: any;
-}
-
-export interface CartItemParams {
-  productId: string;
-  productData?: any;
-  quantity?: number;
-  selectedVariant?: SelectedVariant | null;
-}
-
-interface CartState {
-  isInCart: boolean;
-  quantity: number;
-  isLoading: boolean;
-  isAdding: boolean;
-}
-
-interface AddToCartProps {
-  productId: string;
-  productData: any;
-  initialIsInCart?: boolean;
-  initialQuantity?: number;
-  productLoading?: boolean;
-  productAvailable?: boolean;
-  maxQuantity?: number;
-  style?: any;
-  compact?: boolean;
-  variants?: ProductVariant[];
-  selectedVariant?: SelectedVariant | null;
-  onVariantSelect?: (variant: SelectedVariant | null) => void;
-  onAddToCartSuccess?: () => void;
-}
-
-// Helper functions
-const isVideoUrl = (url?: string): boolean => {
-  if (!url) return false;
-  const urlLower = url.toLowerCase();
-  return (
-    /\.(mp4|mov|webm|mkv|avi|wmv|flv|m4v)$/i.test(urlLower) ||
-    urlLower.includes('/video/') ||
-    urlLower.includes('video=true')
-  );
-};
-
-const normalizeMedia = (
-  images: string[] = [],
-  video?: string,
-): { type: 'image' | 'video'; url: string }[] => {
-  const media: { type: 'image' | 'video'; url: string }[] = [];
-  if (images && Array.isArray(images)) {
-    images.forEach(img => {
-      if (img && img.trim() !== '') {
-        media.push({ type: 'image', url: img });
-      }
-    });
-  }
-  if (video && video.trim() !== '') {
-    media.unshift({ type: 'video', url: video });
-  }
-  return media;
-};
-
-const formatPrice = (price: number): string => {
-  return `₹${price.toLocaleString('en-IN')}`;
-};
-
-// API Functions
-export const fetchProductVariants = async (
-  productId: string,
-): Promise<ProductVariant[]> => {
-  try {
-    const response = await fetch(
-      `${CART_API_URL}/api/products/${productId}/variants`,
-    );
-    if (!response.ok) throw new Error('Failed to fetch variants');
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error('Error fetching variants:', error);
-    return [];
-  }
-};
-
-export const addToCart = async (params: CartItemParams): Promise<boolean> => {
-  const {
-    productId,
-    productData,
-    quantity = 1,
-    selectedVariant = null,
-  } = params;
-  try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) {
-      Alert.alert('Error', 'Please login to add items to cart');
-      return false;
-    }
-
-    const requestBody: any = { productId, productData, quantity };
-    if (selectedVariant && Object.keys(selectedVariant).length > 0) {
-      requestBody.selectedVariant = selectedVariant;
-    }
-
-    const response = await fetch(`${CART_API_URL}/api/cart/add`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to add to cart');
-    }
-    return true;
-  } catch (error: any) {
-    Alert.alert('Error', error.message || 'Failed to add item to cart');
-    return false;
-  }
-};
-
-export const updateCartItem = async (
-  params: Omit<CartItemParams, 'productData'>,
-): Promise<boolean> => {
-  const { productId, quantity = 1, selectedVariant = null } = params;
-  try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) {
-      Alert.alert('Error', 'Please login to update cart');
-      return false;
-    }
-
-    const requestBody: any = { productId, quantity };
-    if (selectedVariant && Object.keys(selectedVariant).length > 0) {
-      requestBody.selectedVariant = selectedVariant;
-    }
-
-    const response = await fetch(`${CART_API_URL}/api/cart/update`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to update cart');
-    }
-    return true;
-  } catch (error: any) {
-    Alert.alert('Error', error.message || 'Failed to update cart');
-    return false;
-  }
-};
-
-export const removeFromCart = async (productId: string): Promise<boolean> => {
-  try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) {
-      Alert.alert('Error', 'Please login to remove from cart');
-      return false;
-    }
-
-    const response = await fetch(`${CART_API_URL}/api/cart/remove`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ productId }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to remove from cart');
-    }
-    return true;
-  } catch (error: any) {
-    Alert.alert('Error', error.message || 'Failed to remove from cart');
-    return false;
-  }
-};
-
-export const fetchCart = async (
-  productId: string,
-): Promise<{
-  inCart: boolean;
-  quantity: number;
-  selectedVariant?: SelectedVariant;
-} | null> => {
-  try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) return null;
-
-    const response = await fetch(
-      `${CART_API_URL}/api/cart/check?productId=${productId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-
-    if (!response.ok) throw new Error('Failed to fetch cart status');
-    const data = await response.json();
-    return {
-      inCart: data.inCart || false,
-      quantity: data.quantity || 1,
-      selectedVariant: data.selectedVariant || null,
-    };
-  } catch (error) {
-    console.error('Error fetching cart:', error);
-    return null;
-  }
-};
 
 const AddToCart: React.FC<AddToCartProps> = ({
   productId,
@@ -302,23 +58,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
 }) => {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const themeColors = {
-    primary: '#F59E0B',
-    primaryLight: '#FBBF24',
-    success: '#10B981',
-    danger: '#EF4444',
-    dark: isDark ? '#F1F5F9' : '#1A1A2E',
-    light: isDark ? '#1E293B' : '#F8F9FA',
-    gray: isDark ? '#94A3B8' : '#6C757D',
-    white: isDark ? '#0F172A' : '#FFFFFF',
-    modalBg: isDark ? '#1E293B' : '#FFFFFF',
-    modalBorder: isDark ? '#334155' : '#f3f4f6',
-    textPrimary: isDark ? '#F1F5F9' : '#1A1A2E',
-    textSecondary: isDark ? '#CBD5E1' : '#485696',
-    cardBg: isDark ? '#1E293B' : '#FFFFFF',
-    borderColor: isDark ? '#334155' : '#E5E7EB',
-    videoBg: isDark ? '#1E293B' : '#E6F7F1',
-  };
+  const themeColors = getThemeColors(isDark);
 
   const [cartState, setCartState] = useState<CartState>({
     isInCart: initialIsInCart,
@@ -353,20 +93,21 @@ const AddToCart: React.FC<AddToCartProps> = ({
     };
   }, []);
 
-  // Initialize modal when opened
   useEffect(() => {
     if (showVariantModal && !isModalInitialized) {
       setIsModalInitialized(true);
     }
   }, [showVariantModal, isModalInitialized]);
 
-  // Load variants
+  // Load variants using service
   useEffect(() => {
     const loadVariants = async () => {
       if ((!propVariants || propVariants.length === 0) && productId) {
         setVariantsLoading(true);
         try {
-          const fetchedVariants = await fetchProductVariants(productId);
+          const fetchedVariants = await CartService.fetchProductVariants(
+            productId,
+          );
           if (isMountedRef.current) setVariants(fetchedVariants || []);
         } catch (error) {
           console.error('Error loading variants:', error);
@@ -380,10 +121,10 @@ const AddToCart: React.FC<AddToCartProps> = ({
     loadVariants();
   }, [productId, propVariants]);
 
-  // Fetch cart status
+  // Fetch cart status using service
   useEffect(() => {
     const checkCartStatus = async () => {
-      const cartStatus = await fetchCart(productId);
+      const cartStatus = await CartService.checkCartStatus(productId);
       if (cartStatus && isMountedRef.current) {
         setCartState(prev => ({
           ...prev,
@@ -399,11 +140,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     if (variants && variants.length > 0) checkCartStatus();
   }, [productId, variants.length]);
 
-  const triggerVibration = () => {
-    if (Platform.OS === 'ios') Vibration.vibrate([0, 30, 0, 30]);
-    else Vibration.vibrate(300);
-  };
-
   // Handle variant selection
   const handleVariantSelect = useCallback(
     (variantIndex: number) => {
@@ -412,47 +148,22 @@ const AddToCart: React.FC<AddToCartProps> = ({
         return;
 
       const selectedVariantObj = variants[variantIndex];
-      if (!selectedVariantObj) return;
+      const newVariant = createSelectedVariant(
+        selectedVariantObj,
+        variantIndex,
+      );
 
-      const variantIdToUse: string =
-        selectedVariantObj.variantId || selectedVariantObj._id || '';
-
-      const newVariant: SelectedVariant = {
-        variantId: variantIdToUse,
-        _id: selectedVariantObj._id,
-        mrp: selectedVariantObj.mrp || 0,
-        price: selectedVariantObj.price || 0,
-        savedAmount: selectedVariantObj.savedAmount || 0,
-        discount: selectedVariantObj.discount || 0,
-        finalPrice:
-          selectedVariantObj.finalPrice || selectedVariantObj.price || 0,
-      };
-
-      if (
-        selectedVariantObj.fields &&
-        Array.isArray(selectedVariantObj.fields)
-      ) {
-        selectedVariantObj.fields.forEach((field: VariantField) => {
-          newVariant[field.name] = field.value;
-          if (field.image) newVariant.variantImage = field.image;
-          if (field.sku) newVariant.variantSku = field.sku;
-        });
+      if (newVariant) {
+        setSelectedVariantIndex(variantIndex);
+        setSelectedVariant(newVariant);
+        onVariantSelect(newVariant);
       }
-
-      if (selectedVariantObj.images?.length)
-        newVariant.variantImages = selectedVariantObj.images;
-      if (selectedVariantObj.video)
-        newVariant.variantVideo = selectedVariantObj.video;
-
-      setSelectedVariantIndex(variantIndex);
-      setSelectedVariant(newVariant);
-      onVariantSelect(newVariant);
     },
     [variants, onVariantSelect],
   );
 
   const isVariantSelected = (): boolean =>
-    selectedVariantIndex !== null && selectedVariant !== null;
+    CartService.validateVariantSelection(variants, selectedVariantIndex);
   const hasVariants = (): boolean => variants && variants.length > 0;
 
   // Render variant media thumbnails
@@ -600,7 +311,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
     );
   };
 
-  // Add to cart handler
+  // Add to cart handler using service
   const handleAddToCart = async () => {
     if (!productAvailable) {
       setShowAnim('failed');
@@ -616,7 +327,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
     setCartState(prev => ({ ...prev, isAdding: true }));
 
     try {
-      const success = await addToCart({
+      const success = await CartService.addToCart({
         productId,
         productData,
         quantity: 1,
@@ -688,10 +399,11 @@ const AddToCart: React.FC<AddToCartProps> = ({
     });
   };
 
+  // Handle quantity change using service
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1 || newQuantity > maxQuantity) return;
     setCartState(prev => ({ ...prev, isLoading: true }));
-    const success = await updateCartItem({
+    const success = await CartService.updateCartItem({
       productId,
       quantity: newQuantity,
       selectedVariant: hasVariants() ? selectedVariant : null,
@@ -709,9 +421,10 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   };
 
+  // Handle remove from cart using service
   const handleRemoveFromCart = async () => {
     setCartState(prev => ({ ...prev, isLoading: true }));
-    const success = await removeFromCart(productId);
+    const success = await CartService.removeFromCart(productId);
     if (success && isMountedRef.current) {
       setCartState({
         isInCart: false,
@@ -742,10 +455,10 @@ const AddToCart: React.FC<AddToCartProps> = ({
     return 'Add to Cart';
   };
 
-  // Render Variant Info Section with all details
+  // Render Variant Info Section
   const renderVariantInfo = (variant: ProductVariant) => {
-    const inStock = variant.inStock === true;
-    const quantityAvailable = variant.quantityAvailable || 0;
+    const { inStock, availableQuantity } =
+      CartService.getVariantStockStatus(variant);
     const sku = variant.sku || 'N/A';
     const combinationKey = variant.combinationKey || 'N/A';
 
@@ -777,7 +490,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
           </Text>
         </View>
 
-        {inStock && quantityAvailable > 0 && (
+        {inStock && availableQuantity > 0 && (
           <View style={styles.infoRow}>
             <View style={styles.infoIcon}>
               <MaterialCommunityIcons
@@ -797,7 +510,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                 { color: themeColors.textPrimary, fontWeight: '600' },
               ]}
             >
-              {quantityAvailable} units
+              {availableQuantity} units
             </Text>
           </View>
         )}
@@ -855,7 +568,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
     );
   };
 
-  // Render Variant Modal - FULL SCREEN with BuyNow-like header and close button
+  // Render Variant Modal
   const renderVariantModal = () => (
     <Modal
       visible={showVariantModal}
@@ -869,7 +582,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
           { backgroundColor: themeColors.modalBg },
         ]}
       >
-        {/* Modal Header - Same as BuyNow */}
         <View
           style={[
             styles.modalHeader,
@@ -894,10 +606,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.modalScrollContent}
         >
-          {/* Product Header */}
           {renderProductHeader()}
 
-          {/* Variants List */}
           {variantsLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={themeColors.primary} />
@@ -924,10 +634,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
                   const mrp = variant.mrp || 0;
                   const discount =
                     variant.discount ||
-                    (mrp > finalPrice
-                      ? Math.round(((mrp - finalPrice) / mrp) * 100)
-                      : 0);
-                  const inStock = variant.inStock === true;
+                    CartService.calculateDiscount(mrp, finalPrice);
+                  const { inStock } =
+                    CartService.getVariantStockStatus(variant);
 
                   return (
                     <TouchableOpacity
@@ -1099,7 +808,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
           )}
         </ScrollView>
 
-        {/* Footer with Confirm Button - Yellow */}
         <View
           style={[
             styles.modalFooter,
@@ -1142,7 +850,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
                   color="#fff"
                 />
                 <Text style={styles.confirmButtonText}>
-                  {isVariantSelected() ? 'CONFIRM & ADD TO CART' : 'SELECT AN OPTION'}
+                  {isVariantSelected()
+                    ? 'CONFIRM & ADD TO CART'
+                    : 'SELECT AN OPTION'}
                 </Text>
                 {isVariantSelected() && (
                   <FontAwesome5 name="arrow-right" size={14} color="#fff" />
@@ -1203,7 +913,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                 color={themeColors.gray}
               />
             </TouchableOpacity>
-            {/* Quantity Modal */}
+
             <Modal
               visible={showQuantityModal}
               transparent
@@ -1422,6 +1132,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
               color={themeColors.gray}
             />
           </TouchableOpacity>
+
           <Modal
             visible={showQuantityModal}
             transparent
@@ -1692,15 +1403,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   animation: { width: 220, height: 220 },
-
-  // Full Screen Modal Styles
-  fullScreenModal: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
+  fullScreenModal: { flex: 1 },
+  modalScrollContent: { padding: 20, paddingBottom: 100 },
   productHeader: {
     marginBottom: 16,
     borderRadius: 16,
@@ -1713,10 +1417,7 @@ const styles = StyleSheet.create({
     height: 220,
     backgroundColor: '#F3F4F6',
   },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
+  productImage: { width: '100%', height: '100%' },
   productVideoContainer: {
     width: '100%',
     height: '100%',
@@ -1736,14 +1437,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
   },
-  videoBadgeLargeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  productInfo: {
-    padding: 16,
-  },
+  videoBadgeLargeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  productInfo: { padding: 16 },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1752,11 +1447,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  productTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    flex: 1,
-  },
+  productTitle: { fontSize: 18, fontWeight: '700', flex: 1 },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1765,33 +1456,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 5,
   },
-  verifiedText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  verifiedText: { fontSize: 12, fontWeight: '600' },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 8,
   },
-  brandText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  productDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  variantCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
+  brandText: { fontSize: 14, fontWeight: '500' },
+  productDescription: { fontSize: 14, lineHeight: 20 },
+  variantCount: { fontSize: 16, fontWeight: '600', marginBottom: 16 },
+  closeButton: { padding: 8, borderRadius: 20 },
   variantCard: {
     borderRadius: 16,
     borderWidth: 1,
@@ -1903,32 +1578,17 @@ const styles = StyleSheet.create({
   },
   discountText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   savedText: { fontSize: 11, marginTop: 4 },
-  itemDivider: {
-    height: 1,
-    marginVertical: 10,
-  },
-  variantInfoContainer: {
-    marginTop: 10,
-    gap: 6,
-  },
+  itemDivider: { height: 1, marginVertical: 10 },
+  variantInfoContainer: { marginTop: 10, gap: 6 },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 6,
   },
-  infoIcon: {
-    width: 20,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 11,
-    fontWeight: '500',
-    flexShrink: 1,
-  },
+  infoIcon: { width: 20 },
+  infoLabel: { fontSize: 11, fontWeight: '500' },
+  infoValue: { fontSize: 11, fontWeight: '500', flexShrink: 1 },
   variantStatus: {
     marginTop: 12,
     paddingHorizontal: 12,
@@ -1975,11 +1635,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  emptyStateText: {
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
+  emptyStateText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
 });
 
 export default AddToCart;

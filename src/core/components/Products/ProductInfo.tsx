@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// ProductInfo.tsx - FIXED TYPESCRIPT ERRORS
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,7 +22,15 @@ import {
 } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import axios from 'axios';
+
+// Import your existing services and hooks
+import { useProduct } from '../../hooks/useProducts';
+import {
+  fetchRatingStats,
+  fetchReviews,
+  RatingStats,
+  Review,
+} from '../../../api/features/private/getRatingReviewPrivateSlice';
 
 // Import your components
 import LikeComponent from '../global/LikeGlobal';
@@ -33,7 +43,7 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// ============= UPDATED INTERFACES FOR NEW DATA STRUCTURE =============
+// ============= INTERFACES =============
 
 interface VariantFields {
   [key: string]: string;
@@ -61,16 +71,10 @@ interface Variant {
   variantId?: string;
 }
 
-// Define navigation param list
 type RootStackParamList = {
   Home: undefined;
-  ProductDetail: {
-    productId: string;
-  };
-  TizzyChat: {
-    userId: string;
-    id: string;
-  };
+  ProductDetail: { productId: string };
+  TizzyChat: { userId: string; id: string };
 };
 
 interface Product {
@@ -133,42 +137,18 @@ interface Product {
   [key: string]: any;
 }
 
-interface RatingStats {
-  totalRatings: number;
-  averageRating: number;
-  percentage: number;
-  distribution: number[];
-  totalReviews: number;
-}
-
-interface Review {
-  userId: {
-    _id: string;
-    name: string;
-    image?: string;
-  };
-  rating: number;
-  review?: string;
-  createdAt?: string;
-}
-
 // ============= HELPER FUNCTIONS =============
 
 const getVariantDisplayName = (variant: Variant | null): string => {
   if (!variant) return '';
-
-  // New structure: fields is an object
   if (variant.fields && typeof variant.fields === 'object') {
     return Object.entries(variant.fields)
       .map(([key, value]) => `${key}: ${value}`)
       .join(' • ');
   }
-
-  // Use combinationKey if available
   if (variant.combinationKey) {
     return variant.combinationKey.replace(/\|/g, ' • ');
   }
-
   return '';
 };
 
@@ -211,7 +191,12 @@ const getVariantSave = (variant: Variant | null): number => {
   return 0;
 };
 
-// ============= COMPONENTS =============
+const filterValidVariants = (variants: any[]): Variant[] => {
+  if (!variants || !Array.isArray(variants)) return [];
+  return variants.filter(v => v && (v.fields || v.combinationKey || v.sku));
+};
+
+// ============= SUB-COMPONENTS =============
 
 // 🎨 Stock Status Component
 interface StockStatusProps {
@@ -229,7 +214,6 @@ const StockStatus: React.FC<StockStatusProps> = ({
 }) => {
   const availableStock = quantityAvailable || stock;
   const isOutOfStock = inStock === false;
-
   const styles = StockStatusStyles(isDark);
 
   if (isOutOfStock) {
@@ -272,9 +256,7 @@ const ProtectPromiseFees: React.FC<ProtectPromiseFeesProps> = ({
     return protectPromiseFees > 0;
   };
 
-  if (!shouldDisplay()) {
-    return null;
-  }
+  if (!shouldDisplay()) return null;
 
   return (
     <>
@@ -545,8 +527,6 @@ interface ProductHeaderProps {
   title: string;
   brand: string;
   productId: string;
-  category?: string;
-  subcategory?: string;
   verified: boolean;
   inStock?: boolean;
   quantityAvailable?: number | null;
@@ -579,11 +559,9 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
           isDark={isDark}
         />
       </View>
-
       <Text style={styles.productTitle}>{title}</Text>
-
       <View style={styles.productMeta}>
-        {brand && (
+        {brand ? (
           <View style={styles.metaItem}>
             <Icon
               name="business"
@@ -592,7 +570,7 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
             />
             <Text style={styles.brandText}>{brand}</Text>
           </View>
-        )}
+        ) : null}
         <View style={styles.metaItem}>
           <Icon
             name="qr-code-scanner"
@@ -606,7 +584,7 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
   );
 };
 
-// 🎨 PriceDisplay Component (UPDATED for variant data)
+// 🎨 PriceDisplay Component
 interface PriceDisplayProps {
   variant: Variant | null;
   protectPromiseFees?: number;
@@ -683,7 +661,7 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
   );
 };
 
-// 🎨 Variant Selector Component (NEW)
+// 🎨 Variant Selector Component
 interface VariantSelectorProps {
   variantOptions?: string[];
   variantValues?: Record<string, string[]>;
@@ -718,7 +696,6 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
     const newSelectedOptions = { ...selectedOptions, [option]: value };
     setSelectedOptions(newSelectedOptions);
 
-    // Find matching variant
     const matchingVariant = variants?.find(v => {
       if (!v.fields) return false;
       return Object.entries(newSelectedOptions).every(
@@ -816,7 +793,6 @@ const RatingSection: React.FC<RatingSectionProps> = ({
           </View>
           {renderStars(averageRating, 20)}
         </View>
-
         <View style={styles.ratingRight}>
           <Text style={styles.reviewCountText}>{reviewCount} reviews</Text>
           <Icon
@@ -881,18 +857,15 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   return (
     <View style={styles.actionsContainer}>
       <TizzyChatButton onChat={onChat} isDark={isDark} />
-
       <View style={styles.actionsRow}>
         <View style={styles.actionItem}>
           <LikeComponent productId={productId} />
           <Text style={styles.actionLabel}>Like</Text>
         </View>
-
         <View style={styles.actionItem}>
           <CommentComponent productId={productId} />
           <Text style={styles.actionLabel}>Comment</Text>
         </View>
-
         <View style={styles.actionItem}>
           <ShareWithStats
             productId={productId}
@@ -902,7 +875,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           <Text style={styles.actionLabel}>Share</Text>
         </View>
       </View>
-
       {!canInteract && (
         <View style={styles.outOfStockMessage}>
           <Icon name="error-outline" size={18} color="#DC2626" />
@@ -915,7 +887,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   );
 };
 
-// 🎨 Selected Variant Info Component (UPDATED)
+// 🎨 Selected Variant Info Component
 interface SelectedVariantInfoProps {
   variant: Variant | null;
   isDark: boolean;
@@ -926,7 +898,6 @@ const SelectedVariantInfo: React.FC<SelectedVariantInfoProps> = ({
   isDark,
 }) => {
   const styles = SelectedVariantInfoStyles(isDark);
-
   if (!variant || !variant.fields) return null;
 
   return (
@@ -948,19 +919,10 @@ const SelectedVariantInfo: React.FC<SelectedVariantInfoProps> = ({
   );
 };
 
-// ============= MAIN ProductInfo Component (UPDATED) =============
+// ============= MAIN ProductInfo Component (REFACTORED) =============
 
 const ProductInfo: React.FC<any> = props => {
-  const {
-    category,
-    id: propId,
-    variantName: propVariantName,
-    currentPrice: propCurrentPrice,
-    originalPrice: propOriginalPrice,
-    discount: propDiscount,
-    stock: propStock,
-    inStock: propInStock,
-  } = props;
+  const { id: propId } = props;
 
   const { user } = useUser();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -970,108 +932,71 @@ const ProductInfo: React.FC<any> = props => {
   const params = (route.params as { productId?: string }) || {};
   const productId = params.productId || propId || null;
 
-  const [product, setProduct] = useState<Product | null>(null);
+  // ============ USE YOUR EXISTING HOOK ============
+  const {
+    product: rawProduct,
+    loading: productLoading,
+    error: productError,
+    refreshing,
+    onRefresh: productRefresh,
+  } = useProduct({ productId, autoFetch: true });
+
+  // ============ RATING & REVIEWS STATE ============
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [ratingLoading, setRatingLoading] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const currentUserId = user?._id ?? '';
 
-  const dynamicStyles = getDynamicStyles(isDark);
-
-  const getDisplayInStock = (): boolean => {
-    if (propInStock !== undefined) return propInStock;
-    if (selectedVariant) return getVariantInStock(selectedVariant);
-    if (product?.inStock !== undefined) return product.inStock;
-    const availableStock =
-      product?.quantityAvailable || propStock || product?.stock;
-    if (availableStock !== undefined && availableStock !== null)
-      return availableStock > 0;
-    return false;
-  };
-
-  const filterValidVariants = (variants: any[]): Variant[] => {
-    if (!variants || !Array.isArray(variants)) return [];
-    return variants.filter(v => v && (v.fields || v.combinationKey || v.sku));
-  };
-
-  const fetchProductData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!productId) throw new Error('Product ID is required');
-
-      const response = await axios.get(
-        `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`,
-        { timeout: 10000 },
-      );
-
-      let productData =
-        response.data.product || response.data.data || response.data;
-
-      if (response.data.success && response.data.product) {
-        productData = response.data.product;
+  // ============ PROCESS PRODUCT DATA ============
+  const product = rawProduct
+    ? {
+        ...rawProduct,
+        variants: rawProduct.variants
+          ? filterValidVariants(rawProduct.variants)
+          : [],
       }
+    : null;
 
-      if (!productData?._id) throw new Error('Invalid product data received');
-
-      // Filter valid variants
-      if (productData.variants) {
-        productData.variants = filterValidVariants(productData.variants);
-      }
-
-      setProduct(productData);
-
-      // Set default variant (first one or the one with isDefault)
-      let defaultVariant = null;
-      if (productData.variants && productData.variants.length > 0) {
-        defaultVariant =
-          productData.variants.find((v: Variant) => v.isDefault) ||
-          productData.variants[0];
-      }
+  // Set default variant when product loads
+  useEffect(() => {
+    if (product?.variants && product.variants.length > 0 && !selectedVariant) {
+      const defaultVariant =
+        product.variants.find((v: Variant) => v.isDefault) ||
+        product.variants[0];
       setSelectedVariant(defaultVariant);
-    } catch (err: any) {
-      console.error('❌ Product fetch error:', err);
-      setError(
-        err?.response?.data?.error ||
-          err?.message ||
-          'Failed to load product details',
-      );
+    }
+  }, [product, selectedVariant]);
+
+  // ============ FETCH RATING & REVIEWS USING YOUR SERVICE ============
+  const loadRatingAndReviews = useCallback(async () => {
+    if (!productId) return;
+    setRatingLoading(true);
+    try {
+      const [stats, reviewsData] = await Promise.all([
+        fetchRatingStats(productId),
+        fetchReviews(productId, 6),
+      ]);
+      setRatingStats(stats);
+      setReviews(reviewsData || []);
+    } catch (error) {
+      console.error('Error loading rating/reviews:', error);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setRatingLoading(false);
     }
-  };
+  }, [productId]);
 
-  const fetchRatingStats = async () => {
-    if (!productId) return;
-    try {
-      const response = await axios.get(
-        `http://172.20.10.12:5000/api/rating-review/rating/stats/${productId}`,
-        { timeout: 5000 },
-      );
-      if (response.data.success) setRatingStats(response.data.data);
-    } catch (err: any) {
-      console.error('Error fetching rating stats:', err);
+  useEffect(() => {
+    if (productId) {
+      loadRatingAndReviews();
     }
-  };
+  }, [productId, loadRatingAndReviews]);
 
-  const fetchReviews = async () => {
-    if (!productId) return;
-    try {
-      const response = await axios.get(
-        `http://172.20.10.12:5000/api/rating-review/rating/reviews/${productId}?limit=6`,
-        { timeout: 5000 },
-      );
-      if (response.data.success) setReviews(response.data.data);
-    } catch (err: any) {
-      console.error('Error fetching reviews:', err);
-    }
+  // ============ HANDLERS ============
+  const handleVariantSelect = (variant: Variant) => {
+    setSelectedVariant(variant);
   };
 
   const handleTizzyChatNavigation = () => {
@@ -1085,37 +1010,31 @@ const ProductInfo: React.FC<any> = props => {
     navigation.navigate('TizzyChat', { userId: currentUserId, id: productId });
   };
 
-  const handleVariantSelect = (variant: Variant) => {
-    setSelectedVariant(variant);
-  };
-
-  useEffect(() => {
-    if (productId) {
-      fetchProductData();
-      fetchRatingStats();
-      fetchReviews();
-    } else {
-      setError('Product ID is missing');
-      setLoading(false);
-    }
-  }, [productId]);
-
   const onRefresh = () => {
-    setRefreshing(true);
-    fetchProductData();
-    fetchRatingStats();
-    fetchReviews();
+    productRefresh();
+    loadRatingAndReviews();
   };
 
   const handleAvatarGroupClick = () => setShowRatingModal(true);
   const handleRatingClick = () => setShowRatingModal(true);
 
+  // ============ DERIVED VALUES ============
+  const getDisplayInStock = (): boolean => {
+    if (selectedVariant) return getVariantInStock(selectedVariant);
+    if (product?.inStock !== undefined) return product.inStock;
+    return false;
+  };
+
   const averageRating =
     ratingStats?.averageRating || product?.averageRating || 0;
   const reviewCount = ratingStats?.totalReviews || product?.reviewCount || 0;
   const displayInStock = getDisplayInStock();
+  const loading = productLoading || ratingLoading;
 
-  if (loading) {
+  const dynamicStyles = getDynamicStyles(isDark);
+
+  // ============ LOADING STATE ============
+  if (loading && !product) {
     return (
       <SafeAreaView style={dynamicStyles.loadingContainer}>
         <View style={dynamicStyles.loadingContent}>
@@ -1128,16 +1047,19 @@ const ProductInfo: React.FC<any> = props => {
     );
   }
 
-  if (error) {
+  // ============ ERROR STATE ============
+  if (productError || !product) {
     return (
       <SafeAreaView style={dynamicStyles.errorContainer}>
         <View style={dynamicStyles.errorContent}>
           <Icon name="error-outline" size={64} color="#DC2626" />
           <Text style={dynamicStyles.errorTitle}>Oops!</Text>
-          <Text style={dynamicStyles.errorMessage}>{error}</Text>
+          <Text style={dynamicStyles.errorMessage}>
+            {productError || 'Product not found'}
+          </Text>
           <TouchableOpacity
             style={dynamicStyles.retryButton}
-            onPress={fetchProductData}
+            onPress={onRefresh}
           >
             <Text style={dynamicStyles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
@@ -1146,23 +1068,7 @@ const ProductInfo: React.FC<any> = props => {
     );
   }
 
-  if (!product) {
-    return (
-      <SafeAreaView style={dynamicStyles.errorContainer}>
-        <View style={dynamicStyles.errorContent}>
-          <Icon name="search-off" size={64} color="#9CA3AF" />
-          <Text style={dynamicStyles.errorTitle}>Product Not Found</Text>
-          <TouchableOpacity
-            style={dynamicStyles.retryButton}
-            onPress={fetchProductData}
-          >
-            <Text style={dynamicStyles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // ============ MAIN RENDER ============
   return (
     <SafeAreaView style={dynamicStyles.mainContainer}>
       <ScrollView
@@ -1175,11 +1081,10 @@ const ProductInfo: React.FC<any> = props => {
       >
         <View style={dynamicStyles.contentContainer}>
           <ProductHeader
-            title={product.title}
-            brand={product.brand}
-            productId={product.productId}
-            category={product.category}
-            verified={product.verified}
+            title={product.title || ''}
+            brand={product.brand || ''}
+            productId={product.productId || product._id || ''}
+            verified={product.verified === true}
             inStock={displayInStock}
             quantityAvailable={getVariantStock(selectedVariant)}
             isDark={isDark}
@@ -1192,7 +1097,6 @@ const ProductInfo: React.FC<any> = props => {
             isDark={isDark}
           />
 
-          {/* NEW: Variant Selector */}
           <VariantSelector
             variantOptions={product.variantOptions}
             variantValues={product.variantValues}
@@ -1202,7 +1106,6 @@ const ProductInfo: React.FC<any> = props => {
             isDark={isDark}
           />
 
-          {/* NEW: Selected Variant Info */}
           <SelectedVariantInfo variant={selectedVariant} isDark={isDark} />
 
           {product.highlights && product.highlights.length > 0 && (
@@ -1233,7 +1136,8 @@ const ProductInfo: React.FC<any> = props => {
               <Text style={dynamicStyles.descriptionText}>
                 {product.fullDescription ||
                   product.description ||
-                  product.shortDescription}
+                  product.shortDescription ||
+                  ''}
               </Text>
             </View>
           )}
@@ -1252,14 +1156,14 @@ const ProductInfo: React.FC<any> = props => {
               <Icon name="bolt" size={24} color="#8B5CF6" />
               <Text style={dynamicStyles.sectionTitle}>Features</Text>
             </View>
-            <ProductHighlights productId={product.id} />
+            <ProductHighlights productId={product.id || product._id || ''} />
           </View>
 
           <ActionButtons
-            productId={product.id}
+            productId={product.id || product._id || ''}
             category={product.category}
             currentUserId={currentUserId}
-            productTitle={product.title}
+            productTitle={product.title || ''}
             inStock={displayInStock}
             onChat={handleTizzyChatNavigation}
             isDark={isDark}
@@ -1273,7 +1177,7 @@ const ProductInfo: React.FC<any> = props => {
               <Text style={dynamicStyles.sectionTitle}>Write a Review</Text>
             </View>
             <RatingReviewSystem
-              productId={product.id}
+              productId={product.id || product._id || ''}
               onRatingSubmit={async (rating: number, review: string) => {
                 console.log('Submit review:', rating, review);
               }}
@@ -1308,7 +1212,7 @@ const ProductInfo: React.FC<any> = props => {
             </View>
             <ScrollView style={dynamicStyles.modalScroll}>
               <RatingReviewSystem
-                productId={product.id}
+                productId={product.id || product._id || ''}
                 onRatingSubmit={async (rating: number, review: string) => {
                   console.log('Submit review:', rating, review);
                 }}
@@ -1324,6 +1228,8 @@ const ProductInfo: React.FC<any> = props => {
 };
 
 // =============== STYLE FUNCTIONS ===============
+// Keep all your existing style functions (StockStatusStyles, ProtectPromiseStyles, etc.)
+// ... (they remain exactly the same as in your original code)
 
 const getDynamicStyles = (isDark: boolean) =>
   StyleSheet.create({
@@ -1436,6 +1342,9 @@ const getDynamicStyles = (isDark: boolean) =>
     },
     modalScroll: { flex: 1, padding: 16 },
   });
+
+// Keep all your existing style functions (StockStatusStyles, ProtectPromiseStyles, InstructionsStyles, TizzyChatStyles, ProductHeaderStyles, PriceDisplayStyles, VariantSelectorStyles, SelectedVariantInfoStyles, RatingSectionStyles, ActionButtonsStyles)
+// They remain exactly the same as in your original code...
 
 const StockStatusStyles = (isDark: boolean) =>
   StyleSheet.create({

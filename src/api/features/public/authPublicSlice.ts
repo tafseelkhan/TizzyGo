@@ -41,6 +41,7 @@ const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 // ================================
 
 export const signup = async ({ identifier }: AuthPayload) => {
+  console.log("Sending signup request to:", `${API_BASE_URL}${API_ENDPOINTS.SIGNUP}`);
   return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.SIGNUP}`, {
     method: 'POST',
     body: JSON.stringify({
@@ -48,6 +49,8 @@ export const signup = async ({ identifier }: AuthPayload) => {
     }),
   });
 };
+console.log("BASE URL:", Config.API_AXIOS_BASE_URL);
+console.log("API_ENDPOINTS:", API_ENDPOINTS.SIGNUP);
 
 // ================================
 // VERIFY SIGNUP
@@ -95,6 +98,7 @@ export const verifySignup = async ({
 // ================================
 
 export const login = async ({ identifier }: AuthPayload) => {
+    console.log("Sending login request to:", `${API_BASE_URL}${API_ENDPOINTS.LOGIN}`);
   return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.LOGIN}`, {
     method: 'POST',
     body: JSON.stringify({
@@ -102,7 +106,8 @@ export const login = async ({ identifier }: AuthPayload) => {
     }),
   });
 };
-
+console.log("BASE URL:", Config.API_AXIOS_BASE_URL);
+console.log("API_ENDPOINTS:", API_ENDPOINTS.LOGIN);
 /**
  * Verifies the user's login credentials with the provided OTP.
  * @param identifier - The user's identifier (email or phone number).

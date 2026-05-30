@@ -1,34 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Animated,
   Easing,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import Feather from 'react-native-vector-icons/Feather';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import {
   useSafeAreaInsets,
   SafeAreaView,
 } from 'react-native-safe-area-context';
-import AddToCart, {
-  fetchCart,
-  fetchProductVariants,
-  ProductVariant,
-  SelectedVariant,
-} from './AddToCart';
+import AddToCart from './AddToCart';
 import EmiOption from './EmiOption';
 import BuyNow from './BuyNow';
 import { useTheme } from '../../contexts/theme/ThemeContext';
+import { useProduct } from '../../hooks/useProducts';
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -48,25 +40,6 @@ interface BottomNavigationProps {
   setActiveTabs: (tab: string) => void;
 }
 
-interface Product {
-  id: string;
-  _id?: string;
-  category: string;
-  title: string;
-  brand: string;
-  reviewCount?: number;
-  price: number;
-  originalPrice?: number;
-  stock?: number;
-  rating?: number;
-  model: string;
-  averageRating?: number;
-  Discount?: number;
-  Offer?: number;
-  FinalPrice?: number;
-  variants?: ProductVariant[];
-}
-
 type RootStackParamList = {
   Home: undefined;
   ProductDetail: {
@@ -77,53 +50,6 @@ type RootStackParamList = {
 };
 
 type ProductDetailRouteProp = RouteProp<RootStackParamList, 'ProductDetail'>;
-
-const fetchProduct = async (productId: string): Promise<Product> => {
-  try {
-    const apiUrl = `http://172.20.10.12:5000/api/seller/forms/categories/${productId}`;
-
-    const response = await fetch(apiUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error('API returned unsuccessful response');
-    }
-
-    if (!data.product) {
-      throw new Error('No product data found in response');
-    }
-
-    const productData = data.product;
-
-    return {
-      ...productData,
-      id: productData._id || productId,
-      title: productData.title || 'No Title',
-      brand: productData.brand || 'No Brand',
-      price: productData.price || 0,
-      model: productData.model || 'No Model',
-      category: productData.category || 'Unknown Category',
-      originalPrice:
-        productData.originalPrice || productData.mrp || productData.price,
-      FinalPrice: productData.finalPrice || productData.price,
-      Discount: productData.discount || productData.Discount || 0,
-      Offer: productData.offerText || productData.Offer || '',
-      averageRating: productData.averageRating || 0,
-      reviewCount: productData.reviewCount || 0,
-      stock: productData.quantityAvailable || productData.stock || 0,
-      rating: productData.rating || 0,
-      variants: productData.variants || [],
-    };
-  } catch (error: any) {
-    console.error('Error in fetchProduct:', error.message);
-    throw new Error(error.message || 'Failed to fetch product from server');
-  }
-};
 
 const BottomNavigation = ({
   activeTabs,
@@ -142,23 +68,73 @@ const BottomNavigation = ({
   const id = productId || (params as any)?.id;
   const category = routeCategory || (params as any)?.category || 'Unknown';
 
-  const [product, setProduct] = useState<Product | null>(null);
-  const [productLoading, setProductLoading] = useState(true);
-  const [productError, setProductError] = useState<string | null>(null);
   const [isInCart, setIsInCart] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [selectedVariant, setSelectedVariant] =
-    useState<SelectedVariant | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [scaleAnim] = useState(new Animated.Value(1));
 
-  const showToast = {
-    error: (message: string) => Alert.alert('Error', message),
-    success: (message: string) => Alert.alert('Success', message),
-    info: (message: string) => Alert.alert('Info', message),
+  // ✅ Standardized useProduct hook
+  const {
+    product,
+    loading: productLoading,
+    error: productError,
+    refreshing,
+    onRefresh,
+    setProduct,
+  } = useProduct({
+    productId: id,
+    initialData: routeProductData || null,
+    autoFetch: !routeProductData,
+  });
+
+  // ✅ Helper function to check if product is available
+  const isProductAvailable = () => {
+    if (!product) return false;
+
+    // Check inStock flag first (most reliable)
+    if (product.inStock !== undefined && product.inStock !== null) {
+      return product.inStock === true;
+    }
+
+    // Check quantityAvailable field
+    if (
+      product.quantityAvailable !== undefined &&
+      product.quantityAvailable !== null
+    ) {
+      return product.quantityAvailable > 0;
+    }
+
+    // Check stock field as fallback
+    if (product.stock !== undefined && product.stock !== null) {
+      return product.stock > 0;
+    }
+
+    // Default to false if no stock info
+    return false;
   };
 
-  const handleVariantSelect = (variant: SelectedVariant | null) => {
+  // ✅ Helper function to get max quantity
+  const getMaxQuantity = () => {
+    if (!product) return 10;
+
+    if (
+      product.quantityAvailable !== undefined &&
+      product.quantityAvailable !== null
+    ) {
+      return product.quantityAvailable;
+    }
+
+    if (product.stock !== undefined && product.stock !== null) {
+      return product.stock;
+    }
+
+    return 10; // Default max quantity
+  };
+
+  // ✅ Extract variants from product data
+  const variants = product?.variants || [];
+
+  const handleVariantSelect = (variant: any) => {
     setSelectedVariant(variant);
   };
 
@@ -188,88 +164,9 @@ const BottomNavigation = ({
     setActiveTabs(tabName);
   };
 
-  const handleRetryPress = async () => {
-    await triggerFeedback();
-    setProductLoading(true);
-    setProductError(null);
-    const loadData = async () => {
-      try {
-        const productData = await fetchProduct(id);
-        setProduct(productData);
-      } catch (error: any) {
-        setProductError(error.message);
-      } finally {
-        setProductLoading(false);
-      }
-    };
-    loadData();
+  const handleRetry = () => {
+    onRefresh();
   };
-
-  useEffect(() => {
-    if (!id || id === 'undefined' || id === 'null') {
-      const errorMsg = `Product ID is missing. Current ID: ${id}`;
-      setProductError(errorMsg);
-      setProductLoading(false);
-      showToast.error('Product ID is missing. Please check the product link.');
-      return;
-    }
-
-    const loadData = async () => {
-      setProductLoading(true);
-      setProductError(null);
-
-      try {
-        if (routeProductData) {
-          const formattedProduct: Product = {
-            ...routeProductData,
-            id: routeProductData._id || routeProductData.id || id,
-            category: routeProductData.category || category,
-            title: routeProductData.title || 'No Title',
-            brand: routeProductData.brand || 'No Brand',
-            price: routeProductData.price || 0,
-            model: routeProductData.model || 'No Model',
-            originalPrice:
-              routeProductData.originalPrice || routeProductData.price,
-            FinalPrice: routeProductData.FinalPrice || routeProductData.price,
-            Discount: routeProductData.Discount || 0,
-            Offer: routeProductData.Offer || 0,
-            averageRating: routeProductData.averageRating || 0,
-            reviewCount: routeProductData.reviewCount || 0,
-            stock: routeProductData.stock || 0,
-            rating: routeProductData.rating || 0,
-            variants: routeProductData.variants || [],
-          };
-          setProduct(formattedProduct);
-          setVariants(routeProductData.variants || []);
-        } else {
-          const productData = await fetchProduct(id);
-          setProduct(productData);
-          setVariants(productData.variants || []);
-        }
-      } catch (error: any) {
-        const errorMessage = error.message || 'Failed to load product';
-        setProductError(errorMessage);
-        showToast.error(errorMessage);
-      } finally {
-        setProductLoading(false);
-      }
-
-      try {
-        const cartItem = await fetchCart(id);
-        if (cartItem) {
-          setIsInCart(true);
-          setQuantity(cartItem.quantity);
-          if (cartItem.selectedVariant) {
-            setSelectedVariant(cartItem.selectedVariant);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching cart:', error);
-      }
-    };
-
-    loadData();
-  }, [id, routeProductData]);
 
   const getThemeColors = () => {
     return {
@@ -306,6 +203,7 @@ const BottomNavigation = ({
 
   const themeColors = getThemeColors();
 
+  // Loading State
   if (productLoading) {
     return (
       <View
@@ -333,6 +231,7 @@ const BottomNavigation = ({
     );
   }
 
+  // Error State
   if (productError) {
     return (
       <View
@@ -363,7 +262,7 @@ const BottomNavigation = ({
               styles.retryButton,
               { backgroundColor: themeColors.retryButtonBg },
             ]}
-            onPress={handleRetryPress}
+            onPress={handleRetry}
             activeOpacity={0.7}
           >
             <Text
@@ -378,6 +277,11 @@ const BottomNavigation = ({
         </View>
       </View>
     );
+  }
+
+  // Ensure product exists before rendering
+  if (!product) {
+    return null;
   }
 
   const buyNowProduct = product
@@ -396,7 +300,6 @@ const BottomNavigation = ({
         { backgroundColor: themeColors.safeAreaBg },
       ]}
     >
-      {/* Bottom Navigation - Always Visible, No Swipe Needed */}
       <View
         style={[
           styles.bottomNav,
@@ -428,7 +331,7 @@ const BottomNavigation = ({
                 selectedVariant={selectedVariant}
                 onVariantSelect={handleVariantSelect}
                 onAddToCartSuccess={handleAddToCartSuccess}
-              />
+                />
             </View>
           )}
 
@@ -778,11 +681,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
   },
   errorContainer: {
     padding: 16,

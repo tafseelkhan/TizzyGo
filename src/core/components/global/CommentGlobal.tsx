@@ -8,7 +8,6 @@ import {
   Image,
   ScrollView,
   Modal,
-  Alert,
   Animated,
   Dimensions,
   StyleSheet,
@@ -16,16 +15,24 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
-  useColorScheme,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useUser } from '../../contexts/auth/UserContext';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import { debounce } from 'lodash';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import {
+  fetchCommentersAPI,
+  fetchCommentsAPI,
+  fetchUsersBatchAPI,
+  addCommentAPI,
+  addReplyAPI,
+  toggleCommentLikeAPI,
+  toggleReplyLikeAPI,
+  deleteCommentAPI,
+  deleteReplyAPI,
+} from '../../../api/features/private/commentGlobalPrivateSlice';
 
 // Types
 interface User {
@@ -63,7 +70,6 @@ interface Commenter {
   commentCount: number;
 }
 
-// Define navigation param types
 type RootStackParamList = {
   'account/:userId': { userId: string };
   'report/:userId/users': { userId: string };
@@ -74,14 +80,14 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   console.log('🔵 CommentComponent Mounted - Product ID:', productId);
-  
+
   const { user, setUser } = useUser();
-  const { theme, isDark, resolvedTheme } = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  
+  const { isDark } = useTheme();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   const currentUserId = user?._id ?? '';
-  console.log('👤 Current User ID:', currentUserId);
-  
+
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[] | null>(null);
   const [users, setUsers] = useState<{ [key: string]: User }>({});
@@ -91,21 +97,25 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   const [isFetchingCommenters, setIsFetchingCommenters] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [newCommentMedia, setNewCommentMedia] = useState<string | null>(null);
-  const [newCommentMediaType, setNewCommentMediaType] = useState<'image' | 'gif' | null>(null);
+  const [newCommentMediaType, setNewCommentMediaType] = useState<
+    'image' | 'gif' | null
+  >(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [replyMedia, setReplyMedia] = useState<string | null>(null);
-  const [replyMediaType, setReplyMediaType] = useState<'image' | 'gif' | null>(null);
+  const [replyMediaType, setReplyMediaType] = useState<'image' | 'gif' | null>(
+    null,
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{
     id: string;
     type: 'comment' | 'reply';
     commentId?: string;
   } | null>(null);
-  const [showReplies, setShowReplies] = useState<{ [key: string]: boolean }>({});
+  const [showReplies, setShowReplies] = useState<{ [key: string]: boolean }>(
+    {},
+  );
   const [commenters, setCommenters] = useState<Commenter[]>([]);
   const [hasFetchedComments, setHasFetchedComments] = useState(false);
-  const [showMediaPicker, setShowMediaPicker] = useState(false);
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [hoveredComment, setHoveredComment] = useState<string | null>(null);
   const [hoveredReply, setHoveredReply] = useState<string | null>(null);
 
@@ -114,19 +124,79 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const suggestedEmojis = [
-    '😊', '👍', '🔥', '❤️', '😂', '😍', '😡', '😢', '😱', '💔',
-    '🎉', '👏', '🙏', '🤔', '😴', '🤮', '🥰', '🤯', '🥳', '🤬',
-    '💯', '✨', '🌟', '😎', '🙌', '💥', '🎶', '🍀', '🌈', '☀️',
-    '🌙', '⭐', '⚡', '💫', '🍎', '🍕', '🍔', '🍟', '🌮', '🍣',
-    '🍩', '🍪', '☕', '🍺', '🍷', '🏆', '🎁', '📚', '✈️', '🚗',
-    '🏠', '💼', '📱', '💻', '🎮', '⚽', '🏀', '🎲', '🎯', '🎬',
-    '🎨', '🎤', '🎧', '📸', '📹', '🎥', '🖼️', '📺', '📻',
+    '😊',
+    '👍',
+    '🔥',
+    '❤️',
+    '😂',
+    '😍',
+    '😡',
+    '😢',
+    '😱',
+    '💔',
+    '🎉',
+    '👏',
+    '🙏',
+    '🤔',
+    '😴',
+    '🤮',
+    '🥰',
+    '🤯',
+    '🥳',
+    '🤬',
+    '💯',
+    '✨',
+    '🌟',
+    '😎',
+    '🙌',
+    '💥',
+    '🎶',
+    '🍀',
+    '🌈',
+    '☀️',
+    '🌙',
+    '⭐',
+    '⚡',
+    '💫',
+    '🍎',
+    '🍕',
+    '🍔',
+    '🍟',
+    '🌮',
+    '🍣',
+    '🍩',
+    '🍪',
+    '☕',
+    '🍺',
+    '🍷',
+    '🏆',
+    '🎁',
+    '📚',
+    '✈️',
+    '🚗',
+    '🏠',
+    '💼',
+    '📱',
+    '💻',
+    '🎮',
+    '⚽',
+    '🏀',
+    '🎲',
+    '🎯',
+    '🎬',
+    '🎨',
+    '🎤',
+    '🎧',
+    '📸',
+    '📹',
+    '🎥',
+    '🖼️',
+    '📺',
+    '📻',
   ];
 
   const backendBaseUrl = 'http://172.20.10.12:5000';
-  const FETCH_TIMEOUT = 10000;
 
-  // ✅ DARK MODE COLORS
   const colors = {
     background: isDark ? '#00000000' : '#FFFFFF',
     modalBackground: isDark ? '#1E293B' : '#FFFFFF',
@@ -136,27 +206,19 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
     secondaryText: isDark ? '#94A3B8' : '#6B7280',
     placeholderText: isDark ? '#64748B' : '#9CA3AF',
     border: isDark ? '#475569' : '#E5E7EB',
-    lightBorder: isDark ? '#334155' : '#F3F4F6',
     primaryButton: isDark ? '#3B82F6' : '#3B82F6',
-    primaryButtonText: isDark ? '#FFFFFF' : '#FFFFFF',
     secondaryButton: isDark ? '#475569' : '#F3F4F6',
-    secondaryButtonText: isDark ? '#94A3B8' : '#6B7280',
     likeActive: '#EF4444',
     badgeBackground: isDark ? '#1D4ED8' : '#E0E7FF',
     badgeText: isDark ? '#93C5FD' : '#3B82F6',
     hoverBackground: isDark ? '#475569' : '#F0F9FF',
     hoverBorder: isDark ? '#60A5FA' : '#3B82F6',
     error: '#EF4444',
-    success: '#10B981',
-    warning: '#F59E0B',
-    info: '#3B82F6',
     overlay: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
     loadingOverlay: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgb(255, 255, 255)',
   };
 
-  // Hover animations
   const handleHoverIn = (type: 'comment' | 'reply', id: string) => {
-    console.log('🖱️ Hover In:', type, id);
     if (type === 'comment') {
       setHoveredComment(id);
     } else {
@@ -169,7 +231,6 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   const handleHoverOut = () => {
-    console.log('🖱️ Hover Out');
     setHoveredComment(null);
     setHoveredReply(null);
     Animated.spring(scaleAnim, {
@@ -178,38 +239,17 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
     }).start();
   };
 
-  // Get auth token from storage
-  const getAuthToken = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      console.log('🔐 Auth Token Retrieved:', token ? `Length: ${token.length}` : 'No token');
-      return token || '';
-    } catch (error) {
-      console.error('🔐 Error getting auth token:', error);
-      return '';
-    }
-  }, []);
-
   const getImageUrl = (image: string | undefined | null) => {
-    if (!image) {
-      console.log('🖼️ No image provided, using placeholder');
-      return 'https://via.placeholder.com/40';
-    }
-    
-    const url = image.startsWith('http') ? image : `${backendBaseUrl}${image}`;
-    console.log('🖼️ Generated Image URL:', url);
-    return url;
+    if (!image) return 'https://via.placeholder.com/40';
+    return image.startsWith('http') ? image : `${backendBaseUrl}${image}`;
   };
 
   const totalCommentCount = commenters.reduce(
     (sum, commenter) => sum + commenter.commentCount,
-    0
+    0,
   );
-  console.log('📊 Total Comment Count:', totalCommentCount);
 
-  // Animation functions
   const openComments = () => {
-    console.log('📖 Opening Comments Modal');
     setShowComments(true);
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -226,7 +266,6 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   const closeComments = () => {
-    console.log('❌ Closing Comments Modal');
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -242,78 +281,35 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   const fetchCurrentUserImage = useCallback(async () => {
-    if (!currentUserId) {
-      console.log('❌ No current user ID, skipping fetch');
-      return;
-    }
-    
-    console.log('🔄 Fetching current user image...');
+    if (!currentUserId) return;
+
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-      const res = await fetch(`${backendBaseUrl}/api/profile/users/batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ userIds: [currentUserId] }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const [userData] = await res.json();
-        console.log('✅ Current user image fetched:', userData.image);
-        setCurrentUserImage(userData.image || null);
-      } else {
-        console.log('❌ Failed to fetch current user image, status:', res.status);
-        setCurrentUserImage(null);
+      const userData = await fetchUsersBatchAPI([currentUserId]);
+      if (userData.length > 0) {
+        setCurrentUserImage(userData[0].image || null);
       }
     } catch (err) {
-      console.error('💥 Error fetching current user image:', err);
+      console.error('Error fetching current user image:', err);
       setCurrentUserImage(null);
     }
-  }, [currentUserId, getAuthToken]);
+  }, [currentUserId]);
 
   const debouncedFetchCommenters = useCallback(
     debounce(async () => {
-      console.log('🔄 Fetching commenters...');
       setIsFetchingCommenters(true);
       try {
-        const authToken = await getAuthToken();
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-        const res = await fetch(
-          `${backendBaseUrl}/api/comments/comments/unique-user-count/${productId}`,
-          {
-            headers: { Authorization: `Bearer ${authToken}` },
-            signal: controller.signal,
-          }
-        );
-
-        clearTimeout(timeoutId);
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('❌ Failed to fetch commenters:', res.status, errorText);
-          throw new Error(
-            `Failed to fetch commenters: ${res.status} ${errorText}`
-          );
-        }
-
-        const data: Commenter[] = await res.json();
-        console.log('✅ Commenters fetched:', data.length);
+        const data = await fetchCommentersAPI(productId);
         setCommenters(data);
 
-        setUsers((prev) => {
-          const newUsers = data.reduce((map, commenter) => {
+        const newUsers = data.reduce(
+          (
+            map: { [key: string]: User },
+            commenter: { userId: string; userName: string; userImage: string },
+          ) => {
             if (
               commenter.userId &&
               commenter.userName !== 'Deleted User' &&
-              !prev[commenter.userId]
+              !users[commenter.userId]
             ) {
               map[commenter.userId] = {
                 _id: commenter.userId,
@@ -322,545 +318,261 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
               };
             }
             return map;
-          }, {} as { [key: string]: User });
-          console.log('👥 New users added:', Object.keys(newUsers).length);
-          return { ...prev, ...newUsers };
-        });
+          },
+          {} as { [key: string]: User },
+        );
+
+        setUsers(prev => ({ ...prev, ...newUsers }));
       } catch (err: any) {
-        console.error('💥 Error in fetchCommenters:', err);
-        if (err.name === 'AbortError') {
-          console.log('⏰ Request timed out');
-          setError('Request timed out while fetching commenters.');
-        } else if (err.message.includes('401')) {
-          console.log('🔒 Unauthorized');
-          setError('Unauthorized. Please log in again.');
-        } else if (err.message.includes('429')) {
-          console.log('🔄 Too many requests');
-          setError('Too many requests. Please wait and try again.');
-        } else {
-          setError('Failed to load commenters. Please try again.');
-        }
+        console.error('Error fetching commenters:', err);
+        setError(err.message || 'Failed to load commenters');
         setCommenters([]);
       } finally {
         setIsFetchingCommenters(false);
-        console.log('✅ Commenters fetch complete');
       }
     }, 500),
-    [productId, getAuthToken]
+    [productId, users],
   );
 
   const fetchCommentsAndUsers = useCallback(async () => {
-    console.log('🔄 Fetching comments and users...');
     setError(null);
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      const commentsData = await fetchCommentsAPI(productId);
 
-      const commentsRes = await fetch(
-        `${backendBaseUrl}/api/comments/post/${productId}`,
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-          signal: controller.signal,
-        }
-      );
-
-      clearTimeout(timeoutId);
-      if (!commentsRes.ok) {
-        const errorText = await commentsRes.text();
-        console.error('❌ Failed to fetch comments:', commentsRes.status, errorText);
-        throw new Error(
-          `Failed to fetch comments: ${commentsRes.status} ${errorText}`
-        );
-      }
-
-      const commentsData: Comment[] = await commentsRes.json();
-      console.log('✅ Comments fetched:', commentsData.length);
-      
       const userIds = new Set<string>();
-      commentsData.forEach((comment) => {
-        if (comment.userId && !users[comment.userId]) userIds.add(comment.userId);
-        comment.replies.forEach((reply) => {
+      commentsData.forEach((comment: Comment) => {
+        if (comment.userId && !users[comment.userId])
+          userIds.add(comment.userId);
+        comment.replies.forEach(reply => {
           if (reply.userId && !users[reply.userId]) userIds.add(reply.userId);
         });
       });
-      
-      console.log('👥 Unique user IDs to fetch:', userIds.size);
 
-      let userData: User[] = [];
       if (userIds.size > 0) {
-        const usersController = new AbortController();
-        const usersTimeoutId = setTimeout(
-          () => usersController.abort(),
-          FETCH_TIMEOUT
-        );
-
-        const usersRes = await fetch(
-          `${backendBaseUrl}/api/profile/users/batch`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${authToken}`,
-            },
-            body: JSON.stringify({ userIds: Array.from(userIds) }),
-            signal: usersController.signal,
-          }
-        );
-
-        clearTimeout(usersTimeoutId);
-        if (!usersRes.ok) {
-          const errorText = await usersRes.text();
-          console.error('❌ Failed to fetch users:', usersRes.status, errorText);
-          throw new Error(
-            `Failed to fetch users: ${usersRes.status} ${errorText}`
-          );
-        }
-
-        userData = await usersRes.json();
-        console.log('✅ Users fetched:', userData.length);
-      }
-
-      setUsers((prev) => {
-        const userMap = userData.reduce((map, user) => {
-          if (!prev[user._id]) map[user._id] = user;
+        const userData = await fetchUsersBatchAPI(Array.from(userIds));
+        const userMap = userData.reduce((map: any, user: any) => {
+          if (!users[user._id]) map[user._id] = user;
           return map;
         }, {} as { [key: string]: User });
-        console.log('👥 Total users after merge:', Object.keys({...prev, ...userMap}).length);
-        return { ...prev, ...userMap };
-      });
+        setUsers(prev => ({ ...prev, ...userMap }));
+      }
 
       setComments(commentsData);
       setHasFetchedComments(true);
-      console.log('✅ Comments and users fetch complete');
     } catch (err: any) {
-      console.error('💥 Error in fetchCommentsAndUsers:', err);
-      if (err.name === 'AbortError') {
-        console.log('⏰ Request timed out');
-        setError('Request timed out while fetching comments.');
-      } else if (err.message.includes('401')) {
-        console.log('🔒 Unauthorized');
-        setError('Unauthorized. Please log in again.');
-      } else if (err.message.includes('429')) {
-        console.log('🔄 Too many requests');
-        setError('Too many requests. Please wait and try again.');
-      } else {
-        setError(`Failed to load comments or user data: ${err.message}`);
-      }
+      console.error('Error fetching comments:', err);
+      setError(err.message || 'Failed to load comments');
     } finally {
       setIsLoading(false);
-      console.log('🔄 Loading state set to false');
     }
-  }, [productId, getAuthToken, users]);
+  }, [productId, users]);
 
-  // Handle comment submission
   const handleAddComment = async () => {
-    console.log('➕ Adding comment...');
-    console.log('📝 Comment text:', newComment);
-    console.log('👤 Current user:', currentUserId);
-    
     if ((!newComment.trim() && !newCommentMedia) || !currentUserId) {
-      console.log('❌ Validation failed: No content or user');
       setError('Please add a comment');
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      const newCommentData = await addCommentAPI(
+        productId,
+        currentUserId,
+        newComment,
+        newCommentMedia || undefined,
+        newCommentMediaType || undefined,
+      );
 
-      const bodyData: any = {
-        postId: productId,
-        content: newComment.trim(),
-        userId: currentUserId,
-      };
-
-      if (newCommentMedia) {
-        bodyData.media = newCommentMedia;
-        bodyData.mediaType = newCommentMediaType;
+      if (newCommentData.userId && !users[newCommentData.userId]) {
+        const [userData] = await fetchUsersBatchAPI([newCommentData.userId]);
+        setUsers(prev => ({ ...prev, [userData._id]: userData }));
       }
 
-      console.log('📦 Request body:', bodyData);
-
-      const res = await fetch(`${backendBaseUrl}/api/comments/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(bodyData),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const newCommentData: Comment = await res.json();
-        console.log('✅ Comment added successfully:', newCommentData._id);
-        
-        if (newCommentData.userId && !users[newCommentData.userId]) {
-          console.log('👤 Fetching new commenter info...');
-          const userController = new AbortController();
-          const userTimeoutId = setTimeout(
-            () => userController.abort(),
-            FETCH_TIMEOUT
-          );
-
-          const userRes = await fetch(
-            `${backendBaseUrl}/api/profile/users/batch`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${authToken}`,
-              },
-              body: JSON.stringify({ userIds: [newCommentData.userId] }),
-              signal: userController.signal,
-            }
-          );
-
-          clearTimeout(userTimeoutId);
-          if (userRes.ok) {
-            const [userData] = await userRes.json();
-            console.log('👤 New user data fetched:', userData.name);
-            setUsers((prev) => ({ ...prev, [userData._id]: userData }));
-          }
-        }
-        
-        setComments((prev) =>
-          prev ? [newCommentData, ...prev] : [newCommentData]
-        );
-        console.log('💬 Comments updated, new count:', comments ? comments.length + 1 : 1);
-        
-        setNewComment('');
-        setNewCommentMedia(null);
-        setNewCommentMediaType(null);
-        setHasFetchedComments(false);
-        debouncedFetchCommenters();
-      } else {
-        const errorText = await res.text();
-        console.error('❌ Failed to add comment:', res.status, errorText);
-        throw new Error(`Failed to add comment: ${res.status} ${errorText}`);
-      }
+      setComments(prev =>
+        prev ? [newCommentData, ...prev] : [newCommentData],
+      );
+      setNewComment('');
+      setNewCommentMedia(null);
+      setNewCommentMediaType(null);
+      setHasFetchedComments(false);
+      debouncedFetchCommenters();
     } catch (err: any) {
-      console.error('💥 Error adding comment:', err);
-      setError(`Failed to add comment: ${err.message}`);
+      console.error('Error adding comment:', err);
+      setError(err.message || 'Failed to add comment');
     } finally {
       setIsLoading(false);
-      console.log('🔄 Loading state set to false');
     }
   };
 
-  // Handle reply submission
   const handleAddReply = async (commentId: string) => {
-    console.log('💬 Adding reply to comment:', commentId);
-    console.log('📝 Reply text:', replyContent);
-    
     if ((!replyContent.trim() && !replyMedia) || !currentUserId) {
-      console.log('❌ Validation failed: No content or user');
       setError('Please add a reply');
       return;
     }
+
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-      const bodyData: any = {
-        content: replyContent.trim(),
-        userId: currentUserId,
-      };
-
-      if (replyMedia) {
-        bodyData.media = replyMedia;
-        bodyData.mediaType = replyMediaType;
-      }
-
-      console.log('📦 Reply request body:', bodyData);
-
-      const res = await fetch(
-        `${backendBaseUrl}/api/comments/reply/${commentId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify(bodyData),
-          signal: controller.signal,
-        }
+      const updatedComment = await addReplyAPI(
+        commentId,
+        currentUserId,
+        replyContent,
+        replyMedia || undefined,
+        replyMediaType || undefined,
       );
 
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const updatedComment: Comment = await res.json();
-        console.log('✅ Reply added successfully');
-        
-        const newReply =
-          updatedComment.replies[updatedComment.replies.length - 1];
-        if (newReply.userId && !users[newReply.userId]) {
-          console.log('👤 Fetching new reply user info...');
-          const userController = new AbortController();
-          const userTimeoutId = setTimeout(
-            () => userController.abort(),
-            FETCH_TIMEOUT
-          );
-
-          const userRes = await fetch(
-            `${backendBaseUrl}/api/profile/users/batch`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${authToken}`,
-              },
-              body: JSON.stringify({ userIds: [newReply.userId] }),
-              signal: userController.signal,
-            }
-          );
-
-          clearTimeout(userTimeoutId);
-          if (userRes.ok) {
-            const [userData] = await userRes.json();
-            console.log('👤 New reply user data:', userData.name);
-            setUsers((prev) => ({ ...prev, [userData._id]: userData }));
-          }
-        }
-        
-        setComments((prev) =>
-          prev
-            ? prev.map((comment) =>
-                comment._id === commentId
-                  ? { ...comment, replies: updatedComment.replies }
-                  : comment
-              )
-            : prev
-        );
-        
-        setReplyingTo(null);
-        setReplyContent('');
-        setReplyMedia(null);
-        setReplyMediaType(null);
-        setHasFetchedComments(false);
-        debouncedFetchCommenters();
-        console.log('💬 Reply added and state cleared');
-      } else {
-        const errorText = await res.text();
-        console.error('❌ Failed to add reply:', res.status, errorText);
-        throw new Error(`Failed to add reply: ${res.status} ${errorText}`);
+      const newReply =
+        updatedComment.replies[updatedComment.replies.length - 1];
+      if (newReply.userId && !users[newReply.userId]) {
+        const [userData] = await fetchUsersBatchAPI([newReply.userId]);
+        setUsers(prev => ({ ...prev, [userData._id]: userData }));
       }
+
+      setComments(prev =>
+        prev
+          ? prev.map(comment =>
+              comment._id === commentId
+                ? { ...comment, replies: updatedComment.replies }
+                : comment,
+            )
+          : prev,
+      );
+
+      setReplyingTo(null);
+      setReplyContent('');
+      setReplyMedia(null);
+      setReplyMediaType(null);
+      setHasFetchedComments(false);
+      debouncedFetchCommenters();
     } catch (err: any) {
-      console.error('💥 Error adding reply:', err);
-      setError(`Failed to add reply: ${err.message}`);
+      console.error('Error adding reply:', err);
+      setError(err.message || 'Failed to add reply');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Like functions
   const toggleLike = async (commentId: string) => {
-    console.log('❤️ Toggling like for comment:', commentId);
     if (!currentUserId) {
-      console.log('❌ No user logged in');
       setError('Please log in to like a comment.');
       return;
     }
+
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-      const res = await fetch(
-        `${backendBaseUrl}/api/comments/like/${commentId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ userId: currentUserId }),
-          signal: controller.signal,
-        }
+      const { likedByCurrentUser } = await toggleCommentLikeAPI(
+        commentId,
+        currentUserId,
       );
 
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const { likesCount, likedByCurrentUser } = await res.json();
-        console.log('❤️ Like toggled:', likedByCurrentUser, 'Total likes:', likesCount);
-        
-        setComments((prev) =>
-          prev
-            ? prev.map((comment) =>
-                comment._id === commentId
-                  ? {
-                      ...comment,
-                      likes: likedByCurrentUser
-                        ? [...comment.likes, currentUserId]
-                        : comment.likes.filter((id) => id !== currentUserId),
-                    }
-                  : comment
-              )
-            : prev
-        );
-      } else {
-        const errorText = await res.text();
-        console.error('❌ Failed to toggle like:', res.status, errorText);
-        throw new Error(`Failed to toggle like: ${res.status} ${errorText}`);
-      }
+      setComments(prev =>
+        prev
+          ? prev.map(comment =>
+              comment._id === commentId
+                ? {
+                    ...comment,
+                    likes: likedByCurrentUser
+                      ? [...comment.likes, currentUserId]
+                      : comment.likes.filter(id => id !== currentUserId),
+                  }
+                : comment,
+            )
+          : prev,
+      );
     } catch (err: any) {
-      console.error('💥 Error toggling like:', err);
-      setError(`Failed to toggle like: ${err.message}`);
+      console.error('Error toggling like:', err);
+      setError(err.message || 'Failed to toggle like');
     } finally {
       setIsLoading(false);
     }
   };
 
   const toggleReplyLike = async (commentId: string, replyId: string) => {
-    console.log('❤️ Toggling like for reply:', replyId, 'in comment:', commentId);
     if (!currentUserId) {
-      console.log('❌ No user logged in');
       setError('Please log in to like a reply.');
       return;
     }
+
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-      const res = await fetch(
-        `${backendBaseUrl}/api/comments/like-reply/${commentId}/${replyId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ userId: currentUserId }),
-          signal: controller.signal,
-        }
+      const { likedByCurrentUser } = await toggleReplyLikeAPI(
+        commentId,
+        replyId,
+        currentUserId,
       );
 
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const { likesCount, likedByCurrentUser } = await res.json();
-        console.log('❤️ Reply like toggled:', likedByCurrentUser, 'Total likes:', likesCount);
-        
-        setComments((prev) =>
-          prev
-            ? prev.map((comment) =>
-                comment._id === commentId
-                  ? {
-                      ...comment,
-                      replies: comment.replies.map((reply) =>
-                        reply._id === replyId
-                          ? {
-                              ...reply,
-                              likes: likedByCurrentUser
-                                ? [...reply.likes, currentUserId]
-                                : reply.likes.filter(
-                                    (id) => id !== currentUserId
-                                  ),
-                            }
-                          : reply
-                      ),
-                    }
-                  : comment
-              )
-            : prev
-        );
-      } else {
-        const errorText = await res.text();
-        console.error('❌ Failed to toggle reply like:', res.status, errorText);
-        throw new Error(
-          `Failed to toggle reply like: ${res.status} ${errorText}`
-        );
-      }
+      setComments(prev =>
+        prev
+          ? prev.map(comment =>
+              comment._id === commentId
+                ? {
+                    ...comment,
+                    replies: comment.replies.map(reply =>
+                      reply._id === replyId
+                        ? {
+                            ...reply,
+                            likes: likedByCurrentUser
+                              ? [...reply.likes, currentUserId]
+                              : reply.likes.filter(id => id !== currentUserId),
+                          }
+                        : reply,
+                    ),
+                  }
+                : comment,
+            )
+          : prev,
+      );
     } catch (err: any) {
-      console.error('💥 Error toggling reply like:', err);
-      setError(`Failed to toggle reply like: ${err.message}`);
+      console.error('Error toggling reply like:', err);
+      setError(err.message || 'Failed to toggle reply like');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Delete function
   const handleDelete = async () => {
-    if (!showDeleteConfirm || !currentUserId) {
-      console.log('❌ No delete confirmation or user');
-      return;
-    }
-    
-    console.log('🗑️ Deleting:', showDeleteConfirm.type, showDeleteConfirm.id);
+    if (!showDeleteConfirm || !currentUserId) return;
+
     setIsLoading(true);
     try {
-      const authToken = await getAuthToken();
       const { id, type, commentId } = showDeleteConfirm;
-      const url =
-        type === 'comment'
-          ? `${backendBaseUrl}/api/comments/delete/${id}`
-          : `${backendBaseUrl}/api/comments/delete-reply/${commentId}/${id}`;
 
-      console.log('🗑️ Delete URL:', url);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-      const res = await fetch(url, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        console.log('✅ Delete successful');
-        if (type === 'comment') {
-          setComments(
-            (prev) => prev?.filter((comment) => comment._id !== id) || null
-          );
-          console.log('💬 Comment removed from state');
-        } else {
-          setComments((prev) =>
-            prev
-              ? prev.map((comment) =>
-                  comment._id === commentId
-                    ? {
-                        ...comment,
-                        replies: comment.replies.filter(
-                          (reply) => reply._id !== id
-                        ),
-                      }
-                    : comment
-                )
-              : prev
-          );
-          console.log('💬 Reply removed from state');
-        }
-        setShowDeleteConfirm(null);
-        setHasFetchedComments(false);
-        debouncedFetchCommenters();
+      if (type === 'comment') {
+        await deleteCommentAPI(id);
+        setComments(
+          prev => prev?.filter(comment => comment._id !== id) || null,
+        );
       } else {
-        const errorText = await res.text();
-        console.error('❌ Delete failed:', res.status, errorText);
-        throw new Error(`Failed to delete ${type}: ${res.status} ${errorText}`);
+        await deleteReplyAPI(commentId!, id);
+        setComments(prev =>
+          prev
+            ? prev.map(comment =>
+                comment._id === commentId
+                  ? {
+                      ...comment,
+                      replies: comment.replies.filter(
+                        reply => reply._id !== id,
+                      ),
+                    }
+                  : comment,
+              )
+            : prev,
+        );
       }
+
+      setShowDeleteConfirm(null);
+      setHasFetchedComments(false);
+      debouncedFetchCommenters();
     } catch (err: any) {
-      console.error('💥 Error deleting:', err);
-      setError(`Failed to delete ${showDeleteConfirm?.type}: ${err.message}`);
+      console.error('Error deleting:', err);
+      setError(err.message || `Failed to delete ${showDeleteConfirm?.type}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleNavigateToProfile = (userId: string | null) => {
-    console.log('👤 Navigating to profile:', userId);
     if (!userId) {
-      console.log('❌ Cannot navigate: User ID is missing.');
       setError('Cannot navigate: User ID is missing.');
       return;
     }
@@ -869,9 +581,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   const handleNavigateToReport = (userId: string | null) => {
-    console.log('⚠️ Navigating to report:', userId);
     if (!userId) {
-      console.log('❌ Cannot navigate: User ID is missing.');
       setError('Cannot navigate: User ID is missing.');
       return;
     }
@@ -880,22 +590,18 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   const toggleReplies = (commentId: string) => {
-    const newState = !showReplies[commentId];
-    console.log('💬 Toggling replies for comment:', commentId, 'New state:', newState);
-    setShowReplies((prev) => ({ ...prev, [commentId]: newState }));
+    setShowReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
   const handleEmojiClick = (emoji: string, inputType: 'comment' | 'reply') => {
-    console.log('😊 Emoji clicked:', emoji, 'for', inputType);
     if (inputType === 'comment') {
-      setNewComment((prev) => prev + emoji);
+      setNewComment(prev => prev + emoji);
     } else {
-      setReplyContent((prev) => prev + emoji);
+      setReplyContent(prev => prev + emoji);
     }
   };
 
   const removeMedia = (type: 'comment' | 'reply') => {
-    console.log('🗑️ Removing media from:', type);
     if (type === 'comment') {
       setNewCommentMedia(null);
       setNewCommentMediaType(null);
@@ -906,25 +612,22 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   };
 
   useEffect(() => {
-    console.log('🔵 useEffect - Initial fetch');
     debouncedFetchCommenters();
     if (showComments && !hasFetchedComments) {
       fetchCommentsAndUsers();
     }
     return () => {
-      console.log('🔴 Cleanup - Cancelling debounced fetch');
       debouncedFetchCommenters.cancel();
     };
   }, [
     productId,
-    getAuthToken,
     debouncedFetchCommenters,
     showComments,
     hasFetchedComments,
+    fetchCommentsAndUsers,
   ]);
 
   useEffect(() => {
-    console.log('🔵 useEffect - Fetch current user image');
     fetchCurrentUserImage();
   }, [fetchCurrentUserImage]);
 
@@ -936,9 +639,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   const renderComment = (comment: Comment) => {
     const user = comment.userId ? users[comment.userId] : null;
     const isHovered = hoveredComment === comment._id;
-    
-    console.log('💬 Rendering comment:', comment._id, 'User:', user?.name);
-    
+
     return (
       <TouchableOpacity
         activeOpacity={0.9}
@@ -946,7 +647,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
         onPressOut={handleHoverOut}
         key={comment._id}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.commentContainer,
             { backgroundColor: colors.cardBackground },
@@ -955,7 +656,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
               borderColor: colors.hoverBorder,
               borderWidth: 1,
             },
-            { transform: [{ scale: isHovered ? 1.02 : 1 }] }
+            { transform: [{ scale: isHovered ? 1.02 : 1 }] },
           ]}
         >
           <View style={styles.commentHeader}>
@@ -978,7 +679,9 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
           </View>
 
           {comment.content ? (
-            <Text style={[styles.commentContent, { color: colors.primaryText }]}>
+            <Text
+              style={[styles.commentContent, { color: colors.primaryText }]}
+            >
               {comment.content}
             </Text>
           ) : null}
@@ -987,7 +690,11 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
             <View style={styles.mediaContainer}>
               <Image
                 source={{ uri: getImageUrl(comment.media) }}
-                style={comment.mediaType === 'gif' ? styles.gifMedia : styles.imageMedia}
+                style={
+                  comment.mediaType === 'gif'
+                    ? styles.gifMedia
+                    : styles.imageMedia
+                }
                 resizeMode="contain"
               />
               {comment.mediaType === 'gif' && (
@@ -998,22 +705,35 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
             </View>
           )}
 
-          <View style={[styles.commentActions, { borderTopColor: colors.border }]}>
+          <View
+            style={[styles.commentActions, { borderTopColor: colors.border }]}
+          >
             <TouchableOpacity
-              onPress={() => setReplyingTo(replyingTo === comment._id ? null : comment._id)}
-              style={[styles.actionButton, isHovered && { backgroundColor: colors.secondaryButton }]}
+              onPress={() =>
+                setReplyingTo(replyingTo === comment._id ? null : comment._id)
+              }
+              style={[
+                styles.actionButton,
+                isHovered && { backgroundColor: colors.secondaryButton },
+              ]}
             >
               <Icon name="reply" size={12} color={colors.secondaryText} />
-              <Text style={[styles.actionText, { color: colors.secondaryText }]}>Reply</Text>
+              <Text
+                style={[styles.actionText, { color: colors.secondaryText }]}
+              >
+                Reply
+              </Text>
             </TouchableOpacity>
 
             {currentUserId === comment.userId && (
               <TouchableOpacity
-                onPress={() => setShowDeleteConfirm({
-                  id: comment._id,
-                  type: 'comment',
-                })}
-                style={[styles.actionButton, isHovered && { backgroundColor: colors.secondaryButton }]}
+                onPress={() =>
+                  setShowDeleteConfirm({ id: comment._id, type: 'comment' })
+                }
+                style={[
+                  styles.actionButton,
+                  isHovered && { backgroundColor: colors.secondaryButton },
+                ]}
               >
                 <Icon name="trash" size={12} color={colors.secondaryText} />
               </TouchableOpacity>
@@ -1021,19 +741,35 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
 
             <TouchableOpacity
               onPress={() => handleNavigateToReport(comment.userId)}
-              style={[styles.actionButton, isHovered && { backgroundColor: colors.secondaryButton }]}
+              style={[
+                styles.actionButton,
+                isHovered && { backgroundColor: colors.secondaryButton },
+              ]}
             >
-              <Icon name="exclamation-circle" size={12} color={colors.secondaryText} />
+              <Icon
+                name="exclamation-circle"
+                size={12}
+                color={colors.secondaryText}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => toggleLike(comment._id)}
-              style={[styles.actionButton, isHovered && { backgroundColor: colors.secondaryButton }]}
+              style={[
+                styles.actionButton,
+                isHovered && { backgroundColor: colors.secondaryButton },
+              ]}
             >
               <Icon
-                name={comment.likes.includes(currentUserId) ? "heart" : "heart-o"}
+                name={
+                  comment.likes.includes(currentUserId) ? 'heart' : 'heart-o'
+                }
                 size={12}
-                color={comment.likes.includes(currentUserId) ? colors.likeActive : colors.secondaryText}
+                color={
+                  comment.likes.includes(currentUserId)
+                    ? colors.likeActive
+                    : colors.secondaryText
+                }
               />
               <Text style={[styles.likeCount, { color: colors.secondaryText }]}>
                 {comment.likes.length}
@@ -1041,17 +777,18 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Replies Section */}
           {comment.replies.length > 0 && (
             <TouchableOpacity
               onPress={() => toggleReplies(comment._id)}
               style={[
-                styles.viewRepliesButton, 
+                styles.viewRepliesButton,
                 { backgroundColor: colors.secondaryButton },
-                isHovered && { backgroundColor: colors.badgeBackground }
+                isHovered && { backgroundColor: colors.badgeBackground },
               ]}
             >
-              <Text style={[styles.viewRepliesText, { color: colors.badgeText }]}>
+              <Text
+                style={[styles.viewRepliesText, { color: colors.badgeText }]}
+              >
                 {showReplies[comment._id]
                   ? 'Hide Replies'
                   : `View Replies (${comment.replies.length})`}
@@ -1059,15 +796,17 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
             </TouchableOpacity>
           )}
 
-          {/* Replies List */}
           {showReplies[comment._id] && comment.replies.length > 0 && (
-            <View style={[styles.repliesContainer, { borderLeftColor: colors.border }]}>
-              {comment.replies.map((reply) => {
+            <View
+              style={[
+                styles.repliesContainer,
+                { borderLeftColor: colors.border },
+              ]}
+            >
+              {comment.replies.map(reply => {
                 const replyUser = reply.userId ? users[reply.userId] : null;
                 const isReplyHovered = hoveredReply === reply._id;
-                
-                console.log('💬 Rendering reply:', reply._id, 'User:', replyUser?.name);
-                
+
                 return (
                   <TouchableOpacity
                     key={reply._id}
@@ -1075,19 +814,19 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                     onPressIn={() => handleHoverIn('reply', reply._id)}
                     onPressOut={handleHoverOut}
                   >
-                    <Animated.View 
+                    <Animated.View
                       style={[
                         styles.replyContainer,
-                        { 
+                        {
                           backgroundColor: colors.cardBackground,
-                          borderColor: colors.border 
+                          borderColor: colors.border,
                         },
                         isReplyHovered && {
                           backgroundColor: colors.hoverBackground,
                           borderColor: colors.hoverBorder,
                           borderWidth: 1,
                         },
-                        { transform: [{ scale: isReplyHovered ? 1.02 : 1 }] }
+                        { transform: [{ scale: isReplyHovered ? 1.02 : 1 }] },
                       ]}
                     >
                       <View style={styles.replyHeader}>
@@ -1098,19 +837,33 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                           <Image
                             source={{ uri: getImageUrl(replyUser?.image) }}
                             style={styles.smallAvatar}
-                            defaultSource={{ uri: 'https://via.placeholder.com/32' }}
+                            defaultSource={{
+                              uri: 'https://via.placeholder.com/32',
+                            }}
                           />
-                          <Text style={[styles.userName, { color: colors.primaryText }]}>
+                          <Text
+                            style={[
+                              styles.userName,
+                              { color: colors.primaryText },
+                            ]}
+                          >
                             {replyUser?.name ?? 'Deleted User'}
                           </Text>
                         </TouchableOpacity>
-                        <Text style={[styles.date, { color: colors.secondaryText }]}>
+                        <Text
+                          style={[styles.date, { color: colors.secondaryText }]}
+                        >
                           {formatDate(reply.createdAt)}
                         </Text>
                       </View>
 
                       {reply.content ? (
-                        <Text style={[styles.replyContent, { color: colors.primaryText }]}>
+                        <Text
+                          style={[
+                            styles.replyContent,
+                            { color: colors.primaryText },
+                          ]}
+                        >
                           {reply.content}
                         </Text>
                       ) : null}
@@ -1119,7 +872,11 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                         <View style={styles.mediaContainer}>
                           <Image
                             source={{ uri: getImageUrl(reply.media) }}
-                            style={reply.mediaType === 'gif' ? styles.gifMedia : styles.imageMedia}
+                            style={
+                              reply.mediaType === 'gif'
+                                ? styles.gifMedia
+                                : styles.imageMedia
+                            }
                             resizeMode="contain"
                           />
                           {reply.mediaType === 'gif' && (
@@ -1132,37 +889,77 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
 
                       <View style={styles.replyActions}>
                         <TouchableOpacity
-                          onPress={() => toggleReplyLike(comment._id, reply._id)}
-                          style={[styles.actionButton, isReplyHovered && { backgroundColor: colors.secondaryButton }]}
+                          onPress={() =>
+                            toggleReplyLike(comment._id, reply._id)
+                          }
+                          style={[
+                            styles.actionButton,
+                            isReplyHovered && {
+                              backgroundColor: colors.secondaryButton,
+                            },
+                          ]}
                         >
                           <Icon
-                            name={reply.likes.includes(currentUserId) ? "heart" : "heart-o"}
+                            name={
+                              reply.likes.includes(currentUserId)
+                                ? 'heart'
+                                : 'heart-o'
+                            }
                             size={10}
-                            color={reply.likes.includes(currentUserId) ? colors.likeActive : colors.secondaryText}
+                            color={
+                              reply.likes.includes(currentUserId)
+                                ? colors.likeActive
+                                : colors.secondaryText
+                            }
                           />
-                          <Text style={[styles.likeCount, { color: colors.secondaryText }]}>
+                          <Text
+                            style={[
+                              styles.likeCount,
+                              { color: colors.secondaryText },
+                            ]}
+                          >
                             {reply.likes.length}
                           </Text>
                         </TouchableOpacity>
 
                         {currentUserId === reply.userId && (
                           <TouchableOpacity
-                            onPress={() => setShowDeleteConfirm({
-                              id: reply._id,
-                              type: 'reply',
-                              commentId: comment._id,
-                            })}
-                            style={[styles.actionButton, isReplyHovered && { backgroundColor: colors.secondaryButton }]}
+                            onPress={() =>
+                              setShowDeleteConfirm({
+                                id: reply._id,
+                                type: 'reply',
+                                commentId: comment._id,
+                              })
+                            }
+                            style={[
+                              styles.actionButton,
+                              isReplyHovered && {
+                                backgroundColor: colors.secondaryButton,
+                              },
+                            ]}
                           >
-                            <Icon name="trash" size={12} color={colors.secondaryText} />
+                            <Icon
+                              name="trash"
+                              size={12}
+                              color={colors.secondaryText}
+                            />
                           </TouchableOpacity>
                         )}
 
                         <TouchableOpacity
                           onPress={() => handleNavigateToReport(reply.userId)}
-                          style={[styles.actionButton, isReplyHovered && { backgroundColor: colors.secondaryButton }]}
+                          style={[
+                            styles.actionButton,
+                            isReplyHovered && {
+                              backgroundColor: colors.secondaryButton,
+                            },
+                          ]}
                         >
-                          <Icon name="exclamation-circle" size={12} color={colors.secondaryText} />
+                          <Icon
+                            name="exclamation-circle"
+                            size={12}
+                            color={colors.secondaryText}
+                          />
                         </TouchableOpacity>
                       </View>
                     </Animated.View>
@@ -1176,46 +973,46 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
     );
   };
 
-  console.log('🎨 Rendering CommentComponent UI');
-  console.log('📊 State - showComments:', showComments);
-  console.log('📊 State - comments count:', comments?.length || 0);
-  console.log('📊 State - isLoading:', isLoading);
-  console.log('📊 State - error:', error);
-  console.log('🎯 Theme - isDark:', isDark, 'resolvedTheme:', resolvedTheme);
-
   return (
     <View style={styles.container}>
-      {/* Loading Overlay */}
       {isLoading && (
-        <View style={[styles.loadingOverlay, { backgroundColor: colors.loadingOverlay }]}>
+        <View
+          style={[
+            styles.loadingOverlay,
+            { backgroundColor: colors.loadingOverlay },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.primaryButton} />
         </View>
       )}
 
-      {/* Comment Button */}
       <View style={styles.commentButtonContainer}>
         <TouchableOpacity
           onPress={openComments}
-          style={[
-            styles.commentButton, 
-            { backgroundColor: colors.background },
-            totalCommentCount > 0 && { backgroundColor: colors.background }
-          ]}
+          style={[styles.commentButton, { backgroundColor: colors.background }]}
         >
-          <Icon 
-            name="comment-o" 
-            size={20} 
-            color={totalCommentCount > 0 ? colors.primaryButton : colors.secondaryText} 
+          <Icon
+            name="comment-o"
+            size={20}
+            color={
+              totalCommentCount > 0
+                ? colors.primaryButton
+                : colors.secondaryText
+            }
           />
           {totalCommentCount > 0 && (
-            <View style={[styles.commentCountBadge, { backgroundColor: colors.primaryButton }]}>
+            <View
+              style={[
+                styles.commentCountBadge,
+                { backgroundColor: colors.primaryButton },
+              ]}
+            >
               <Text style={styles.commentCountText}>{totalCommentCount}</Text>
             </View>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Comments Modal */}
       <Modal
         visible={showComments}
         animationType="none"
@@ -1223,37 +1020,63 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
         statusBarTranslucent={true}
       >
         <View style={styles.modalWrapper}>
-          {/* Transparent overlay that covers entire screen */}
-          <Animated.View style={[styles.modalOverlay, { 
-            backgroundColor: colors.overlay,
-            opacity: fadeAnim 
-          }]}>
-            <KeyboardAvoidingView 
+          <Animated.View
+            style={[
+              styles.modalOverlay,
+              { backgroundColor: colors.overlay, opacity: fadeAnim },
+            ]}
+          >
+            <KeyboardAvoidingView
               style={styles.keyboardAvoidingView}
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 25}
             >
-              {/* Content container with bottom safe area */}
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.modalContentContainer,
-                  { transform: [{ translateY: slideAnim }] }
+                  { transform: [{ translateY: slideAnim }] },
                 ]}
               >
-                <View style={[styles.modalContent, { backgroundColor: colors.modalBackground }]}>
-                  {/* Header */}
-                  <SafeAreaView style={{ backgroundColor: colors.modalBackground }}>
-                    <View style={[styles.modalHeader, { 
-                      backgroundColor: colors.modalBackground,
-                      borderBottomColor: colors.border 
-                    }]}>
+                <View
+                  style={[
+                    styles.modalContent,
+                    { backgroundColor: colors.modalBackground },
+                  ]}
+                >
+                  <SafeAreaView
+                    style={{ backgroundColor: colors.modalBackground }}
+                  >
+                    <View
+                      style={[
+                        styles.modalHeader,
+                        {
+                          backgroundColor: colors.modalBackground,
+                          borderBottomColor: colors.border,
+                        },
+                      ]}
+                    >
                       <View style={styles.modalHeaderLeft}>
-                        <Text style={[styles.modalTitle, { color: colors.primaryText }]}>
+                        <Text
+                          style={[
+                            styles.modalTitle,
+                            { color: colors.primaryText },
+                          ]}
+                        >
                           Comments
                         </Text>
                         {totalCommentCount > 0 && (
-                          <View style={[styles.totalCommentsBadge, { backgroundColor: colors.badgeBackground }]}>
-                            <Text style={[styles.totalCommentsText, { color: colors.badgeText }]}>
+                          <View
+                            style={[
+                              styles.totalCommentsBadge,
+                              { backgroundColor: colors.badgeBackground },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.totalCommentsText,
+                                { color: colors.badgeText },
+                              ]}
+                            >
                               {totalCommentCount}
                             </Text>
                           </View>
@@ -1261,56 +1084,91 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                       </View>
                       <TouchableOpacity
                         onPress={closeComments}
-                        style={[styles.closeButton, { backgroundColor: colors.secondaryButton }]}
+                        style={[
+                          styles.closeButton,
+                          { backgroundColor: colors.secondaryButton },
+                        ]}
                       >
-                        <Icon name="times" size={20} color={colors.secondaryText} />
+                        <Icon
+                          name="times"
+                          size={20}
+                          color={colors.secondaryText}
+                        />
                       </TouchableOpacity>
                     </View>
                   </SafeAreaView>
 
-                  {/* Comments List */}
-                  <ScrollView 
+                  <ScrollView
                     style={styles.commentsList}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.commentsListContent}
                   >
                     {comments === null && !error && (
                       <View style={styles.emptyState}>
-                        <ActivityIndicator size="small" color={colors.primaryButton} />
-                        <Text style={[styles.emptyStateText, { color: colors.secondaryText }]}>
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.primaryButton}
+                        />
+                        <Text
+                          style={[
+                            styles.emptyStateText,
+                            { color: colors.secondaryText },
+                          ]}
+                        >
                           Loading comments...
                         </Text>
                       </View>
                     )}
-                    
+
                     {error && (
                       <View style={styles.emptyState}>
-                        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+                        <Text
+                          style={[styles.errorText, { color: colors.error }]}
+                        >
+                          {error}
+                        </Text>
                         <TouchableOpacity
                           onPress={() => {
                             setHasFetchedComments(false);
                             fetchCommentsAndUsers();
                             debouncedFetchCommenters();
                           }}
-                          style={[styles.retryButton, { backgroundColor: colors.primaryButton }]}
+                          style={[
+                            styles.retryButton,
+                            { backgroundColor: colors.primaryButton },
+                          ]}
                         >
                           <Text style={styles.retryText}>Retry</Text>
                         </TouchableOpacity>
                       </View>
                     )}
-                    
+
                     {comments && comments.length === 0 && (
                       <View style={styles.emptyState}>
-                        <Icon name="comment-o" size={48} color={colors.border} />
-                        <Text style={[styles.emptyStateText, { color: colors.secondaryText }]}>
+                        <Icon
+                          name="comment-o"
+                          size={48}
+                          color={colors.border}
+                        />
+                        <Text
+                          style={[
+                            styles.emptyStateText,
+                            { color: colors.secondaryText },
+                          ]}
+                        >
                           No comments yet
                         </Text>
-                        <Text style={[styles.emptyStateSubtext, { color: colors.placeholderText }]}>
+                        <Text
+                          style={[
+                            styles.emptyStateSubtext,
+                            { color: colors.placeholderText },
+                          ]}
+                        >
                           Be the first to comment!
                         </Text>
                       </View>
                     )}
-                    
+
                     {comments && comments.length > 0 && (
                       <View style={styles.commentsContainer}>
                         {comments.map(renderComment)}
@@ -1318,27 +1176,49 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                     )}
                   </ScrollView>
 
-                  {/* Add Comment Input - This handles BOTH new comments and replies */}
-                  <SafeAreaView style={{ backgroundColor: colors.modalBackground }}>
-                    <View style={[styles.addCommentContainer, { 
-                      backgroundColor: colors.modalBackground,
-                      borderTopColor: colors.border 
-                    }]}>
-                      {/* Show if replying to a comment */}
+                  <SafeAreaView
+                    style={{ backgroundColor: colors.modalBackground }}
+                  >
+                    <View
+                      style={[
+                        styles.addCommentContainer,
+                        {
+                          backgroundColor: colors.modalBackground,
+                          borderTopColor: colors.border,
+                        },
+                      ]}
+                    >
                       {replyingTo && (
-                        <View style={[styles.replyingToContainer, { backgroundColor: colors.badgeBackground }]}>
-                          <Text style={[styles.replyingToText, { color: colors.badgeText }]}>
+                        <View
+                          style={[
+                            styles.replyingToContainer,
+                            { backgroundColor: colors.badgeBackground },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.replyingToText,
+                              { color: colors.badgeText },
+                            ]}
+                          >
                             Replying to comment
                           </Text>
                           <TouchableOpacity
                             onPress={() => setReplyingTo(null)}
-                            style={[styles.cancelReplyButton, { backgroundColor: colors.secondaryButton }]}
+                            style={[
+                              styles.cancelReplyButton,
+                              { backgroundColor: colors.secondaryButton },
+                            ]}
                           >
-                            <Icon name="times" size={12} color={colors.secondaryText} />
+                            <Icon
+                              name="times"
+                              size={12}
+                              color={colors.secondaryText}
+                            />
                           </TouchableOpacity>
                         </View>
                       )}
-                      
+
                       {newCommentMedia && (
                         <View style={styles.mediaPreview}>
                           <Image
@@ -1353,25 +1233,31 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                           </TouchableOpacity>
                         </View>
                       )}
-                      
+
                       <View style={styles.addCommentRow}>
                         <Image
                           source={{ uri: getImageUrl(currentUserImage) }}
                           style={styles.avatar}
-                          defaultSource={{ uri: 'https://via.placeholder.com/40' }}
+                          defaultSource={{
+                            uri: 'https://via.placeholder.com/40',
+                          }}
                         />
                         <TextInput
                           value={replyingTo ? replyContent : newComment}
-                          onChangeText={replyingTo ? setReplyContent : setNewComment}
-                          placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
+                          onChangeText={
+                            replyingTo ? setReplyContent : setNewComment
+                          }
+                          placeholder={
+                            replyingTo ? 'Write a reply...' : 'Add a comment...'
+                          }
                           placeholderTextColor={colors.placeholderText}
                           style={[
-                            styles.commentInput, 
-                            { 
+                            styles.commentInput,
+                            {
                               backgroundColor: colors.inputBackground,
                               borderColor: colors.border,
-                              color: colors.primaryText
-                            }
+                              color: colors.primaryText,
+                            },
                           ]}
                           multiline
                           maxLength={500}
@@ -1379,50 +1265,65 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
                         <View style={styles.commentActionsContainer}>
                           <TouchableOpacity
                             onPress={() => {
-                              if (replyingTo) {
-                                handleAddReply(replyingTo);
-                              } else {
-                                handleAddComment();
-                              }
+                              if (replyingTo) handleAddReply(replyingTo);
+                              else handleAddComment();
                             }}
                             disabled={
-                              replyingTo 
-                                ? (!replyContent.trim() && !replyMedia) || !currentUserId
-                                : (!newComment.trim() && !newCommentMedia) || !currentUserId
+                              replyingTo
+                                ? (!replyContent.trim() && !replyMedia) ||
+                                  !currentUserId
+                                : (!newComment.trim() && !newCommentMedia) ||
+                                  !currentUserId
                             }
                             style={[
                               styles.sendButton,
                               { backgroundColor: colors.badgeBackground },
-                              (replyingTo 
-                                ? (!replyContent.trim() && !replyMedia) || !currentUserId
-                                : (!newComment.trim() && !newCommentMedia) || !currentUserId) && 
-                                { backgroundColor: colors.secondaryButton }
+                              (replyingTo
+                                ? (!replyContent.trim() && !replyMedia) ||
+                                  !currentUserId
+                                : (!newComment.trim() && !newCommentMedia) ||
+                                  !currentUserId) && {
+                                backgroundColor: colors.secondaryButton,
+                              },
                             ]}
                           >
                             <Icon
                               name="paper-plane"
                               size={18}
                               color={
-                                (replyingTo 
-                                  ? (replyContent.trim() || replyMedia) && currentUserId
-                                  : (newComment.trim() || newCommentMedia) && currentUserId) 
-                                  ? colors.primaryButton : colors.placeholderText
+                                (
+                                  replyingTo
+                                    ? (replyContent.trim() || replyMedia) &&
+                                      currentUserId
+                                    : (newComment.trim() || newCommentMedia) &&
+                                      currentUserId
+                                )
+                                  ? colors.primaryButton
+                                  : colors.placeholderText
                               }
                             />
                           </TouchableOpacity>
                         </View>
                       </View>
-                      
-                      <ScrollView 
-                        horizontal 
-                        showsHorizontalScrollIndicator={false} 
+
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
                         style={styles.emojiRow}
                       >
-                        {suggestedEmojis.map((emoji) => (
+                        {suggestedEmojis.map(emoji => (
                           <TouchableOpacity
                             key={emoji}
-                            onPress={() => handleEmojiClick(emoji, replyingTo ? 'reply' : 'comment')}
-                            style={[styles.emojiButton, { backgroundColor: colors.cardBackground }]}
+                            onPress={() =>
+                              handleEmojiClick(
+                                emoji,
+                                replyingTo ? 'reply' : 'comment',
+                              )
+                            }
+                            style={[
+                              styles.emojiButton,
+                              { backgroundColor: colors.cardBackground },
+                            ]}
                           >
                             <Text style={styles.emojiText}>{emoji}</Text>
                           </TouchableOpacity>
@@ -1437,7 +1338,6 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
         </View>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         visible={!!showDeleteConfirm}
         transparent={true}
@@ -1445,25 +1345,60 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
         statusBarTranslucent={true}
       >
         <SafeAreaView style={{ backgroundColor: colors.overlay }}>
-          <View style={[styles.confirmModalOverlay, { backgroundColor: colors.overlay }]}>
-            <View style={[styles.confirmModal, { backgroundColor: colors.modalBackground }]}>
-              <Icon name="exclamation-triangle" size={40} color={colors.error} style={styles.confirmIcon} />
-              <Text style={[styles.confirmTitle, { color: colors.primaryText }]}>
+          <View
+            style={[
+              styles.confirmModalOverlay,
+              { backgroundColor: colors.overlay },
+            ]}
+          >
+            <View
+              style={[
+                styles.confirmModal,
+                { backgroundColor: colors.modalBackground },
+              ]}
+            >
+              <Icon
+                name="exclamation-triangle"
+                size={40}
+                color={colors.error}
+                style={styles.confirmIcon}
+              />
+              <Text
+                style={[styles.confirmTitle, { color: colors.primaryText }]}
+              >
                 Delete {showDeleteConfirm?.type}?
               </Text>
-              <Text style={[styles.confirmMessage, { color: colors.secondaryText }]}>
-                Are you sure you want to delete this {showDeleteConfirm?.type}? This action cannot be undone.
+              <Text
+                style={[styles.confirmMessage, { color: colors.secondaryText }]}
+              >
+                Are you sure you want to delete this {showDeleteConfirm?.type}?
+                This action cannot be undone.
               </Text>
               <View style={styles.confirmButtons}>
                 <TouchableOpacity
                   onPress={() => setShowDeleteConfirm(null)}
-                  style={[styles.confirmButton, styles.cancelButton, { backgroundColor: colors.secondaryButton }]}
+                  style={[
+                    styles.confirmButton,
+                    styles.cancelButton,
+                    { backgroundColor: colors.secondaryButton },
+                  ]}
                 >
-                  <Text style={[styles.cancelButtonText, { color: colors.secondaryText }]}>Cancel</Text>
+                  <Text
+                    style={[
+                      styles.cancelButtonText,
+                      { color: colors.secondaryText },
+                    ]}
+                  >
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleDelete}
-                  style={[styles.confirmButton, styles.deleteButton, { backgroundColor: colors.error }]}
+                  style={[
+                    styles.confirmButton,
+                    styles.deleteButton,
+                    { backgroundColor: colors.error },
+                  ]}
                 >
                   <Text style={styles.deleteButtonText}>Delete</Text>
                 </TouchableOpacity>
@@ -1476,15 +1411,9 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
   );
 };
 
-// Styles remain the same as original
 const styles = StyleSheet.create({
-  container: {
-    position: 'relative',
-  },
-  commentButtonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  container: { position: 'relative' },
+  commentButtonContainer: { flexDirection: 'row', alignItems: 'center' },
   commentButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1506,24 +1435,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
   },
-  commentCountText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  modalWrapper: {
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  commentCountText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
+  modalWrapper: { flex: 1 },
+  modalOverlay: { flex: 1 },
+  keyboardAvoidingView: { flex: 1 },
+  modalContentContainer: { flex: 1, justifyContent: 'flex-end' },
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -1544,24 +1460,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
   },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
+  modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
   totalCommentsBadge: {
     paddingHorizontal: 10,
     paddingVertical: 2,
     borderRadius: 12,
   },
-  totalCommentsText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  totalCommentsText: { fontSize: 12, fontWeight: '600' },
   closeButton: {
     width: 36,
     height: 36,
@@ -1569,15 +1475,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  commentsList: {
-    flex: 1,
-  },
-  commentsListContent: {
-    flexGrow: 1,
-  },
-  commentsContainer: {
-    padding: 20,
-  },
+  commentsList: { flex: 1 },
+  commentsListContent: { flexGrow: 1 },
+  commentsContainer: { padding: 20 },
   commentContainer: {
     borderRadius: 16,
     padding: 16,
@@ -1596,11 +1496,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  userInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
     width: 40,
     height: 40,
@@ -1615,23 +1511,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  userName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  date: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  commentContent: {
-    fontSize: 15,
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  mediaContainer: {
-    marginBottom: 12,
-    position: 'relative',
-  },
+  userName: { fontSize: 14, fontWeight: '600' },
+  date: { fontSize: 12, fontWeight: '500' },
+  commentContent: { fontSize: 15, marginBottom: 12, lineHeight: 22 },
+  mediaContainer: { marginBottom: 12, position: 'relative' },
   imageMedia: {
     width: '100%',
     height: 200,
@@ -1653,11 +1536,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  gifText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
+  gifText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1674,15 +1553,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'transparent',
   },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  likeCount: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginLeft: 2,
-  },
+  actionText: { fontSize: 13, fontWeight: '500' },
+  likeCount: { fontSize: 13, fontWeight: '500', marginLeft: 2 },
   viewRepliesButton: {
     marginTop: 12,
     paddingVertical: 8,
@@ -1690,15 +1562,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
-  viewRepliesText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  repliesContainer: {
-    marginTop: 16,
-    paddingLeft: 16,
-    borderLeftWidth: 2,
-  },
+  viewRepliesText: { fontSize: 13, fontWeight: '500' },
+  repliesContainer: { marginTop: 16, paddingLeft: 16, borderLeftWidth: 2 },
   replyContainer: {
     borderRadius: 12,
     padding: 12,
@@ -1711,16 +1576,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  replyContent: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  replyActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
+  replyContent: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
+  replyActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   replyingToContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1730,10 +1587,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
-  replyingToText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  replyingToText: { fontSize: 14, fontWeight: '500' },
   cancelReplyButton: {
     width: 24,
     height: 24,
@@ -1774,23 +1628,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emojiRow: {
-    flexDirection: 'row',
-    marginTop: 12,
-  },
+  emojiRow: { flexDirection: 'row', marginTop: 12 },
   emojiButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginRight: 8,
     borderRadius: 12,
   },
-  emojiText: {
-    fontSize: 18,
-  },
-  mediaPreview: {
-    marginBottom: 12,
-    position: 'relative',
-  },
+  emojiText: { fontSize: 18 },
+  mediaPreview: { marginBottom: 12, position: 'relative' },
   mediaPreviewImage: {
     width: '100%',
     height: 120,
@@ -1808,40 +1654,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyState: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center' },
   emptyStateText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 12,
     fontWeight: '500',
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 4,
-  },
+  emptyStateSubtext: { fontSize: 14, textAlign: 'center', marginTop: 4 },
   errorText: {
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 12,
     fontWeight: '500',
   },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryText: {
-    fontSize: 14,
-    color: 'white',
-    fontWeight: '500',
-  },
+  retryButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryText: { fontSize: 14, color: 'white', fontWeight: '500' },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -1859,9 +1689,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     alignItems: 'center',
   },
-  confirmIcon: {
-    marginBottom: 16,
-  },
+  confirmIcon: { marginBottom: 16 },
   confirmTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -1874,11 +1702,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 20,
   },
-  confirmButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-  },
+  confirmButtons: { flexDirection: 'row', width: '100%', gap: 12 },
   confirmButton: {
     flex: 1,
     paddingVertical: 12,
@@ -1886,16 +1710,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {},
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  cancelButtonText: { fontSize: 14, fontWeight: '600' },
   deleteButton: {},
-  deleteButtonText: {
-    fontSize: 14,
-    color: 'white',
-    fontWeight: '600',
-  },
+  deleteButtonText: { fontSize: 14, color: 'white', fontWeight: '600' },
 });
 
 export default CommentComponent;

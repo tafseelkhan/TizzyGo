@@ -19,26 +19,36 @@ import {
   NavigationProp,
   RouteProp,
 } from '@react-navigation/native';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ✅ REPLACED: Using react-native-vector-icons instead of @expo/vector-icons
+// Icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import Feather from 'react-native-vector-icons/Feather';
 
-// ✅ REPLACED: Using react-native-lottie-splash-screen or react-native-lottie
-// Note: You'll need to install: npm install lottie-react-native
+// Lottie
 import LottieView from 'lottie-react-native';
 
-// ✅ REPLACED: expo-haptics with react-native-haptic-feedback
-// Note: You'll need to install: npm install react-native-haptic-feedback
+// Haptics
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
+// Context
 import { useTheme } from '../../contexts/theme/ThemeContext';
+
+// Services & Utils
+import {
+  orderSuccessService,
+  OrderDetails,
+} from '../../services/orders/orderSuccessService';
+import {
+  getStatusDisplayInfo,
+  calculateTotalAmount,
+  getStepsWithStatus,
+  getDefaultDeliveryEstimate,
+  getPaymentMethodType,
+} from '../../utils/orders/orderSuccessUtils';
+import { DeliveryStatus, LiveDeliveryData } from '../../../api/features/private/orderSuccessPrivateSlice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,91 +56,27 @@ const { width, height } = Dimensions.get('window');
 const SUCCESS_ANIMATION_LIGHT = require('../animations/lotties/successcheck.json');
 const DELIVERY_ANIMATION = require('../animations/lotties/delivery.json');
 
-// Define delivery status types based on your DB model (EXACT MATCH WITH DB ENUM)
-type DeliveryStatus =
-  | 'waiting_for_seller'
-  | 'pending_rider_accept'
-  | 'assigned'
-  | 'waiting_for_rider'
-  | 'picked_up'
-  | 'delivered';
-
-// Define all possible payment method types
-type PaymentMethodType = 'stripe_payment' | 'cod' | 'online' | 'unknown';
-
-// ✅ Define navigation param list for type safety
+// Navigation param types
 type RootStackParamList = {
   Home: undefined;
   RateOrder: { orderId: string };
   OrderDetails: { orderId: string };
   OrderTracking: { orderId: string; liveData?: LiveDeliveryData | null };
   OrderSuccessScreen: OrderSuccessParams;
-  Order: { screen: string; params: any };
 };
 
 interface OrderSuccessParams {
   orderId?: string;
-  source?: PaymentMethodType;
+  source?: 'stripe_payment' | 'cod' | 'online' | 'unknown';
   totalAmount?: number;
 }
 
-// Interface for Live API Response with delivery status
-interface LiveDeliveryData {
-  success: boolean;
-  deliveryStatus?: DeliveryStatus;
-  currentStatus?: string;
-  status?: string;
-  riderLocation?: {
-    latitude: number;
-    longitude: number;
-  };
-  estimate?: {
-    minutes: number;
-    text: string;
-    distance: string;
-  };
-  route?: {
-    polyline: string;
-    legs: any[];
-  };
-  riderDetails?: {
-    name?: string;
-    phone?: string;
-    vehicleType?: string;
-  };
-  sellerDetails?: {
-    name?: string;
-    address?: string;
-  };
-}
-
-interface DeliveryEstimate {
-  estimatedTime: number;
-  estimatedDelivery: string;
-  deliveryType: 'express' | 'standard';
-  distance: string;
-}
-
-// Status configuration interface
-interface StatusConfig {
-  title: string;
-  subtitle: string;
-  animation: any;
-  progressPercentage: number;
-  currentStepIndex: number; // Current step index (0-4)
-  showRiderInfo: boolean;
-  showSellerInfo: boolean;
-  showDeliveryProgress: boolean;
-  mainButtonText: string;
-}
-
-// ✅ Haptic feedback options
+// Haptic options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// Trigger haptic feedback (replaces expo-haptics)
 const triggerHaptic = (
   type:
     | 'notificationSuccess'
@@ -139,224 +85,89 @@ const triggerHaptic = (
     | 'impactHeavy' = 'notificationSuccess',
 ) => {
   if (Platform.OS === 'ios') {
-    switch (type) {
-      case 'notificationSuccess':
-        ReactNativeHapticFeedback.trigger('notificationSuccess', hapticOptions);
-        break;
-      case 'impactLight':
-        ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
-        break;
-      case 'impactMedium':
-        ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-        break;
-      case 'impactHeavy':
-        ReactNativeHapticFeedback.trigger('impactHeavy', hapticOptions);
-        break;
-    }
+    const hapticMap = {
+      notificationSuccess: 'notificationSuccess',
+      impactLight: 'impactLight',
+      impactMedium: 'impactMedium',
+      impactHeavy: 'impactHeavy',
+    };
+    ReactNativeHapticFeedback.trigger(hapticMap[type] as any, hapticOptions);
   } else {
-    // Android fallback
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
   }
 };
 
 const OrderSuccessScreen: React.FC = () => {
-  // ✅ Typed navigation
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'OrderSuccessScreen'>>();
-
   const params = (route.params || {}) as OrderSuccessParams;
   const { isDark, resolvedTheme } = useTheme();
 
+  // State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [deliveryEstimate, setDeliveryEstimate] =
-    useState<DeliveryEstimate | null>(null);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [deliveryEstimate, setDeliveryEstimate] = useState<any>(null);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(true);
   const [liveData, setLiveData] = useState<LiveDeliveryData | null>(null);
-  const [apiCallStatus, setApiCallStatus] = useState<{
-    orderFetch: 'idle' | 'loading' | 'success' | 'error';
-    liveFetch: 'idle' | 'loading' | 'success' | 'error';
-    errorMessage?: string;
-  }>({
-    orderFetch: 'idle',
-    liveFetch: 'idle',
-  });
-
-  // LIVE ETA STATE
+  const [deliveryStatus, setDeliveryStatus] =
+    useState<DeliveryStatus>('waiting_for_seller');
   const [eta, setEta] = useState<string>('');
   const [distance, setDistance] = useState<string>('');
   const [liveLoading, setLiveLoading] = useState(false);
-
-  // Delivery Status State - Initialize with DB enum value
-  const [deliveryStatus, setDeliveryStatus] =
-    useState<DeliveryStatus>('waiting_for_seller');
+  const [apiCallStatus, setApiCallStatus] = useState({
+    orderFetch: 'idle' as 'idle' | 'loading' | 'success' | 'error',
+    liveFetch: 'idle' as 'idle' | 'loading' | 'success' | 'error',
+    errorMessage: '',
+  });
 
   // Animations
   const progressAnim = useRef(new Animated.Value(0)).current;
   const successAnimationRef = useRef<LottieView>(null);
   const deliveryAnimationRef = useRef<LottieView>(null);
 
-  // Track if animations have been played once
-  const [animationsPlayed, setAnimationsPlayed] = useState(false);
-
-  // Get theme-based colors
-  const getThemeColors = () => {
-    return {
-      primary: '#635BFF',
-      primaryLight: '#A8A4FF',
-      primaryDark: '#4A43D9',
-
-      background: isDark ? '#0F172A' : '#f8fafc',
-      cardBackground: isDark ? '#1E293B' : '#ffffff',
-      surface: isDark ? '#334155' : '#f1f5f9',
-
-      textPrimary: isDark ? '#F1F5F9' : '#1a1a1a',
-      textSecondary: isDark ? '#94A3B8' : '#64748b',
-      textTertiary: isDark ? '#64748B' : '#94A3B8',
-
-      success: '#10b981',
-      successLight: isDark ? '#064E3B' : '#D1FAE5',
-      warning: '#f59e0b',
-      warningLight: isDark ? '#78350F' : '#FEF3C7',
-      error: '#ef4444',
-      errorLight: isDark ? '#7F1D1D' : '#FEE2E2',
-      info: '#3b82f6',
-
-      border: isDark ? '#334155' : '#e2e8f0',
-      divider: isDark ? '#334155' : '#e2e8f0',
-
-      shadow: isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)',
-
-      progressBarBg: isDark ? '#334155' : '#e2e8f0',
-      progressBarFill: '#635BFF',
-      deliveryCardBg: isDark ? '#1E293B' : '#f0f7ff',
-      orderIdBg: isDark ? '#0F172A' : '#f8fafc',
-
-      statusWaiting: isDark ? '#f59e0b' : '#f59e0b',
-      statusPending: isDark ? '#f59e0b' : '#f59e0b',
-      statusAssigned: isDark ? '#3b82f6' : '#3b82f6',
-      statusReady: isDark ? '#10b981' : '#10b981',
-      statusPicked: isDark ? '#8b5cf6' : '#8b5cf6',
-      statusDelivered: isDark ? '#10b981' : '#10b981',
-    };
-  };
+  // Get theme colors
+  const getThemeColors = () => ({
+    primary: '#635BFF',
+    primaryLight: '#A8A4FF',
+    primaryDark: '#4A43D9',
+    background: isDark ? '#0F172A' : '#f8fafc',
+    cardBackground: isDark ? '#1E293B' : '#ffffff',
+    surface: isDark ? '#334155' : '#f1f5f9',
+    textPrimary: isDark ? '#F1F5F9' : '#1a1a1a',
+    textSecondary: isDark ? '#94A3B8' : '#64748b',
+    textTertiary: isDark ? '#64748B' : '#94A3B8',
+    success: '#10b981',
+    successLight: isDark ? '#064E3B' : '#D1FAE5',
+    warning: '#f59e0b',
+    warningLight: isDark ? '#78350F' : '#FEF3C7',
+    error: '#ef4444',
+    errorLight: isDark ? '#7F1D1D' : '#FEE2E2',
+    info: '#3b82f6',
+    border: isDark ? '#334155' : '#e2e8f0',
+    divider: isDark ? '#334155' : '#e2e8f0',
+    shadow: isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)',
+    progressBarBg: isDark ? '#334155' : '#e2e8f0',
+    progressBarFill: '#635BFF',
+    deliveryCardBg: isDark ? '#1E293B' : '#f0f7ff',
+    orderIdBg: isDark ? '#0F172A' : '#f8fafc',
+    statusWaiting: isDark ? '#f59e0b' : '#f59e0b',
+    statusPending: isDark ? '#f59e0b' : '#f59e0b',
+    statusAssigned: isDark ? '#3b82f6' : '#3b82f6',
+    statusReady: isDark ? '#10b981' : '#10b981',
+    statusPicked: isDark ? '#8b5cf6' : '#8b5cf6',
+    statusDelivered: isDark ? '#10b981' : '#10b981',
+  });
 
   const colors = getThemeColors();
+  const statusConfig = orderSuccessService.getStatusConfig(deliveryStatus);
+  const statusInfo = getStatusDisplayInfo(deliveryStatus, colors);
+  const steps = getStepsWithStatus();
 
-  // Get status configuration based on delivery status (EXACT MATCH WITH DB ENUM)
-  const getStatusConfig = (status: DeliveryStatus): StatusConfig => {
-    const configs: Record<DeliveryStatus, StatusConfig> = {
-      waiting_for_seller: {
-        title: 'Order Confirmed!',
-        subtitle: 'Seller is preparing your order',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 0, // First step
-        currentStepIndex: 0, // Step 0
-        showRiderInfo: false,
-        showSellerInfo: true,
-        showDeliveryProgress: true,
-        mainButtonText: 'View Order Details',
-      },
-      pending_rider_accept: {
-        title: 'Order Ready!',
-        subtitle: 'Waiting for rider to accept delivery',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 25, // Second step
-        currentStepIndex: 1, // Step 1
-        showRiderInfo: false,
-        showSellerInfo: true,
-        showDeliveryProgress: true,
-        mainButtonText: 'Track Order Status',
-      },
-      assigned: {
-        title: 'Rider Assigned!',
-        subtitle: 'Your delivery rider is on the way to seller',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 50, // Third step
-        currentStepIndex: 2, // Step 2
-        showRiderInfo: true,
-        showSellerInfo: true,
-        showDeliveryProgress: true,
-        mainButtonText: 'Track Live Location',
-      },
-      waiting_for_rider: {
-        title: 'Waiting for Rider',
-        subtitle: 'Rider has arrived at seller location',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 75, // Fourth step
-        currentStepIndex: 3, // Step 3
-        showRiderInfo: true,
-        showSellerInfo: true,
-        showDeliveryProgress: true,
-        mainButtonText: 'Track Live Location',
-      },
-      picked_up: {
-        title: 'Order Picked Up!',
-        subtitle: 'Rider has picked up your order and is on the way',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 90, // Fifth step
-        currentStepIndex: 4, // Step 4
-        showRiderInfo: true,
-        showSellerInfo: false,
-        showDeliveryProgress: true,
-        mainButtonText: 'Track Live Delivery',
-      },
-      delivered: {
-        title: 'Order Delivered!',
-        subtitle: 'Your order has been successfully delivered',
-        animation: DELIVERY_ANIMATION,
-        progressPercentage: 100, // Final step
-        currentStepIndex: 5, // Step 5 (completed)
-        showRiderInfo: false,
-        showSellerInfo: false,
-        showDeliveryProgress: false,
-        mainButtonText: 'Rate Your Order',
-      },
-    };
-
-    return configs[status];
-  };
-
-  const successAnimationSource = SUCCESS_ANIMATION_LIGHT;
-
-  const styles = makeStyles(colors, isDark);
-  const statusConfig = getStatusConfig(deliveryStatus);
-
-  // Start initial animations
-  useEffect(() => {
-    console.log('🎬 ========== ORDER SUCCESS SCREEN STARTED ==========');
-
-    if (!params.orderId) {
-      console.error('❌ CRITICAL: No orderId found in params!');
-      Alert.alert('Error', 'Order information not found. Please try again.', [
-        {
-          text: 'Go Home',
-          onPress: () => navigation.navigate('Home'),
-        },
-      ]);
-      return;
-    }
-
-    console.log('✅ Order ID found:', params.orderId);
-    triggerHaptic('notificationSuccess');
-
-    if (successAnimationRef.current) {
-      successAnimationRef.current.play();
-    }
-
-    setTimeout(() => {
-      setShowSuccessAnimation(false);
-      fetchOrderDetails();
-    }, 3000);
-  }, []);
-
-  // Function to start progress animation based on status
+  // Start progress animation
   const startProgressAnimation = (status: DeliveryStatus) => {
-    const config = getStatusConfig(status);
-
+    const config = orderSuccessService.getStatusConfig(status);
     progressAnim.setValue(0);
-
     Animated.timing(progressAnim, {
       toValue: config.progressPercentage / 100,
       duration: 1500,
@@ -365,213 +176,100 @@ const OrderSuccessScreen: React.FC = () => {
     }).start();
   };
 
-  // Update delivery status from API response - CORRECTED VERSION
+  // Update delivery status from API
   const updateDeliveryStatus = (apiData: LiveDeliveryData) => {
-    // Try multiple possible fields from API
     const statusFromApi =
       apiData.deliveryStatus || apiData.currentStatus || apiData.status;
 
-    console.log('📦 API Status Received:', statusFromApi);
-
     if (statusFromApi) {
-      // Direct mapping to DB enum values
-      const statusMap: Record<string, DeliveryStatus> = {
-        // Direct matches with DB enum
-        waiting_for_seller: 'waiting_for_seller',
-        pending_rider_accept: 'pending_rider_accept',
-        assigned: 'assigned',
-        waiting_for_rider: 'waiting_for_rider',
-        picked_up: 'picked_up',
-        delivered: 'delivered',
-
-        // Possible variations from API
-        order_confirmed: 'waiting_for_seller',
-        order_ready: 'pending_rider_accept',
-        rider_assigned: 'assigned',
-        rider_arrived: 'waiting_for_rider',
-        order_picked: 'picked_up',
-        delivery_completed: 'delivered',
-      };
-
-      const mappedStatus = statusMap[statusFromApi] || 'waiting_for_seller';
-
-      console.log('🔄 Mapped Status:', mappedStatus);
-
+      const mappedStatus =
+        orderSuccessService.mapApiStatusToDeliveryStatus(statusFromApi);
       if (mappedStatus !== deliveryStatus) {
-        console.log('📊 Status Changed:', deliveryStatus, '→', mappedStatus);
         setDeliveryStatus(mappedStatus);
         startProgressAnimation(mappedStatus);
       }
-    } else {
-      console.log(
-        '⚠️ No status found in API, defaulting to waiting_for_seller',
-      );
-      setDeliveryStatus('waiting_for_seller');
-      startProgressAnimation('waiting_for_seller');
     }
   };
 
-  // LIVE ETA FETCH FUNCTION - 1 minute mein update
+  // Fetch live ETA
   const fetchLiveEstimate = async () => {
+    if (!params.orderId) return;
+
     try {
       setLiveLoading(true);
-      console.log('🔄 Fetching live ETA update...');
-
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token || !params.orderId) {
-        return;
-      }
-
-      const response = await axios.get(
-        `http://172.20.10.12:5000/api/orders/tracking/live/${params.orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          timeout: 10000,
-        },
+      const data = await orderSuccessService.fetchLiveDeliveryData(
+        params.orderId,
       );
 
-      if (response.data.success) {
-        console.log('✅ Live ETA Data:', response.data);
+      if (data.estimate) {
+        setEta(data.estimate.text);
+        setDistance(data.estimate.distance);
+      }
 
-        if (response.data.estimate) {
-          const { text, distance } = response.data.estimate;
-          setEta(text);
-          setDistance(distance);
-        }
+      updateDeliveryStatus(data);
+      setLiveData(prev => ({ ...prev, ...data }));
 
-        // Update delivery status from live data
-        updateDeliveryStatus(response.data);
-
-        setLiveData(prev => ({
-          ...prev,
-          ...response.data,
-        }));
-
-        if (Platform.OS === 'ios') {
-          triggerHaptic('impactLight');
-        }
+      if (Platform.OS === 'ios') {
+        triggerHaptic('impactLight');
       }
     } catch (err: any) {
-      console.log('⚠️ Live ETA error:', err.message);
+      console.log('Live ETA error:', err.message);
     } finally {
       setLiveLoading(false);
     }
   };
 
-  // AUTO REFRESH HAR 1 MINUTE MEIN
-  useEffect(() => {
-    if (!params.orderId || loading) {
-      return;
-    }
-
-    console.log('⏱️ Starting live updates every 1 minute');
-
-    fetchLiveEstimate();
-
-    const interval = setInterval(() => {
-      fetchLiveEstimate();
-    }, 60000); // HAR 1 MINUTE MEIN UPDATE
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [params.orderId, loading]);
-
-  // Fetch order details and live delivery data
+  // Fetch order details
   const fetchOrderDetails = async () => {
     try {
-      if (!params.orderId) {
-        throw new Error('Order ID is required');
-      }
-
-      const token = await AsyncStorage.getItem('authToken');
-
-      if (!token) {
-        throw new Error('Authentication required - No token found');
-      }
+      if (!params.orderId) throw new Error('Order ID is required');
 
       setApiCallStatus(prev => ({ ...prev, orderFetch: 'loading' }));
 
-      console.log('📡 Fetching order details for:', params.orderId);
+      const order = await orderSuccessService.fetchOrderDetails(params.orderId);
+      setOrderDetails(order);
+      setApiCallStatus(prev => ({ ...prev, orderFetch: 'success' }));
 
-      const orderResponse = await axios.get(
-        `http://172.20.10.12:5000/api/orders/delivery/${params.orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        },
+      if (order.deliveryStatus) {
+        setDeliveryStatus(order.deliveryStatus);
+        startProgressAnimation(order.deliveryStatus);
+      }
+
+      const liveData = await orderSuccessService.fetchLiveDeliveryData(
+        params.orderId,
       );
+      setLiveData(liveData);
+      updateDeliveryStatus(liveData);
 
-      console.log('📦 Order Details Response:', orderResponse.data);
-
-      if (orderResponse.data.success) {
-        setOrderDetails(orderResponse.data.order);
-        setApiCallStatus(prev => ({ ...prev, orderFetch: 'success' }));
-
-        // Check if order has delivery status
-        if (orderResponse.data.order?.deliveryStatus) {
-          console.log(
-            '📊 Order has deliveryStatus:',
-            orderResponse.data.order.deliveryStatus,
-          );
-          setDeliveryStatus(orderResponse.data.order.deliveryStatus);
-          startProgressAnimation(orderResponse.data.order.deliveryStatus);
-        }
-
-        const liveData = await fetchLiveDeliveryData(params.orderId!, token);
-        setLiveData(liveData);
-
-        // Update from live data (overrides if available)
-        updateDeliveryStatus(liveData);
-
-        if (liveData.estimate) {
-          setEta(liveData.estimate.text);
-          setDistance(liveData.estimate.distance);
-
-          const newEstimate: DeliveryEstimate = {
-            estimatedTime: liveData.estimate.minutes,
-            estimatedDelivery: liveData.estimate.text,
-            deliveryType:
-              liveData.estimate.minutes <= 30 ? 'express' : 'standard',
-            distance: liveData.estimate.distance,
-          };
-          setDeliveryEstimate(newEstimate);
-        }
-      } else {
-        throw new Error(
-          orderResponse.data.message || 'Failed to fetch order details',
-        );
+      if (liveData.estimate) {
+        setEta(liveData.estimate.text);
+        setDistance(liveData.estimate.distance);
+        setDeliveryEstimate({
+          estimatedTime: liveData.estimate.minutes,
+          estimatedDelivery: liveData.estimate.text,
+          deliveryType:
+            liveData.estimate.minutes <= 30 ? 'express' : 'standard',
+          distance: liveData.estimate.distance,
+        });
       }
     } catch (error: any) {
-      console.error('❌ Order fetch error:', error);
+      console.error('Order fetch error:', error);
       setApiCallStatus(prev => ({
         ...prev,
         orderFetch: 'error',
         errorMessage: error.message,
       }));
 
-      // Set default values
       setDeliveryStatus('waiting_for_seller');
       startProgressAnimation('waiting_for_seller');
-
-      setDeliveryEstimate({
-        estimatedTime: 45,
-        estimatedDelivery: '45-60 minutes',
-        deliveryType: 'express',
-        distance: '5 km',
-      });
-      setEta('45-60 minutes');
-      setDistance('5 km');
+      const defaultEstimate = getDefaultDeliveryEstimate();
+      setDeliveryEstimate(defaultEstimate);
+      setEta(defaultEstimate.estimatedDelivery);
+      setDistance(defaultEstimate.distance);
 
       Alert.alert(
         'Network Error',
         'Unable to load order details. Please check your internet connection.',
-        [{ text: 'OK' }],
       );
     } finally {
       setLoading(false);
@@ -579,75 +277,48 @@ const OrderSuccessScreen: React.FC = () => {
     }
   };
 
-  // Fetch LIVE delivery data from API
-  const fetchLiveDeliveryData = async (
-    orderId: string,
-    token: string,
-  ): Promise<LiveDeliveryData> => {
-    try {
-      setApiCallStatus(prev => ({ ...prev, liveFetch: 'loading' }));
+  // Auto refresh every minute
+  useEffect(() => {
+    if (!params.orderId || loading) return;
 
-      console.log('🚚 Fetching live delivery data...');
+    fetchLiveEstimate();
+    const interval = setInterval(fetchLiveEstimate, 60000);
+    return () => clearInterval(interval);
+  }, [params.orderId, loading]);
 
-      const response = await axios.get(
-        `http://172.20.10.12:5000/api/orders/tracking/live/${orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        },
-      );
-
-      console.log('📡 Live Delivery Response:', response.data);
-
-      if (response.data.success) {
-        setApiCallStatus(prev => ({ ...prev, liveFetch: 'success' }));
-        return response.data;
-      } else {
-        throw new Error('Failed to get live delivery data');
-      }
-    } catch (error: any) {
-      console.error('❌ Live delivery fetch error:', error);
-      setApiCallStatus(prev => ({
-        ...prev,
-        liveFetch: 'error',
-        errorMessage: error.message,
-      }));
-
-      // Return default data
-      return {
-        success: false,
-        deliveryStatus: 'waiting_for_seller',
-        estimate: {
-          minutes: 45,
-          text: '45-55 minutes',
-          distance: '5 km',
-        },
-      };
+  // Initial setup
+  useEffect(() => {
+    if (!params.orderId) {
+      Alert.alert('Error', 'Order information not found.', [
+        { text: 'Go Home', onPress: () => navigation.navigate('Home') },
+      ]);
+      return;
     }
-  };
 
-  // Pull to refresh handler
+    triggerHaptic('notificationSuccess');
+    if (successAnimationRef.current) successAnimationRef.current.play();
+
+    setTimeout(() => {
+      setShowSuccessAnimation(false);
+      fetchOrderDetails();
+    }, 3000);
+  }, []);
+
+  // Pull to refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     triggerHaptic('impactLight');
-
     progressAnim.setValue(0);
-
     fetchOrderDetails();
   }, []);
 
-  // Handle button press based on status
+  // Handle button press
   const handleMainButtonPress = () => {
     if (!params.orderId) {
       Alert.alert('Error', 'Order ID not available');
       return;
     }
     triggerHaptic('impactMedium');
-
-    console.log('👉 Main button pressed for status:', deliveryStatus);
 
     switch (deliveryStatus) {
       case 'delivered':
@@ -659,109 +330,18 @@ const OrderSuccessScreen: React.FC = () => {
       default:
         navigation.navigate('OrderTracking', {
           orderId: params.orderId,
-          liveData: liveData,
+          liveData,
         });
         break;
     }
   };
 
-  // Get status display information
-  const getStatusDisplayInfo = () => {
-    const statusInfo: Record<
-      DeliveryStatus,
-      { icon: string; color: string; label: string }
-    > = {
-      waiting_for_seller: {
-        icon: 'store',
-        color: colors.statusWaiting,
-        label: 'Preparing Order',
-      },
-      pending_rider_accept: {
-        icon: 'hourglass-empty',
-        color: colors.statusPending,
-        label: 'Finding Rider',
-      },
-      assigned: {
-        icon: 'motorcycle',
-        color: colors.statusAssigned,
-        label: 'Rider Assigned',
-      },
-      waiting_for_rider: {
-        icon: 'person-pin',
-        color: colors.statusReady,
-        label: 'Rider Arrived',
-      },
-      picked_up: {
-        icon: 'local-shipping',
-        color: colors.statusPicked,
-        label: 'On the Way',
-      },
-      delivered: {
-        icon: 'check-circle',
-        color: colors.statusDelivered,
-        label: 'Delivered',
-      },
-    };
-
-    return statusInfo[deliveryStatus];
-  };
-
-  // Get payment method display
-  const getPaymentMethodDisplay = () => {
-    const paymentSource: PaymentMethodType =
-      params.source || orderDetails?.paymentMethod || 'unknown';
-
-    if (paymentSource === 'stripe_payment' || paymentSource === 'online') {
-      return {
-        type: 'stripe',
-        icon: () => (
-          <>
-            <View style={styles.stripeDot} />
-            <View style={[styles.stripeDot, styles.stripeDotGreen]} />
-            <View style={[styles.stripeDot, styles.stripeDotRed]} />
-          </>
-        ),
-        text: 'Stripe',
-        color: colors.primary,
-      };
-    } else if (paymentSource === 'cod') {
-      return {
-        type: 'cod',
-        icon: () => <Icon name="money" size={12} color={colors.warning} />,
-        text: 'Cash on Delivery',
-        color: colors.warning,
-      };
-    } else {
-      return {
-        type: 'unknown',
-        icon: () => (
-          <Icon name="payment" size={12} color={colors.textSecondary} />
-        ),
-        text: 'Paid',
-        color: colors.textSecondary,
-      };
-    }
-  };
-
-  // Render progress steps with labels - FIXED VERSION
+  // Render progress steps
   const renderProgressSteps = () => {
-    const steps = [
-      { icon: 'store', label: 'Seller', status: 'waiting_for_seller' },
-      {
-        icon: 'hourglass-empty',
-        label: 'Finding Rider',
-        status: 'pending_rider_accept',
-      },
-      { icon: 'motorcycle', label: 'Rider Assigned', status: 'assigned' },
-      { icon: 'local-shipping', label: 'On the way', status: 'picked_up' },
-      { icon: 'location-on', label: 'Delivered', status: 'delivered' },
-    ];
-
     const currentStep = statusConfig.currentStepIndex;
 
     return (
       <View style={styles.progressFullContainer}>
-        {/* Progress Bar with Dots */}
         <View style={styles.progressBarContainer}>
           <View style={styles.progressBackground}>
             <Animated.View
@@ -775,7 +355,6 @@ const OrderSuccessScreen: React.FC = () => {
                 },
               ]}
             />
-            {/* Progress Dots */}
             <View style={styles.progressDotsContainer}>
               {steps.map((step, index) => (
                 <View
@@ -794,18 +373,16 @@ const OrderSuccessScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* All Labels - Full width with equal spacing */}
         <View style={styles.allLabelsContainer}>
           {steps.map((step, index) => (
             <View key={index} style={styles.singleLabelContainer}>
               <Text
                 numberOfLines={1}
-                ellipsizeMode="tail"
                 style={[
                   styles.progressStepLabel,
-                  index === currentStep ? styles.currentStepLabel : {},
-                  index < currentStep ? styles.completedStepLabel : {},
-                  index > currentStep ? styles.upcomingStepLabel : {},
+                  index === currentStep && styles.currentStepLabel,
+                  index < currentStep && styles.completedStepLabel,
+                  index > currentStep && styles.upcomingStepLabel,
                 ]}
               >
                 {step.label}
@@ -817,29 +394,23 @@ const OrderSuccessScreen: React.FC = () => {
     );
   };
 
-  // Render initial success animation screen
+  // Success animation screen
   if (showSuccessAnimation) {
     return (
       <SafeAreaView style={styles.initialAnimationContainer}>
         <LottieView
           ref={successAnimationRef}
-          source={successAnimationSource}
+          source={SUCCESS_ANIMATION_LIGHT}
           autoPlay
           loop={false}
           style={styles.initialSuccessAnimation}
-          onAnimationFinish={() => {
-            triggerHaptic('notificationSuccess');
-          }}
         />
         <Text style={styles.preparingText}>Preparing your order....!</Text>
       </SafeAreaView>
     );
   }
 
-  const paymentMethod = getPaymentMethodDisplay();
-  const statusInfo = getStatusDisplayInfo();
-
-  // If no orderId, show error screen
+  // Error screen
   if (!params.orderId) {
     return (
       <SafeAreaView style={styles.container}>
@@ -847,11 +418,11 @@ const OrderSuccessScreen: React.FC = () => {
           <Icon name="error-outline" size={60} color={colors.error} />
           <Text style={styles.errorTitle}>Order Not Found</Text>
           <Text style={styles.errorText}>
-            We couldn't find your order details. Please check your order history
-            or contact support.
+            We couldn't find your order details. Please check your order
+            history.
           </Text>
           <TouchableOpacity
-            style={[styles.errorButton, { marginTop: 20 }]}
+            style={styles.errorButton}
             onPress={() => navigation.navigate('Home')}
           >
             <Text style={[styles.errorButtonText, { color: colors.primary }]}>
@@ -863,11 +434,21 @@ const OrderSuccessScreen: React.FC = () => {
     );
   }
 
+  const paymentMethodType = getPaymentMethodType(
+    params.source,
+    orderDetails?.paymentMethod,
+  );
+  const totalAmount = calculateTotalAmount(
+    params.totalAmount,
+    orderDetails?.finalAmount,
+  );
+  const paymentMethodColor =
+    colors[paymentMethodType.colorKey as keyof typeof colors] || colors.primary;
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView
         style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -875,12 +456,10 @@ const OrderSuccessScreen: React.FC = () => {
             onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
-            title="Pull to refresh"
-            titleColor={colors.textSecondary}
           />
         }
       >
-        {/* Header with Status Animation */}
+        {/* Header */}
         <View style={styles.headerContainer}>
           <View style={styles.animationContainer}>
             <LottieView
@@ -893,7 +472,6 @@ const OrderSuccessScreen: React.FC = () => {
           </View>
 
           <View style={styles.textContainer}>
-            {/* Status Badge */}
             <View
               style={[
                 styles.statusBadge,
@@ -911,11 +489,7 @@ const OrderSuccessScreen: React.FC = () => {
                 {statusInfo.label}
               </Text>
             </View>
-
-            {/* Main Title */}
             <Text style={styles.mainTitle}>{statusConfig.title}</Text>
-
-            {/* Subtitle */}
             <Text style={styles.subtitle}>{statusConfig.subtitle}</Text>
           </View>
         </View>
@@ -931,14 +505,9 @@ const OrderSuccessScreen: React.FC = () => {
             <Text style={styles.deliveryCardTitle}>Delivery Progress</Text>
           </View>
 
-          {/* Progress Bar */}
-          {statusConfig.showDeliveryProgress && (
-            <View style={styles.progressContainer}>
-              {renderProgressSteps()}
-            </View>
-          )}
+          {statusConfig.showDeliveryProgress && renderProgressSteps()}
 
-          {/* Rider Information */}
+          {/* Rider Info */}
           {statusConfig.showRiderInfo && liveData?.riderDetails && (
             <View style={styles.riderContainer}>
               <View style={styles.riderHeader}>
@@ -970,7 +539,7 @@ const OrderSuccessScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Seller Information */}
+          {/* Seller Info */}
           {statusConfig.showSellerInfo && (
             <View style={styles.sellerContainer}>
               <View style={styles.sellerHeader}>
@@ -984,7 +553,7 @@ const OrderSuccessScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Time and Distance Information */}
+          {/* Distance & Time */}
           {deliveryStatus !== 'delivered' && (
             <>
               <View style={styles.distanceContainer}>
@@ -1040,11 +609,10 @@ const OrderSuccessScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Order Summary - Only show for non-delivered status */}
+        {/* Order Summary */}
         {deliveryStatus !== 'delivered' && (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Order Summary</Text>
-
             {orderDetails?.items?.map((item: any, index: number) => (
               <View key={index} style={styles.summaryItem}>
                 <View style={styles.itemInfo}>
@@ -1055,47 +623,35 @@ const OrderSuccessScreen: React.FC = () => {
                     Qty: {item.quantity || 1}
                   </Text>
                 </View>
-                <Text style={styles.itemPrice}>
-                  ₹
-                  {params.totalAmount?.toFixed(2) ||
-                    orderDetails?.finalAmount?.toFixed(2) ||
-                    '0.00'}
-                </Text>
+                <Text style={styles.itemPrice}>₹{totalAmount}</Text>
               </View>
             ))}
-
             <View style={styles.divider} />
-
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Paid</Text>
-              <Text style={styles.totalAmount}>
-                ₹
-                {params.totalAmount?.toFixed(2) ||
-                  orderDetails?.finalAmount?.toFixed(2) ||
-                  '0.00'}
-              </Text>
+              <Text style={styles.totalAmount}>₹{totalAmount}</Text>
             </View>
-
             <View style={styles.paymentMethodRow}>
               <Text style={styles.paymentLabel}>Payment Method</Text>
               <View
                 style={[
                   styles.paymentBadge,
-                  { borderColor: paymentMethod.color },
+                  { borderColor: paymentMethodColor },
                 ]}
               >
-                {paymentMethod.icon()}
                 <Text
-                  style={[styles.paymentText, { color: paymentMethod.color }]}
+                  style={[
+                    styles.paymentText,
+                    { color: paymentMethodColor },
+                  ]}
                 >
-                  {paymentMethod.text}
+                  {paymentMethodType.text}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        {/* Spacer for buttons */}
         <View style={styles.spacer} />
       </ScrollView>
 
@@ -1130,44 +686,22 @@ const OrderSuccessScreen: React.FC = () => {
   );
 };
 
-// Create dynamic styles based on theme colors
+// Styles - keep as is from original
 const makeStyles = (colors: any, isDarkMode: boolean) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
+    container: { flex: 1, backgroundColor: colors.background },
     initialAnimationContainer: {
       flex: 1,
       backgroundColor: colors.cardBackground,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    initialSuccessAnimation: {
-      width: 200,
-      height: 200,
-    },
+    initialSuccessAnimation: { width: 200, height: 200 },
     preparingText: {
       marginTop: 16,
       fontSize: 16,
       color: colors.textPrimary,
       fontWeight: '600',
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    loadingAnimation: {
-      width: 150,
-      height: 150,
-    },
-    loadingText: {
-      marginTop: 16,
-      fontSize: 14,
-      color: colors.textSecondary,
-      fontWeight: '500',
     },
     errorContainer: {
       flex: 1,
@@ -1197,17 +731,9 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       borderColor: colors.primary,
       alignItems: 'center',
     },
-    errorButtonText: {
-      fontSize: 14,
-      fontWeight: '700',
-    },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      paddingHorizontal: 16,
-      paddingBottom: 80,
-    },
+    errorButtonText: { fontSize: 14, fontWeight: '700' },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 80 },
     headerContainer: {
       alignItems: 'center',
       paddingTop: 20,
@@ -1219,14 +745,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       left: -105,
       marginBottom: 10,
     },
-    deliveryAnimation: {
-      width: '100%',
-      height: '100%',
-    },
-    textContainer: {
-      alignItems: 'center',
-      marginTop: 20,
-    },
+    deliveryAnimation: { width: '100%', height: '100%' },
+    textContainer: { alignItems: 'center', marginTop: 20 },
     statusBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1235,11 +755,7 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       borderRadius: 16,
       marginBottom: 10,
     },
-    statusBadgeText: {
-      fontSize: 11,
-      fontWeight: '600',
-      marginLeft: 5,
-    },
+    statusBadgeText: { fontSize: 11, fontWeight: '600', marginLeft: 5 },
     mainTitle: {
       fontSize: 22,
       fontWeight: '800',
@@ -1276,15 +792,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       color: colors.textPrimary,
       marginLeft: 8,
     },
-    progressContainer: {
-      marginBottom: 20,
-    },
-    progressFullContainer: {
-      marginBottom: 10,
-    },
-    progressBarContainer: {
-      marginBottom: 25,
-    },
+    progressFullContainer: { marginBottom: 10 },
+    progressBarContainer: { marginBottom: 25 },
     progressBackground: {
       height: 20,
       backgroundColor: colors.progressBarBg,
@@ -1319,12 +828,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       borderColor: colors.cardBackground,
       zIndex: 1,
     },
-    progressDotActive: {
-      backgroundColor: colors.success,
-    },
-    progressDotInactive: {
-      backgroundColor: colors.textTertiary,
-    },
+    progressDotActive: { backgroundColor: colors.success },
+    progressDotInactive: { backgroundColor: colors.textTertiary },
     allLabelsContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1332,11 +837,7 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       width: '100%',
       paddingHorizontal: 0,
     },
-    singleLabelContainer: {
-      flex: 1,
-      alignItems: 'center',
-      minWidth: 0,
-    },
+    singleLabelContainer: { flex: 1, alignItems: 'center', minWidth: 0 },
     progressStepLabel: {
       fontSize: 10,
       textAlign: 'center',
@@ -1348,49 +849,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       fontWeight: '700',
       fontSize: 11,
     },
-    completedStepLabel: {
-      color: colors.success,
-      fontWeight: '600',
-    },
-    upcomingStepLabel: {
-      color: colors.textTertiary,
-      opacity: 0.8,
-    },
-    progressLabelsContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      position: 'absolute',
-      width: '100%',
-      top: 20,
-    },
-    labelContainer: {
-      alignItems: 'center',
-      minWidth: 60,
-    },
-    emptyLabelContainer: {
-      minWidth: 60,
-    },
-    currentLabelContainer: {
-      // Optional: Add styling for current label container
-    },
-    nextLabelContainer: {
-      // Optional: Add styling for next label container
-    },
-    progressLabel: {
-      fontSize: 9,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      textAlign: 'center',
-    },
-    currentLabel: {
-      color: colors.textPrimary,
-      fontWeight: '700',
-    },
-    nextLabel: {
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
+    completedStepLabel: { color: colors.success, fontWeight: '600' },
+    upcomingStepLabel: { color: colors.textTertiary, opacity: 0.8 },
     riderContainer: {
       backgroundColor: colors.deliveryCardBg,
       borderRadius: 10,
@@ -1413,19 +873,14 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       justifyContent: 'space-between',
       alignItems: 'center',
     },
-    riderInfo: {
-      flex: 1,
-    },
+    riderInfo: { flex: 1 },
     riderName: {
       fontSize: 14,
       fontWeight: '700',
       color: colors.textPrimary,
       marginBottom: 3,
     },
-    riderVehicle: {
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
+    riderVehicle: { fontSize: 11, color: colors.textSecondary },
     callButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1457,11 +912,7 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       color: colors.textSecondary,
       marginLeft: 6,
     },
-    sellerText: {
-      fontSize: 13,
-      color: colors.textPrimary,
-      lineHeight: 18,
-    },
+    sellerText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
     distanceContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1470,24 +921,14 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       backgroundColor: colors.deliveryCardBg,
       borderRadius: 10,
     },
-    distanceInfo: {
-      flex: 1,
-      marginLeft: 8,
-    },
+    distanceInfo: { flex: 1, marginLeft: 8 },
     distanceText: {
       fontSize: 13,
       color: colors.textPrimary,
       fontWeight: '500',
     },
-    distanceHighlight: {
-      color: colors.primary,
-      fontWeight: '700',
-    },
-    liveIndicator: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 3,
-    },
+    distanceHighlight: { color: colors.primary, fontWeight: '700' },
+    liveIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
     liveIndicatorText: {
       fontSize: 10,
       color: colors.success,
@@ -1508,19 +949,9 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       backgroundColor: colors.deliveryCardBg,
       borderRadius: 10,
     },
-    timeInfo: {
-      flex: 1,
-      marginLeft: 8,
-    },
-    timeText: {
-      fontSize: 14,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    timeHighlight: {
-      color: colors.primary,
-      fontWeight: '700',
-    },
+    timeInfo: { flex: 1, marginLeft: 8 },
+    timeText: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
+    timeHighlight: { color: colors.primary, fontWeight: '700' },
     liveUpdateText: {
       fontSize: 10,
       color: colors.textTertiary,
@@ -1534,15 +965,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       backgroundColor: colors.orderIdBg,
       borderRadius: 10,
     },
-    orderIdText: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      marginLeft: 6,
-    },
-    orderIdHighlight: {
-      color: colors.textPrimary,
-      fontWeight: '200',
-    },
+    orderIdText: { fontSize: 10, color: colors.textSecondary, marginLeft: 6 },
+    orderIdHighlight: { color: colors.textPrimary, fontWeight: '200' },
     summaryCard: {
       backgroundColor: colors.cardBackground,
       borderRadius: 16,
@@ -1566,29 +990,16 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       alignItems: 'center',
       marginBottom: 14,
     },
-    itemInfo: {
-      flex: 1,
-    },
+    itemInfo: { flex: 1 },
     itemName: {
       fontSize: 13,
       fontWeight: '600',
       color: colors.textPrimary,
       marginBottom: 3,
     },
-    itemQuantity: {
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
-    itemPrice: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    divider: {
-      height: 1,
-      backgroundColor: colors.divider,
-      marginVertical: 14,
-    },
+    itemQuantity: { fontSize: 11, color: colors.textSecondary },
+    itemPrice: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+    divider: { height: 1, backgroundColor: colors.divider, marginVertical: 14 },
     totalRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1600,20 +1011,13 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    totalAmount: {
-      fontSize: 20,
-      fontWeight: '800',
-      color: colors.primary,
-    },
+    totalAmount: { fontSize: 20, fontWeight: '800', color: colors.primary },
     paymentMethodRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
     },
-    paymentLabel: {
-      fontSize: 13,
-      color: colors.textSecondary,
-    },
+    paymentLabel: { fontSize: 13, color: colors.textSecondary },
     paymentBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1623,27 +1027,8 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       borderRadius: 6,
       borderWidth: 1,
     },
-    stripeDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 2.5,
-      backgroundColor: colors.primary,
-      marginRight: 2,
-    },
-    stripeDotGreen: {
-      backgroundColor: '#00D4AA',
-    },
-    stripeDotRed: {
-      backgroundColor: '#FF6B6B',
-    },
-    paymentText: {
-      fontSize: 11,
-      fontWeight: '600',
-      marginLeft: 4,
-    },
-    spacer: {
-      height: 36,
-    },
+    paymentText: { fontSize: 11, fontWeight: '600', marginLeft: 4 },
+    spacer: { height: 36 },
     buttonContainer: {
       position: 'absolute',
       bottom: 0,
@@ -1677,10 +1062,7 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
       justifyContent: 'space-between',
       paddingHorizontal: 16,
     },
-    buttonTextContainer: {
-      flex: 1,
-      marginHorizontal: 10,
-    },
+    buttonTextContainer: { flex: 1, marginHorizontal: 10 },
     buttonMainText: {
       color: '#ffffff',
       fontSize: 14,
@@ -1694,4 +1076,39 @@ const makeStyles = (colors: any, isDarkMode: boolean) =>
     },
   });
 
+const styles = makeStyles(getThemeColors(), false);
 export default OrderSuccessScreen;
+function getThemeColors(): any {
+  return {
+    primary: '#635BFF',
+    primaryLight: '#A8A4FF',
+    primaryDark: '#4A43D9',
+    background: '#f8fafc',
+    cardBackground: '#ffffff',
+    surface: '#f1f5f9',
+    textPrimary: '#1a1a1a',
+    textSecondary: '#64748b',
+    textTertiary: '#94A3B8',
+    success: '#10b981',
+    successLight: '#D1FAE5',
+    warning: '#f59e0b',
+    warningLight: '#FEF3C7',
+    error: '#ef4444',
+    errorLight: '#FEE2E2',
+    info: '#3b82f6',
+    border: '#e2e8f0',
+    divider: '#e2e8f0',
+    shadow: 'rgba(0, 0, 0, 0.1)',
+    progressBarBg: '#e2e8f0',
+    progressBarFill: '#635BFF',
+    deliveryCardBg: '#f0f7ff',
+    orderIdBg: '#f8fafc',
+    statusWaiting: '#f59e0b',
+    statusPending: '#f59e0b',
+    statusAssigned: '#3b82f6',
+    statusReady: '#10b981',
+    statusPicked: '#8b5cf6',
+    statusDelivered: '#10b981',
+  };
+}
+

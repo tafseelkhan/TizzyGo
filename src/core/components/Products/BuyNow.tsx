@@ -1,3 +1,5 @@
+// components/BuyNow.tsx (REFACTORED)
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   TouchableOpacity,
@@ -10,8 +12,6 @@ import {
   ScrollView,
   Image,
   Dimensions,
-  Vibration,
-  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,97 +20,43 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Theme Context Import
+// Theme Context
 import { useTheme } from '../../contexts/theme/ThemeContext';
 
-// Import types
+// Types
 import {
   ProductVariant,
   SelectedVariant,
+  BuyNowProps,
+  RootStackParamList,
+  ThemeColors,
+} from '../../types/BuyNowTypes';
+
+// Services (API calls via service layer)
+import {
   fetchProductVariants,
-} from './AddToCart';
+  processBuyNowCheckout,
+} from '../../services/products/buynowServices';
 
-// Navigation Param Types
-type RootStackParamList = {
-  BuyNow: { productId: string };
-};
+// Utils
+import {
+  normalizeMedia,
+  formatPrice,
+  triggerVibration,
+  createSelectedVariant,
+  calculateDiscount,
+  getVariantStockStatus,
+} from '../../utils/products/buynowUtils';
 
-// Define Field type
-interface VariantField {
-  name: string;
-  value: string;
-  price?: number;
-  stock?: number;
-  sku?: string;
-  image?: string;
-}
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Video URL detection
-const isVideoUrl = (url?: string) => {
-  if (!url) return false;
-  const urlLower = url.toLowerCase();
-  return (
-    /\.(mp4|mov|webm|mkv|avi|wmv|flv|m4v)$/i.test(urlLower) ||
-    urlLower.includes('/video/') ||
-    urlLower.includes('video=true') ||
-    urlLower.includes('.mp4') ||
-    urlLower.includes('youtube.com') ||
-    urlLower.includes('youtu.be') ||
-    urlLower.includes('vimeo.com')
-  );
-};
-
-const normalizeMedia = (images: string[] = [], video?: string) => {
-  const media: { type: 'image' | 'video'; url: string }[] = [];
-
-  images.forEach(img => {
-    if (img && img.trim() !== '') {
-      media.push({ type: 'image', url: img });
-    }
-  });
-
-  if (video && video.trim() !== '') {
-    media.unshift({ type: 'video', url: video });
-  }
-
-  return media;
-};
-
-const formatPrice = (price: number): string => {
-  return `₹${price.toLocaleString('en-IN')}`;
-};
-
-// Interface
-interface BuyNowProps {
-  product?: {
-    _id?: string;
-    id?: string;
-    title?: string;
-    brand?: string;
-    description?: string;
-    verified?: boolean;
-    images?: string[];
-    video?: string;
-    highlights?: string[];
-    variants?: any[];
-    [key: string]: any;
-  } | null;
-  productLoading?: boolean;
-  productAvailable?: boolean;
-  variants?: ProductVariant[];
-  selectedVariant?: SelectedVariant | null;
-  onVariantSelect?: (variant: SelectedVariant | null) => void;
-}
-
-// Theme colors with GREEN primary
-const getLocalThemeColors = (isDark: boolean) => {
+export const getThemeColors = (isDark: boolean): ThemeColors => {
   return {
-    primary: '#10B981', // GREEN color
+    primary: '#10B981',
     primaryLight: '#34D399',
     primaryDark: '#059669',
     success: '#10B981',
@@ -139,30 +85,6 @@ const getLocalThemeColors = (isDark: boolean) => {
   };
 };
 
-// Function to clear saved BuyNow cart item from server
-const clearSavedBuyNowCart = async (productId: string) => {
-  try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) return false;
-
-    const response = await fetch(
-      'http://172.20.10.12:5000/api/cart/clear-buynow',
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ productId }),
-      },
-    );
-
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-};
-
 const BuyNow: React.FC<BuyNowProps> = ({
   product,
   productLoading = false,
@@ -172,11 +94,12 @@ const BuyNow: React.FC<BuyNowProps> = ({
   onVariantSelect = () => {},
 }) => {
   const { isDark } = useTheme();
-  const themeColors = getLocalThemeColors(isDark);
+  const themeColors = getThemeColors(isDark);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
 
+  // State
   const [loading, setLoading] = useState(false);
   const [selectedVariant, setSelectedVariant] =
     useState<SelectedVariant | null>(propSelectedVariant);
@@ -188,15 +111,15 @@ const BuyNow: React.FC<BuyNowProps> = ({
     propVariants && Array.isArray(propVariants) ? propVariants : [],
   );
   const [variantsLoading, setVariantsLoading] = useState(false);
-  const [checkingSavedItem, setCheckingSavedItem] = useState(false);
   const [isModalInitialized, setIsModalInitialized] = useState(false);
+
+  // Refs
   const isMountedRef = useRef(true);
   const modalOpenedRef = useRef(false);
 
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
   const productId = product?._id || product?.id;
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -204,7 +127,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
     };
   }, []);
 
-  // Load variants
+  // Load variants using service
   useEffect(() => {
     const loadVariants = async () => {
       if ((!propVariants || propVariants.length === 0) && product?.id) {
@@ -257,42 +180,12 @@ const BuyNow: React.FC<BuyNowProps> = ({
       const selectedVariantObj = variants[variantIndex];
       if (!selectedVariantObj) return;
 
-      const variantIdToUse = (
-        selectedVariantObj.variantId ||
-        selectedVariantObj._id ||
-        ''
-      ).toString();
+      const newVariant = createSelectedVariant(
+        selectedVariantObj,
+        variantIndex,
+      );
 
-      const newVariant: SelectedVariant = {
-        variantId: variantIdToUse,
-        _id: selectedVariantObj._id,
-        mrp: selectedVariantObj.mrp ?? 0,
-        price: selectedVariantObj.price ?? 0,
-        savedAmount: selectedVariantObj.savedAmount ?? 0,
-        discount: selectedVariantObj.discount ?? 0,
-        finalPrice:
-          selectedVariantObj.finalPrice ?? selectedVariantObj.price ?? 0,
-      };
-
-      if (
-        selectedVariantObj.fields &&
-        Array.isArray(selectedVariantObj.fields)
-      ) {
-        selectedVariantObj.fields.forEach((field: VariantField) => {
-          newVariant[field.name] = field.value;
-          if (field.image) newVariant.variantImage = field.image;
-          if (field.sku) newVariant.variantSku = field.sku;
-        });
-      }
-
-      if (selectedVariantObj.images && selectedVariantObj.images.length > 0) {
-        newVariant.variantImages = selectedVariantObj.images;
-      }
-      if (selectedVariantObj.video) {
-        newVariant.variantVideo = selectedVariantObj.video;
-      }
-
-      if (isMountedRef.current) {
+      if (newVariant && isMountedRef.current) {
         setSelectedVariantIndex(variantIndex);
         setSelectedVariant(newVariant);
         onVariantSelect(newVariant);
@@ -301,12 +194,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
     [variants, onVariantSelect],
   );
 
-  const triggerVibration = () => {
-    if (Platform.OS === 'ios') Vibration.vibrate([0, 30, 0, 30]);
-    else Vibration.vibrate(100);
-  };
-
-  // Check if a variant is selected
   const isVariantSelected = useCallback(() => {
     return (
       (selectedVariantIndex !== null || selectedVariant !== null) &&
@@ -314,12 +201,11 @@ const BuyNow: React.FC<BuyNowProps> = ({
     );
   }, [selectedVariantIndex, selectedVariant]);
 
-  // Check if product has variants
   const hasVariants = useCallback(() => {
     return variants && Array.isArray(variants) && variants.length > 0;
   }, [variants]);
 
-  // Proceed with selected variant
+  // Proceed to checkout using service
   const handleProceedToCheckout = useCallback(async () => {
     if (!product || !productId) {
       Alert.alert('Error', 'Product data missing!');
@@ -334,52 +220,17 @@ const BuyNow: React.FC<BuyNowProps> = ({
     setLoading(true);
 
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        Alert.alert('Error', 'Please login first!');
+      const result = await processBuyNowCheckout(product, selectedVariant);
+
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Something went wrong!');
         setLoading(false);
         return;
       }
 
-      const requestBody: any = { productData: product };
-
-      if (selectedVariant && Object.keys(selectedVariant).length > 0) {
-        const variantToSend = { ...selectedVariant };
-        if (!variantToSend.variantId && variantToSend._id) {
-          variantToSend.variantId = variantToSend._id.toString();
-        }
-        if (variantToSend.variantId) {
-          variantToSend.variantId = variantToSend.variantId.toString();
-        }
-        requestBody.selectedVariant = variantToSend;
-      }
-
-      const res = await fetch('http://172.20.10.12:5000/api/cart/buy-now', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error('❌ Backend error:', data);
-        Alert.alert(
-          'Error',
-          data.error || data.message || 'Something went wrong!',
-        );
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Checkout successful:', data);
       setShowVariantModal(false);
       navigation.navigate('BuyNow', { productId: productId });
     } catch (err: any) {
-      console.error('BuyNow error:', err);
       Alert.alert('Error', 'Failed to process buy now!');
     } finally {
       setLoading(false);
@@ -414,14 +265,12 @@ const BuyNow: React.FC<BuyNowProps> = ({
     handleProceedToCheckout,
   ]);
 
-  // Handle modal close
   const handleModalClose = useCallback(() => {
     setShowVariantModal(false);
     setIsModalInitialized(false);
     modalOpenedRef.current = false;
   }, []);
 
-  // Initialize modal when opened
   useEffect(() => {
     if (showVariantModal && !isModalInitialized) {
       modalOpenedRef.current = true;
@@ -429,7 +278,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
     }
   }, [showVariantModal, isModalInitialized]);
 
-  // Check if variant is selected in modal
   const isVariantSelectedInModal = useCallback(
     (variantIndex: number) => {
       if (!modalOpenedRef.current) return false;
@@ -453,17 +301,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
   const renderVariantMedia = (variant: ProductVariant, index: number) => {
     const images = variant.images || [];
     const video = variant.video;
-
-    const media: { type: 'image' | 'video'; url: string }[] = [];
-
-    if (video && video.trim() !== '') {
-      media.push({ type: 'video', url: video });
-    }
-    images.forEach(img => {
-      if (img && img.trim() !== '') {
-        media.push({ type: 'image', url: img });
-      }
-    });
+    const media = normalizeMedia(images, video);
 
     if (media.length === 0) {
       return (
@@ -485,53 +323,48 @@ const BuyNow: React.FC<BuyNowProps> = ({
         style={styles.variantMediaScroll}
         contentContainerStyle={styles.variantMediaContent}
       >
-        {media.map((item, mediaIndex) => {
-          const isVideo = item.type === 'video';
-          return (
-            <View key={`media-${index}-${mediaIndex}`} style={styles.mediaItem}>
-              {isVideo ? (
-                <View
-                  style={[
-                    styles.variantVideoThumb,
-                    {
-                      backgroundColor: themeColors.videoBg,
-                      borderColor: themeColors.primary,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="play-circle"
-                    size={36}
-                    color={themeColors.primary}
-                  />
-                  <View style={styles.videoOverlayBadge}>
-                    <Text style={styles.videoBadgeSmallText}>VIDEO</Text>
-                  </View>
-                </View>
-              ) : (
-                <Image
-                  source={{ uri: item.url }}
-                  style={styles.variantMediaImage}
-                  resizeMode="cover"
+        {media.map((item, mediaIndex) => (
+          <View key={`media-${index}-${mediaIndex}`} style={styles.mediaItem}>
+            {item.type === 'video' ? (
+              <View
+                style={[
+                  styles.variantVideoThumb,
+                  {
+                    backgroundColor: themeColors.videoBg,
+                    borderColor: themeColors.primary,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="play-circle"
+                  size={36}
+                  color={themeColors.primary}
                 />
-              )}
-            </View>
-          );
-        })}
+                <View style={styles.videoOverlayBadge}>
+                  <Text style={styles.videoBadgeSmallText}>VIDEO</Text>
+                </View>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: item.url }}
+                style={styles.variantMediaImage}
+                resizeMode="cover"
+              />
+            )}
+          </View>
+        ))}
       </ScrollView>
     );
   };
 
-  // Render variant info section with all details
+  // Render variant info
   const renderVariantInfo = (variant: ProductVariant) => {
-    const inStock = variant.inStock === true;
-    const quantityAvailable = variant.quantityAvailable || 0;
+    const { inStock, availableQuantity } = getVariantStockStatus(variant);
     const sku = variant.sku || 'N/A';
     const combinationKey = variant.combinationKey || 'N/A';
 
     return (
       <View style={styles.variantInfoContainer}>
-        {/* Stock Status */}
         <View style={styles.infoRow}>
           <View style={styles.infoIcon}>
             <MaterialCommunityIcons
@@ -558,8 +391,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
           </Text>
         </View>
 
-        {/* Quantity Available */}
-        {inStock && quantityAvailable > 0 && (
+        {inStock && availableQuantity > 0 && (
           <View style={styles.infoRow}>
             <View style={styles.infoIcon}>
               <MaterialCommunityIcons
@@ -579,12 +411,11 @@ const BuyNow: React.FC<BuyNowProps> = ({
                 { color: themeColors.textPrimary, fontWeight: '600' },
               ]}
             >
-              {quantityAvailable} units
+              {availableQuantity} units
             </Text>
           </View>
         )}
 
-        {/* SKU */}
         <View style={styles.infoRow}>
           <View style={styles.infoIcon}>
             <MaterialCommunityIcons
@@ -609,7 +440,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
           </Text>
         </View>
 
-        {/* Combination Key */}
         {combinationKey !== 'N/A' && (
           <View style={styles.infoRow}>
             <View style={styles.infoIcon}>
@@ -639,7 +469,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
     );
   };
 
-  // Render product header in modal
+  // Render product header
   const renderProductHeader = () => {
     const productImages = product?.images || [];
     const productVideo = product?.video;
@@ -723,16 +553,14 @@ const BuyNow: React.FC<BuyNowProps> = ({
     );
   };
 
-  // Render variant card with ALL details
+  // Render variant card
   const renderVariantCard = (variant: ProductVariant, index: number) => {
     const isSelected = isVariantSelectedInModal(index);
     const finalPrice = variant.finalPrice ?? variant.price ?? 0;
     const mrp = variant.mrp ?? 0;
-    const discount =
-      variant.discount ||
-      (mrp > finalPrice ? Math.round(((mrp - finalPrice) / mrp) * 100) : 0);
+    const discount = variant.discount || calculateDiscount(mrp, finalPrice);
     const savedAmount = variant.savedAmount ?? 0;
-    const inStock = variant.inStock === true;
+    const { inStock } = getVariantStockStatus(variant);
 
     return (
       <TouchableOpacity
@@ -766,7 +594,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
           </View>
         )}
 
-        {/* Variant Media */}
         {renderVariantMedia(variant, index)}
 
         <View
@@ -781,40 +608,36 @@ const BuyNow: React.FC<BuyNowProps> = ({
             Option {index + 1}
           </Text>
 
-          {/* Fields */}
           {variant.fields &&
             Array.isArray(variant.fields) &&
             variant.fields.length > 0 && (
               <View style={styles.fieldsContainer}>
-                {variant.fields.map(
-                  (field: VariantField, fieldIndex: number) => (
-                    <View
-                      key={`field-${index}-${fieldIndex}`}
-                      style={styles.fieldRow}
+                {variant.fields.map((field, fieldIndex) => (
+                  <View
+                    key={`field-${index}-${fieldIndex}`}
+                    style={styles.fieldRow}
+                  >
+                    <Text
+                      style={[
+                        styles.fieldName,
+                        { color: themeColors.textSecondary },
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.fieldName,
-                          { color: themeColors.textSecondary },
-                        ]}
-                      >
-                        {field.name}:
-                      </Text>
-                      <Text
-                        style={[
-                          styles.fieldValue,
-                          { color: themeColors.textPrimary },
-                        ]}
-                      >
-                        {field.value}
-                      </Text>
-                    </View>
-                  ),
-                )}
+                      {field.name}:
+                    </Text>
+                    <Text
+                      style={[
+                        styles.fieldValue,
+                        { color: themeColors.textPrimary },
+                      ]}
+                    >
+                      {field.value}
+                    </Text>
+                  </View>
+                ))}
               </View>
             )}
 
-          {/* Price Section */}
           <View style={styles.priceSection}>
             <View style={styles.priceRow}>
               <Text style={[styles.finalPrice, { color: themeColors.primary }]}>
@@ -840,7 +663,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
             )}
           </View>
 
-          {/* Variant Info: Stock, SKU, Combination Key */}
           {renderVariantInfo(variant)}
 
           <View
@@ -872,7 +694,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
 
   return (
     <>
-      {/* Full Screen Modal */}
+      {/* Variant Selection Modal */}
       <Modal
         visible={showVariantModal}
         transparent={false}
@@ -885,7 +707,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
             { backgroundColor: themeColors.modalBg },
           ]}
         >
-          {/* Modal Header */}
           <View
             style={[
               styles.modalHeader,
@@ -912,10 +733,8 @@ const BuyNow: React.FC<BuyNowProps> = ({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.modalScrollContent}
           >
-            {/* Product Header */}
             {renderProductHeader()}
 
-            {/* Variants List */}
             {variantsLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={themeColors.primary} />
@@ -940,7 +759,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
                     renderVariantCard(variant, index),
                   )
                 ) : (
-                  // ✅ Updated No Variants Container with 3 lines (as requested)
                   <View style={styles.noVariantsContainer}>
                     <Icon name="inventory" size={64} color={themeColors.gray} />
                     <Text style={styles.noVariantsText}>
@@ -955,7 +773,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
             )}
           </ScrollView>
 
-          {/* Footer with Confirm Button - GREEN with bag icon */}
           <View
             style={[
               styles.modalFooter,
@@ -988,16 +805,15 @@ const BuyNow: React.FC<BuyNowProps> = ({
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  {/* Bag Icon added here */}
                   <FontAwesome5 name="shopping-bag" size={20} color="#fff" />
                   <Text style={styles.confirmButtonText}>
                     {hasVariants() && !isVariantSelected()
                       ? 'SELECT AN OPTION'
                       : 'CONFIRM & BUY NOW'}
                   </Text>
-                  {!hasVariants() || isVariantSelected() ? (
+                  {(!hasVariants() || isVariantSelected()) && (
                     <FontAwesome5 name="arrow-right" size={14} color="#fff" />
-                  ) : null}
+                  )}
                 </>
               )}
             </TouchableOpacity>
@@ -1005,16 +821,10 @@ const BuyNow: React.FC<BuyNowProps> = ({
         </SafeAreaView>
       </Modal>
 
-      {/* Main Buy Now Button - GREEN rounded style */}
+      {/* Main Buy Now Button */}
       <TouchableOpacity
         onPress={handleBuyNowClick}
-        disabled={
-          loading ||
-          productLoading ||
-          !productAvailable ||
-          !product ||
-          checkingSavedItem
-        }
+        disabled={loading || productLoading || !productAvailable || !product}
         style={[
           styles.buyNowButton,
           {
@@ -1030,7 +840,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
         ]}
         activeOpacity={0.7}
       >
-        {loading || checkingSavedItem ? (
+        {loading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
           <>
@@ -1045,10 +855,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // Full Screen Modal Styles
-  fullScreenModal: {
-    flex: 1,
-  },
+  fullScreenModal: { flex: 1 },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1057,20 +864,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  modalScrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-
-  // Product Header
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  closeButton: { padding: 8, borderRadius: 20 },
+  modalScrollContent: { padding: 20, paddingBottom: 100 },
   productHeader: {
     marginBottom: 24,
     borderRadius: 16,
@@ -1083,10 +879,7 @@ const styles = StyleSheet.create({
     height: 220,
     backgroundColor: '#F3F4F6',
   },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
+  productImage: { width: '100%', height: '100%' },
   productVideoContainer: {
     width: '100%',
     height: '100%',
@@ -1105,14 +898,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
   },
-  videoBadgeLargeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  productInfo: {
-    padding: 16,
-  },
+  videoBadgeLargeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  productInfo: { padding: 16 },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1121,11 +908,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  productTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    flex: 1,
-  },
+  productTitle: { fontSize: 18, fontWeight: '700', flex: 1 },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1134,33 +917,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 5,
   },
-  verifiedText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  verifiedText: { fontSize: 12, fontWeight: '600' },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 12,
   },
-  brandText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  productDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-
-  // Variant List
-  variantCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-
-  // Variant Card
+  brandText: { fontSize: 14, fontWeight: '500' },
+  productDescription: { fontSize: 14, lineHeight: 20 },
+  variantCount: { fontSize: 16, fontWeight: '600', marginBottom: 16 },
   variantCard: {
     borderRadius: 16,
     borderWidth: 1.5,
@@ -1213,18 +979,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     overflow: 'hidden',
   },
-
-  // Variant Media
-  variantMediaScroll: {
-    maxHeight: 100,
-  },
-  variantMediaContent: {
-    padding: 12,
-    gap: 8,
-  },
-  mediaItem: {
-    marginRight: 8,
-  },
+  variantMediaScroll: { maxHeight: 100 },
+  variantMediaContent: { padding: 12, gap: 8 },
+  mediaItem: { marginRight: 8 },
   variantMediaImage: {
     width: 80,
     height: 80,
@@ -1249,11 +1006,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  videoBadgeSmallText: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  videoBadgeSmallText: { fontSize: 8, fontWeight: '700', color: '#fff' },
   emptyMedia: {
     width: 80,
     height: 80,
@@ -1262,40 +1015,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     margin: 12,
   },
-  emptyMediaText: {
-    fontSize: 10,
-    marginTop: 4,
-  },
-
-  // Variant Details
-  variantDetails: {
-    padding: 16,
-  },
-  variantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  fieldsContainer: {
-    marginBottom: 12,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  fieldName: {
-    fontSize: 12,
-    width: 80,
-    fontWeight: '500',
-  },
-  fieldValue: {
-    fontSize: 13,
-    fontWeight: '500',
-    flex: 1,
-  },
-
-  // Price Section
+  emptyMediaText: { fontSize: 10, marginTop: 4 },
+  variantDetails: { padding: 16 },
+  variantName: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  fieldsContainer: { marginBottom: 12 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  fieldName: { fontSize: 12, width: 80, fontWeight: '500' },
+  fieldValue: { fontSize: 13, fontWeight: '500', flex: 1 },
   priceSection: {
     marginTop: 10,
     paddingTop: 8,
@@ -1308,31 +1034,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  finalPrice: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  originalPrice: {
-    fontSize: 13,
-    textDecorationLine: 'line-through',
-  },
+  finalPrice: { fontSize: 18, fontWeight: '700' },
+  originalPrice: { fontSize: 13, textDecorationLine: 'line-through' },
   discountBadge: {
     backgroundColor: '#EF4444',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  discountText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  savedText: {
-    fontSize: 11,
-    marginTop: 4,
-  },
-
-  // Variant Info
+  discountText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  savedText: { fontSize: 11, marginTop: 4 },
   variantInfoContainer: {
     marginTop: 10,
     paddingTop: 8,
@@ -1346,20 +1057,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
-  infoIcon: {
-    width: 20,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 11,
-    fontWeight: '500',
-    flexShrink: 1,
-  },
-
-  // Variant Status
+  infoIcon: { width: 20 },
+  infoLabel: { fontSize: 11, fontWeight: '500' },
+  infoValue: { fontSize: 11, fontWeight: '500', flexShrink: 1 },
   variantStatus: {
     marginTop: 12,
     paddingHorizontal: 12,
@@ -1367,33 +1067,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
-  statusAvailable: {
-    backgroundColor: '#F3F4F6',
-  },
-  statusSelected: {
-    backgroundColor: '#10B981',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusTextSelected: {
-    color: '#fff',
-  },
-
-  // Loading & Empty States
+  statusAvailable: { backgroundColor: '#F3F4F6' },
+  statusSelected: { backgroundColor: '#10B981' },
+  statusText: { fontSize: 12, fontWeight: '600' },
+  statusTextSelected: { color: '#fff' },
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     height: 150,
     gap: 12,
   },
-  loadingText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  
-  // ✅ Updated No Variants Container Styles (3 lines)
+  loadingText: { fontSize: 14, fontWeight: '500' },
   noVariantsContainer: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -1412,20 +1096,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  
-  // Keep old emptyStateContainer for compatibility
   emptyStateContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
-  emptyStateText: {
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // Modal Footer
+  emptyStateText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   modalFooter: {
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -1449,8 +1125,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 0.5,
   },
-
-  // Main Buy Now Button
   buyNowButton: {
     flexDirection: 'row',
     alignItems: 'center',
