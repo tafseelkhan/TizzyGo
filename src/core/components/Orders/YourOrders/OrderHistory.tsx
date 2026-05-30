@@ -1,3 +1,4 @@
+// screens/YourOrdersScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,102 +15,35 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
-// ✅ REPLACED: Using react-native-vector-icons instead of @expo/vector-icons
+// Icons
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+// Services & Utils
+import { orderService, Order } from '../../../services/orders/yourOrders/orderService';
+import { 
+  getFirstProductData, 
+  getStatusColor, 
+  getNavigationSource,
+  formatOrderDate 
+} from '../../../utils/orders/yourOrders/orderUtils';
+
 const { width } = Dimensions.get('window');
-const API_BASE_URL = 'http://172.20.10.12:5000/api';
 
 const YourOrdersScreen = () => {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // ✅ NAVIGATION HOOK ADDED
   const navigation = useNavigation<any>();
-
-  // ✅ NAVIGATE TO ORDER SUCCESS SCREEN FUNCTION - UPDATED WITH PAYMENT METHOD LOGIC
-  const navigateToOrderSuccessScreen = (
-    orderId: string,
-    orderStatus: string,
-  ) => {
-    console.log(
-      `🚀 Navigating to OrderSuccessScreen with MongoDB ID: ${orderId}, Status: ${orderStatus}`,
-    );
-
-    let source = 'order_history'; // default fallback
-
-    if (orderStatus === 'succeeded') {
-      source = 'stripe_payment'; // Online payment via Stripe
-    } else if (orderStatus === 'cod_confirmed') {
-      source = 'cod'; // Cash on Delivery
-    }
-
-    // ✅ CORRECT SYNTAX FOR NESTED NAVIGATION - SAME AS PaymentStep.tsx
-    navigation.getParent()?.navigate('Order', {
-      screen: 'OrderSuccessScreen',
-      params: {
-        orderId: orderId,
-        source: source, // ✅ Same format as PaymentStep.tsx
-      },
-    });
-  };
-
-  const fetchOrdersFromAPI = async () => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        throw new Error('Please login first. Token not found.');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/orders/yourorder/my`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      });
-
-      const responseText = await response.text();
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        throw new Error('Invalid response from server');
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || data.error || `Server error: ${response.status}`,
-        );
-      }
-
-      return data;
-    } catch (error) {
-      console.error('[FINAL ERROR] in fetchOrdersFromAPI:', error);
-      throw error;
-    }
-  };
 
   const fetchOrders = async () => {
     try {
       setError(null);
-      const data = await fetchOrdersFromAPI();
-
-      if (Array.isArray(data)) {
-        setOrders(data);
-      } else if (data && data.orders && Array.isArray(data.orders)) {
-        setOrders(data.orders);
-      } else if (data && data.data && Array.isArray(data.data)) {
-        setOrders(data.data);
-      } else {
-        setOrders([]);
-      }
+      const data = await orderService.getUserOrders();
+      setOrders(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch orders');
       Alert.alert(
@@ -147,16 +81,28 @@ const YourOrdersScreen = () => {
     }
   };
 
-  const renderOrderItem = ({ item, index }: { item: any; index: number }) => {
-    const firstItem =
-      item.items && item.items.length > 0 ? item.items[0] : null;
-    const productData = firstItem?.productData || {};
-    const selectedVariant = firstItem?.selectedVariant || {};
-    const productFinalPrice =
-      productData.finalPrice || selectedVariant.productFinalPrice || 0;
+  const navigateToOrderSuccessScreen = (orderId: string, orderStatus: string) => {
+    console.log(
+      `🚀 Navigating with ID: ${orderId}, Status: ${orderStatus}`,
+    );
 
+    const source = getNavigationSource(orderStatus);
+
+    navigation.getParent()?.navigate('Order', {
+      screen: 'OrderSuccessScreen',
+      params: {
+        orderId: orderId,
+        source: source,
+      },
+    });
+  };
+
+  const stats = orderService.getOrderStats(orders);
+
+  const renderOrderItem = ({ item, index }: { item: Order; index: number }) => {
+    const { firstItem, productData, selectedVariant, productFinalPrice } = getFirstProductData(item);
     const statusColor = getStatusColor(item.deliveryStatus || item.status);
-    const statusIcon = getStatusIcon(item.deliveryStatus || item.status);
+    const orderDate = formatOrderDate(item.createdAt);
 
     return (
       <TouchableOpacity style={styles.orderCard} activeOpacity={0.9}>
@@ -167,15 +113,7 @@ const YourOrdersScreen = () => {
               <Text style={styles.orderNumber}>
                 {item.orderId || `ORD-${index + 1}`}
               </Text>
-              <Text style={styles.orderDate}>
-                {item.createdAt
-                  ? new Date(item.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })
-                  : 'Date not available'}
-              </Text>
+              <Text style={styles.orderDate}>{orderDate}</Text>
             </View>
           </View>
           <View
@@ -184,7 +122,6 @@ const YourOrdersScreen = () => {
               { backgroundColor: `${statusColor}15` },
             ]}
           >
-            {statusIcon}
             <Text style={[styles.statusText, { color: statusColor }]}>
               {(item.deliveryStatus || 'PENDING').toUpperCase()}
             </Text>
@@ -275,13 +212,11 @@ const YourOrdersScreen = () => {
         </View>
 
         <View style={styles.actionButtons}>
-          {/* ✅ VIEW DETAILS BUTTON UPDATED WITH NAVIGATION - PASSING ORDER STATUS */}
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => {
               if (item._id) {
-                // ✅ Pass both order ID and status to determine source
-                navigateToOrderSuccessScreen(item._id, item.status);
+                navigateToOrderSuccessScreen(item._id, item.status || '');
               } else {
                 Alert.alert(
                   'Error',
@@ -297,71 +232,6 @@ const YourOrdersScreen = () => {
       </TouchableOpacity>
     );
   };
-
-  const getStatusIcon = (status: any) => {
-    const statusLower = status?.toLowerCase();
-    switch (statusLower) {
-      case 'delivered':
-      case 'succeeded':
-        return <Icon name="checkmark-circle" size={12} color="#4CAF50" />;
-      case 'picked_up':
-      case 'shipped':
-        return <Feather name="truck" size={12} color="#2196F3" />;
-      case 'processing':
-      case 'confirmed':
-        return <Icon name="time-outline" size={12} color="#FF9800" />;
-      case 'cancelled':
-      case 'failed':
-        return <Icon name="close-circle" size={12} color="#F44336" />;
-      default:
-        return <Icon name="hourglass-outline" size={12} color="#757575" />;
-    }
-  };
-
-  const getStatusColor = (status: any) => {
-    const statusLower = status?.toLowerCase();
-    switch (statusLower) {
-      case 'delivered':
-      case 'succeeded':
-        return '#4CAF50';
-      case 'picked_up':
-      case 'shipped':
-        return '#2196F3';
-      case 'processing':
-      case 'confirmed':
-        return '#FF9800';
-      case 'cancelled':
-      case 'failed':
-        return '#F44336';
-      case 'pending':
-        return '#FFC107';
-      default:
-        return '#757575';
-    }
-  };
-
-  const getStats = () => {
-    const total = orders.length;
-    const delivered = orders.filter(o =>
-      ['delivered', 'succeeded'].includes(
-        o.deliveryStatus?.toLowerCase() || o.status?.toLowerCase(),
-      ),
-    ).length;
-    const active = orders.filter(o =>
-      ['processing', 'confirmed', 'picked_up'].includes(
-        o.deliveryStatus?.toLowerCase() || o.status?.toLowerCase(),
-      ),
-    ).length;
-    const pending = orders.filter(o =>
-      ['pending'].includes(
-        o.deliveryStatus?.toLowerCase() || o.status?.toLowerCase(),
-      ),
-    ).length;
-
-    return { total, delivered, active, pending };
-  };
-
-  const stats = getStats();
 
   if (loading) {
     return (
@@ -496,6 +366,7 @@ const YourOrdersScreen = () => {
   );
 };
 
+// Styles remain exactly the same as your original
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -15,11 +15,16 @@ export const API_ENDPOINTS = {
   // Profile endpoints
   GET_PROFILE: '/api/profile/me',
   UPDATE_PROFILE: '/api/profile/update',
+
+  // Orders endpoints
+  MY_ORDERS: '/api/orders/yourorder/my',
 };
 
 /**
  * @API_ENDPOINTS contains the API endpoint paths used in the application.
+ */
 
+/**
  * @property {string} VERIFY_USER_ROUTE - The endpoint for verifying the user's authentication token.
 
  * @property {string} SIGNUP - The endpoint for initiating the signup process by sending an OTP.
@@ -35,4 +40,6 @@ export const API_ENDPOINTS = {
   * @property {string} GET_PROFILE - The endpoint for retrieving the authenticated user's profile information.
 
   * @property {string} UPDATE_PROFILE - The endpoint for updating the authenticated user's profile information.
+
+  * @property {string} MY_ORDERS - The endpoint for fetching the authenticated user's order history.
  */

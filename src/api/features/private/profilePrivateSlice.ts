@@ -1,16 +1,18 @@
-import Config from "react-native-config";
+import Config from 'react-native-config';
 
-import { API_ENDPOINTS } from "../../connection/snippet/apiEndpoints";
+import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
 
-import {
-  getToken,
-} from "../../connection/token/tokenSlice";
+import { getToken } from '../../connection/token/tokenSlice';
 
-import { fetchHandler } from "../../../core/utils/handler/fetchHandler";
+import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 
 const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 
 export const profileApi = {
+  /**
+    @param {Object} formData - The data to update the profile with.
+    @returns {Promise} - A promise that resolves to the response of the update profile request.
+   */
   // ================================
   // GET PROFILE
   // ================================
@@ -18,17 +20,18 @@ export const profileApi = {
   async getProfile() {
     const token = await getToken();
 
-    return await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.GET_PROFILE}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.GET_PROFILE}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   },
 
+  /**
+    @param {Object} formData - The data to update the profile with.
+    @returns {Promise} - A promise that resolves to the response of the update profile request.
+   */
   // ================================
   // UPDATE PROFILE
   // ================================
@@ -39,12 +42,12 @@ export const profileApi = {
     return await fetchHandler(
       `${API_BASE_URL}${API_ENDPOINTS.UPDATE_PROFILE}`,
       {
-        method: "PUT",
+        method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
-      }
+      },
     );
   },
 };
