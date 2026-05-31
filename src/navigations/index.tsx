@@ -8,9 +8,9 @@ import HomeScreen from '../screens/home/HomeScreen';
 import ProfileScreen from '../screens/profile/Profile';
 import EditProfileScreen from '../screens/profile/ProfileEdit';
 import SettingsScreen from '../screens/settings/Settings';
-import ProductDetailScreen from '../screens/ProductDetail/ProductDetailScreen';
-import OrderSuccessScreen from '../screens/Orders/OrderSuccessScreen';
-import BuyNowScreen from '../screens/BuyNow/BuyNow';
+import ProductDetailScreen from '../screens/store/ProductDetailScreen';
+import OrderSuccessScreen from '../screens/inventory/OrderSuccessScreen';
+import BuyNowScreen from '../screens/shop/BuyNow';
 
 export type RootStackParamList = {
   Splash: undefined;
