@@ -16,7 +16,7 @@ import {
   getProductDimensions,
   getProductWeight,
   getProductDimensionsDisplay,
-} from '../../types/BuyNowTypes';
+} from '../../types/ShopTypes';
 import AddToCart from './AddToCart';
 import { useTheme } from '../../contexts/theme/ThemeContext'; // ✅ THÊME CONTEXT IMPORT
 

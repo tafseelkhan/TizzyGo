@@ -22,13 +22,13 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Services & Utils
-import { orderService, Order } from '../../../services/orders/yourOrders/orderService';
+import { orderService, Order } from '../../../services/inventory/yourOrders/orderService';
 import { 
   getFirstProductData, 
   getStatusColor, 
   getNavigationSource,
   formatOrderDate 
-} from '../../../utils/orders/yourOrders/orderUtils';
+} from '../../../utils/inventory/yourOrders/orderUtils';
 
 const { width } = Dimensions.get('window');
 

@@ -36,8 +36,8 @@ import {
   triggerVibration,
   createSelectedVariant,
   getThemeColors,
-} from '../../utils/products/cartUtils';
-import { CartService } from '../../services/products/addToCartService'; // Import service
+} from '../../utils/store/cartUtils';
+import { CartService } from '../../services/store/addToCartService'; // Import service
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

@@ -1,5 +1,6 @@
-// components/BottomNavigation.tsx
-import React, { useState, useRef } from 'react';
+// components/BottomNavigation.tsx - WITH PROFILE API INTEGRATION
+
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   Image,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +18,9 @@ import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+
+// ✅ Import profile API
+import { profileApi } from '../../../api/features/private/profilePrivateSlice';
 
 // Type definitions for props
 interface BottomNavigationProps {
@@ -43,18 +48,66 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) => {
+const BottomNavigation = ({
+  activeTab,
+  setActiveTab,
+}: BottomNavigationProps) => {
   const { isDark, resolvedTheme } = useTheme();
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [userName, setUserName] = useState<string>('');
+
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const screenWidth = Dimensions.get('window').width;
-  
+
   // Safe area insets for proper spacing
   const insets = useSafeAreaInsets();
 
-  // Haptic feedback functions using react-native-haptic-feedback
+  // ✅ Fetch user profile on mount
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  // ✅ Fetch profile function using your existing profileApi
+  const fetchUserProfile = async () => {
+    try {
+      setProfileLoading(true);
+      const response = await profileApi.getProfile();
+
+      if (response && response.data) {
+        const userData = response.data;
+
+        // Set profile image from Firebase URL
+        // The image field contains the Firebase Storage URL
+        if (userData.image) {
+          setProfileImage(userData.image);
+        } else if (userData.profileImage) {
+          setProfileImage(userData.profileImage);
+        } else if (userData.avatar) {
+          setProfileImage(userData.avatar);
+        }
+
+        // Set user name
+        if (userData.name) {
+          setUserName(userData.name);
+        } else if (userData.fullName) {
+          setUserName(userData.fullName);
+        } else if (userData.displayName) {
+          setUserName(userData.displayName);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Haptic feedback functions
   const triggerLightHaptic = () => {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
   };
@@ -69,10 +122,6 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
 
   const triggerSuccessHaptic = () => {
     ReactNativeHapticFeedback.trigger('notificationSuccess', hapticOptions);
-  };
-
-  const triggerWarningHaptic = () => {
-    ReactNativeHapticFeedback.trigger('notificationWarning', hapticOptions);
   };
 
   // Dynamic colors based on theme
@@ -93,38 +142,42 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     {
       id: 1,
       icon: 'storefront' as const,
-      // name: 'Shop',
       action: () => {
         triggerLightHaptic();
-        navigation.getParent()?.navigate('BottomNavigator', { screen: 'Seller' });
-      }
+        navigation
+          .getParent()
+          ?.navigate('BottomNavigator', { screen: 'Seller' });
+      },
     },
     {
       id: 2,
       icon: 'two-wheeler' as const,
-      // name: 'Find Driver',
       action: () => {
         triggerLightHaptic();
-        navigation.getParent()?.navigate('BottomNavigator', { screen: 'BookCab' });
-      }
+        navigation
+          .getParent()
+          ?.navigate('BottomNavigator', { screen: 'BookCab' });
+      },
     },
     {
       id: 3,
       icon: 'directions-car' as const,
-      // name: 'Renters',
       action: () => {
         triggerLightHaptic();
-        navigation.getParent()?.navigate('BottomNavigator', { screen: 'Rentes' });
-      }
+        navigation
+          .getParent()
+          ?.navigate('BottomNavigator', { screen: 'Rentes' });
+      },
     },
     {
       id: 4,
       icon: 'local-shipping' as const,
-      // name: 'Shippings',
       action: () => {
         triggerLightHaptic();
-        navigation.getParent()?.navigate('BottomNavigator', { screen: 'Shippings' });
-      }
+        navigation
+          .getParent()
+          ?.navigate('BottomNavigator', { screen: 'Shippings' });
+      },
     },
   ];
 
@@ -200,23 +253,110 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
     elevation: 8,
   };
 
+  // ✅ Render profile icon with real image
+  const renderProfileIcon = () => {
+    if (profileLoading) {
+      return (
+        <View style={styles.profileLoadingContainer}>
+          <ActivityIndicator
+            size="small"
+            color={isDark ? '#7DD3FC' : '#0f766e'}
+          />
+        </View>
+      );
+    }
+
+    if (profileImage) {
+      return (
+        <Image
+          source={{ uri: profileImage }}
+          style={styles.profileImage}
+          resizeMode="cover"
+        />
+      );
+    }
+
+    // Fallback icon if no image
+    return (
+      <Icon
+        name="person"
+        size={20}
+        color={
+          activeTab === 'profile'
+            ? isDark
+              ? '#A78BFA'
+              : '#7c3aed'
+            : themeColors.text
+        }
+      />
+    );
+  };
+
+  // ✅ Render user avatar or default icon with notification badge
+  const renderProfileButton = () => {
+    const isActive = activeTab === 'profile';
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.navButton,
+          isActive && [
+            styles.activeNavButton,
+            { backgroundColor: themeColors.activeBg },
+          ],
+        ]}
+        onPress={() => {
+          triggerMediumHaptic();
+          setActiveTab('profile');
+          navigation.navigate('Profile');
+        }}
+      >
+        <View style={styles.profileIconContainer}>
+          {renderProfileIcon()}
+          {/* Optional: Add notification badge */}
+          {userName && !profileLoading && <View style={styles.profileBadge} />}
+        </View>
+        {/* Optional: Show user name initial if needed */}
+        {userName && !profileLoading && (
+          <Text
+            style={[
+              styles.navText,
+              { color: themeColors.text },
+              isActive && [
+                styles.activeNavText,
+                { color: isDark ? '#A78BFA' : '#7c3aed' },
+              ],
+            ]}
+            numberOfLines={1}
+          >
+            {userName.length > 8 ? userName.substring(0, 6) + '..' : userName}
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <View style={[
-      styles.bottomNav, 
-      solidStyle, 
-      { 
-        bottom: Math.max(insets.bottom, 16),
-        left: Math.max(insets.left, 16),
-        right: Math.max(insets.right, 16)
-      }
-    ]}>
+    <View
+      style={[
+        styles.bottomNav,
+        solidStyle,
+        {
+          bottom: Math.max(insets.bottom, 16),
+          left: Math.max(insets.left, 16),
+          right: Math.max(insets.right, 16),
+        },
+      ]}
+    >
       <View style={styles.navContent}>
-        
         {/* Home Button */}
         <TouchableOpacity
           style={[
             styles.navButton,
-            activeTab === 'home' && [styles.activeNavButton, { backgroundColor: themeColors.activeBg }]
+            activeTab === 'home' && [
+              styles.activeNavButton,
+              { backgroundColor: themeColors.activeBg },
+            ],
           ]}
           onPress={() => {
             triggerLightHaptic();
@@ -230,18 +370,16 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               style={styles.navIconImage}
             />
           </View>
-          {/* <Text style={[
-            styles.navText,
-            { color: themeColors.text },
-            activeTab === 'home' && [styles.activeNavText, { color: themeColors.activeText }]
-          ]}>TizzyGo</Text> */}
         </TouchableOpacity>
 
         {/* Chat Button */}
         <TouchableOpacity
           style={[
             styles.navButton,
-            activeTab === 'chat' && [styles.activeNavButton, { backgroundColor: themeColors.activeBg }]
+            activeTab === 'chat' && [
+              styles.activeNavButton,
+              { backgroundColor: themeColors.activeBg },
+            ],
           ]}
           onPress={() => {
             triggerLightHaptic();
@@ -255,11 +393,6 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
               style={styles.navIconImage}
             />
           </View>
-          {/* <Text style={[
-            styles.navText,
-            { color: themeColors.text },
-            activeTab === 'chat' && [styles.activeNavText, { color: themeColors.activeText }]
-          ]}>Chat</Text> */}
         </TouchableOpacity>
 
         {/* Center Floating Action Button */}
@@ -275,7 +408,7 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
           >
             {actions.map((action, index) => (
               <Animated.View
-              key={action.id} // Add this key prop
+                key={action.id}
                 style={[
                   styles.speedDialAction,
                   {
@@ -294,10 +427,10 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
                   style={[styles.speedDialButton, speedDialSolidStyle]}
                   onPress={() => handleSpeedDialAction(action.action)}
                 >
-                  <MaterialIcon 
-                    name={action.icon} 
-                    size={24} 
-                    color={isDark ? '#0d9488' : '#0f766e'} 
+                  <MaterialIcon
+                    name={action.icon}
+                    size={24}
+                    color={isDark ? '#0d9488' : '#0f766e'}
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -308,10 +441,10 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
             style={[styles.fab, coloredSolidStyle]}
             onPress={toggleSpeedDial}
           >
-            <Icon 
-              name={speedDialOpen ? "close" : "add"} 
-              size={28} 
-              color={isDark ? '#0d9488' : '#0f766e'} 
+            <Icon
+              name={speedDialOpen ? 'close' : 'add'}
+              size={28}
+              color={isDark ? '#0d9488' : '#0f766e'}
             />
           </TouchableOpacity>
         </View>
@@ -320,55 +453,32 @@ const BottomNavigation = ({ activeTab, setActiveTab }: BottomNavigationProps) =>
         <TouchableOpacity
           style={[
             styles.navButton,
-            activeTab === 'ads' && [styles.activeNavButton, { backgroundColor: themeColors.activeBg }]
+            activeTab === 'ads' && [
+              styles.activeNavButton,
+              { backgroundColor: themeColors.activeBg },
+            ],
           ]}
           onPress={() => {
             triggerLightHaptic();
             setActiveTab('ads');
-            navigation.navigate('MyAds');      
+            navigation.navigate('MyAds');
           }}
         >
-          <Icon 
-            name="notifications" 
-            size={20} 
-            color={activeTab === 'ads' ? 
-              (isDark ? '#F59E0B' : '#ea580c') : 
-              themeColors.text
-            } 
+          <Icon
+            name="notifications"
+            size={20}
+            color={
+              activeTab === 'ads'
+                ? isDark
+                  ? '#F59E0B'
+                  : '#ea580c'
+                : themeColors.text
+            }
           />
-          {/* <Text style={[
-            styles.navText,
-            { color: themeColors.text },
-            activeTab === 'ads' && [styles.activeNavText, { color: isDark ? '#F59E0B' : '#ea580c' }]
-          ]}>My Ads</Text> */}
         </TouchableOpacity>
 
-        {/* Profile Button */}
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            activeTab === 'profile' && [styles.activeNavButton, { backgroundColor: themeColors.activeBg }]
-          ]}
-          onPress={() => {
-            triggerMediumHaptic();
-            setActiveTab('profile');
-            navigation.navigate('Profile');
-          }}
-        >
-          <Icon 
-            name="person" 
-            size={20} 
-            color={activeTab === 'profile' ? 
-              (isDark ? '#A78BFA' : '#7c3aed') : 
-              themeColors.text
-            } 
-          />
-          {/* <Text style={[
-            styles.navText,
-            { color: themeColors.text },
-            activeTab === 'profile' && [styles.activeNavText, { color: isDark ? '#A78BFA' : '#7c3aed' }]
-          ]}>Profile</Text> */}
-        </TouchableOpacity>
+        {/* ✅ Profile Button with Real Image */}
+        {renderProfileButton()}
       </View>
     </View>
   );
@@ -410,6 +520,47 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  // ✅ New styles for profile image
+  profileIconContainer: {
+    position: 'relative',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  profileLoadingContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10b981',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  navText: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  activeNavText: {
+    fontWeight: '700',
   },
   fabContainer: {
     position: 'relative',

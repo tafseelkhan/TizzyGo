@@ -1,24 +1,29 @@
-// components/MapViewModal.tsx
-import React, { useState, useRef, useCallback, ReactNode } from 'react';
+// src/components/MapViewModal.tsx (Refactored)
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Modal,
-  Alert,
   ActivityIndicator,
   Dimensions,
-  Linking,
   Platform,
-  ViewStyle,
-  TextStyle,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { ShippingAddress } from '../../types/BuyNowTypes';
-import { useTheme } from '../../contexts/theme/ThemeContext';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../contexts/theme/ThemeContext';
+import { useMapView } from '../../hooks/useMapViews';
+import { ThemeButton } from '../../colors/inc/ThemeButton';
+import {
+  getMapTheme,
+  getMapLoadingText,
+  getNoCoordinatesTitle,
+  getNoCoordinatesSubtext,
+  getModalTitle,
+  getMarkerTitle,
+} from '../../utils/shop/mapUtils';
+import { ShippingAddress } from '../../types/ShopTypes';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,120 +33,28 @@ interface MapViewModalProps {
   shippingAddress: ShippingAddress;
 }
 
-// ✅ Custom Button Props Interface
-interface ThemeButtonProps {
-  onPress: () => void;
-  style?: ViewStyle | ViewStyle[];
-  textStyle?: TextStyle | TextStyle[];
-  children: ReactNode;
-  disabled?: boolean;
-}
-
-// ✅ Custom Button Component with Hover Effects
-const ThemeButton: React.FC<ThemeButtonProps> = ({
-  onPress,
-  style,
-  textStyle,
-  children,
-  disabled = false,
-}) => {
-  const [isPressed, setIsPressed] = useState(false);
-  const { isDark, resolvedTheme } = useTheme();
-
-  const handlePressIn = () => {
-    setIsPressed(true);
-  };
-
-  const handlePressOut = () => {
-    setIsPressed(false);
-  };
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      disabled={disabled}
-      activeOpacity={0.85}
-      style={[
-        style,
-        isPressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
-      ]}
-    >
-      {children}
-    </TouchableOpacity>
-  );
-};
-
 const MapViewModal: React.FC<MapViewModalProps> = ({
   visible,
   onClose,
   shippingAddress,
 }) => {
-  const { isDark, resolvedTheme, theme } = useTheme();
-  const [isMapReady, setIsMapReady] = useState(false);
-  const viewMapRef = useRef<MapView>(null);
+  const { isDark, theme } = useTheme();
 
-  // ✅ FIXED: Check for valid number coordinates
-  const hasCoordinates =
-    shippingAddress.latitude !== null &&
-    shippingAddress.longitude !== null &&
-    !isNaN(shippingAddress.latitude) &&
-    !isNaN(shippingAddress.longitude);
+  const {
+    isMapReady,
+    mapRef,
+    hasCoordinates,
+    mapRegion,
+    handleMapReady,
+    handleClose,
+    openInGoogleMaps,
+    formatCoordinate,
+  } = useMapView({
+    shippingAddress,
+    onClose,
+  });
 
-  const mapRegion: Region = hasCoordinates
-    ? {
-        latitude: shippingAddress.latitude!,
-        longitude: shippingAddress.longitude!,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
-    : {
-        latitude: 28.6139,
-        longitude: 77.209,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-
-  // ✅ FIXED: Open in Google Maps with proper coordinate handling
-  const openInGoogleMaps = () => {
-    if (!hasCoordinates) {
-      Alert.alert('Error', 'No coordinates available for this address');
-      return;
-    }
-
-    const lat = shippingAddress.latitude!;
-    const lng = shippingAddress.longitude!;
-    const label = encodeURIComponent(shippingAddress.address);
-
-    const url = Platform.select({
-      ios: `maps://?q=${label}&ll=${lat},${lng}`,
-      android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-    });
-
-    Linking.openURL(url!).catch(err => {
-      console.error('Error opening maps:', err);
-      Alert.alert('Error', 'Could not open maps app');
-    });
-  };
-
-  const handleMapReady = useCallback(() => {
-    setIsMapReady(true);
-  }, []);
-
-  // ✅ Handle close
-  const handleClose = () => {
-    onClose();
-  };
-
-  // ✅ FIXED: Helper function to format coordinates
-  const formatCoordinate = (value: number | null): string => {
-    if (value === null || isNaN(value)) return 'N/A';
-    return value.toFixed(6);
-  };
-
-  // ✅ Theme-based styles
+  // Dynamic styles
   const dynamicStyles = StyleSheet.create({
     modalOverlay: {
       flex: 1,
@@ -164,21 +77,21 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
     },
     modalTitle: {
       fontSize: 18,
-      fontWeight: '600' as const,
+      fontWeight: '600',
       color: isDark ? '#fff' : '#333',
     },
     mapContainer: {
       flex: 1,
-      position: 'relative' as const,
+      position: 'relative',
     },
     mapLoadingContainer: {
-      position: 'absolute' as const,
+      position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
+      justifyContent: 'center',
+      alignItems: 'center',
       backgroundColor: isDark ? '#1a1a1a' : '#f8f9fa',
       zIndex: 10,
     },
@@ -201,8 +114,8 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
     },
     coordinateItem: {
       flex: 1,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: 6,
       backgroundColor: isDark ? '#2d2d2d' : '#f8f9fa',
       padding: 10,
@@ -227,135 +140,33 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
     actionButtonText: {
       color: '#fff',
       fontSize: 15,
-      fontWeight: '600' as const,
+      fontWeight: '600',
     },
     noMapContainer: {
       flex: 1,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
+      justifyContent: 'center',
+      alignItems: 'center',
       padding: 40,
       backgroundColor: isDark ? '#1a1a1a' : '#fff',
     },
     noMapText: {
       fontSize: 16,
       color: isDark ? '#ccc' : '#666',
-      fontWeight: '600' as const,
+      fontWeight: '600',
       marginTop: 20,
       marginBottom: 8,
-      textAlign: 'center' as const,
+      textAlign: 'center',
     },
     noMapSubtext: {
       fontSize: 14,
       color: isDark ? '#999' : '#999',
-      textAlign: 'center' as const,
+      textAlign: 'center',
       lineHeight: 20,
     },
   });
 
-  // ✅ Map theme based on dark mode
-  const getMapTheme = () => {
-    if (isDark) {
-      return [
-        {
-          elementType: 'geometry',
-          stylers: [{ color: '#242f3e' }],
-        },
-        {
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#746855' }],
-        },
-        {
-          elementType: 'labels.text.stroke',
-          stylers: [{ color: '#242f3e' }],
-        },
-        {
-          featureType: 'administrative.locality',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#d59563' }],
-        },
-        {
-          featureType: 'poi',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#d59563' }],
-        },
-        {
-          featureType: 'poi.park',
-          elementType: 'geometry',
-          stylers: [{ color: '#263c3f' }],
-        },
-        {
-          featureType: 'poi.park',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#6b9a76' }],
-        },
-        {
-          featureType: 'road',
-          elementType: 'geometry',
-          stylers: [{ color: '#38414e' }],
-        },
-        {
-          featureType: 'road',
-          elementType: 'geometry.stroke',
-          stylers: [{ color: '#212a37' }],
-        },
-        {
-          featureType: 'road',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#9ca5b3' }],
-        },
-        {
-          featureType: 'road.highway',
-          elementType: 'geometry',
-          stylers: [{ color: '#746855' }],
-        },
-        {
-          featureType: 'road.highway',
-          elementType: 'geometry.stroke',
-          stylers: [{ color: '#1f2835' }],
-        },
-        {
-          featureType: 'road.highway',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#f3d19c' }],
-        },
-        {
-          featureType: 'transit',
-          elementType: 'geometry',
-          stylers: [{ color: '#2f3948' }],
-        },
-        {
-          featureType: 'transit.station',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#d59563' }],
-        },
-        {
-          featureType: 'water',
-          elementType: 'geometry',
-          stylers: [{ color: '#17263c' }],
-        },
-        {
-          featureType: 'water',
-          elementType: 'labels.text.fill',
-          stylers: [{ color: '#515c6d' }],
-        },
-        {
-          featureType: 'water',
-          elementType: 'labels.text.stroke',
-          stylers: [{ color: '#17263c' }],
-        },
-      ];
-    }
-    return [];
-  };
-
-  // ✅ Get dynamic button style
   const getPrimaryButtonStyle = () => {
-    const baseStyle = [
-      styles.actionButton,
-      dynamicStyles.primaryButton,
-    ] as ViewStyle[];
-
-    return baseStyle;
+    return [styles.actionButton, dynamicStyles.primaryButton];
   };
 
   return (
@@ -369,6 +180,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
     >
       <SafeAreaView style={dynamicStyles.modalOverlay} edges={['bottom']}>
         <View style={dynamicStyles.modalContainer}>
+          {/* Header */}
           <View style={dynamicStyles.modalHeader}>
             <View style={styles.modalTitleContainer}>
               <MaterialIcons
@@ -376,7 +188,9 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                 size={22}
                 color={isDark ? '#4CAF50' : '#333'}
               />
-              <Text style={dynamicStyles.modalTitle}>Location on Map</Text>
+              <Text style={dynamicStyles.modalTitle}>
+                {getModalTitle(isDark)}
+              </Text>
             </View>
             <ThemeButton onPress={handleClose} style={styles.modalCloseButton}>
               <MaterialIcons
@@ -389,6 +203,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
 
           {hasCoordinates ? (
             <View style={dynamicStyles.mapContainer}>
+              {/* Loading Overlay */}
               {!isMapReady && (
                 <View style={dynamicStyles.mapLoadingContainer}>
                   <ActivityIndicator
@@ -396,20 +211,20 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                     color={isDark ? '#4CAF50' : '#4285F4'}
                   />
                   <Text style={dynamicStyles.mapLoadingText}>
-                    Loading map...
+                    {getMapLoadingText(isDark)}
                   </Text>
                 </View>
               )}
 
+              {/* Map View */}
               <MapView
-                key={`view-map-${theme}`} // Re-render map on theme change
-                ref={viewMapRef}
+                key={`view-map-${theme}`}
+                ref={mapRef}
                 style={[styles.map, !isMapReady && styles.hiddenMap]}
                 provider={PROVIDER_GOOGLE}
                 initialRegion={mapRegion}
                 onMapReady={handleMapReady}
-                customMapStyle={isDark ? getMapTheme() : []}
-                // ✅ PERFORMANCE OPTIMIZATIONS FOR VIEW-ONLY MAP
+                customMapStyle={getMapTheme(isDark)}
                 cacheEnabled={false}
                 liteMode={false}
                 zoomEnabled={true}
@@ -423,7 +238,6 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                 showsBuildings={false}
                 showsTraffic={false}
                 showsIndoors={false}
-                // showsPointsOfInterest={false}
                 loadingEnabled={true}
                 loadingIndicatorColor={isDark ? '#666666' : '#4285F4'}
                 loadingBackgroundColor={isDark ? '#1a1a1a' : '#ffffff'}
@@ -437,7 +251,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                     latitude: shippingAddress.latitude!,
                     longitude: shippingAddress.longitude!,
                   }}
-                  title="Delivery Location"
+                  title={getMarkerTitle()}
                   description={shippingAddress.address}
                   tracksViewChanges={false}
                 >
@@ -451,6 +265,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                 </Marker>
               </MapView>
 
+              {/* Address Info */}
               <View style={dynamicStyles.infoContainer}>
                 <View style={styles.addressContainer}>
                   <MaterialIcons
@@ -487,6 +302,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                 </View>
               </View>
 
+              {/* Action Button */}
               <View style={dynamicStyles.actionButtons}>
                 <ThemeButton
                   onPress={openInGoogleMaps}
@@ -500,6 +316,7 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
               </View>
             </View>
           ) : (
+            /* No Coordinates View */
             <View style={dynamicStyles.noMapContainer}>
               <MaterialIcons
                 name="error-outline"
@@ -507,10 +324,10 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
                 color={isDark ? '#555' : '#ddd'}
               />
               <Text style={dynamicStyles.noMapText}>
-                No location coordinates available
+                {getNoCoordinatesTitle(isDark)}
               </Text>
               <Text style={dynamicStyles.noMapSubtext}>
-                Please select an address with valid coordinates
+                {getNoCoordinatesSubtext(isDark)}
               </Text>
             </View>
           )}
@@ -520,11 +337,11 @@ const MapViewModal: React.FC<MapViewModalProps> = ({
   );
 };
 
-// ✅ Static styles (theme-independent)
+// Static styles
 const styles = StyleSheet.create({
   modalTitleContainer: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   modalCloseButton: {
@@ -536,27 +353,27 @@ const styles = StyleSheet.create({
   },
   hiddenMap: {
     opacity: 0,
-    position: 'absolute' as const,
+    position: 'absolute',
   },
   customMarker: {
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addressContainer: {
-    flexDirection: 'row' as const,
-    alignItems: 'flex-start' as const,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 10,
     marginBottom: 12,
   },
   coordinatesContainer: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 10,
   },
   actionButton: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 10,
     gap: 10,

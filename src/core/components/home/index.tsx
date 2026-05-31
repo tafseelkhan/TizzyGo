@@ -34,7 +34,6 @@ import Banner from './BannerHome';
 import CategoryGrid from './CategoryGridHome';
 import Header from './HeaderHome';
 import BottomNavigation from './BottomNavigationHome';
-import Footer from './FooterHome';
 import ProductGrid from './ProductGridHome';
 import ProductStories from './ProductStoryHome';
 import BrandSlider from './BrandSliderHome';
@@ -42,7 +41,7 @@ import {
   brandsData,
   staticBannerData,
   rotatingBannerItems,
-} from './Common/Data/images';
+} from './common/data/images';
 import { Product as ProductType } from '../../types/HomeTypes';
 import { AuthUtils } from '../../services/HomeService';
 import { useTheme } from '../../contexts/theme/ThemeContext';
@@ -886,8 +885,6 @@ const HomeScreen: React.FC = () => {
                 isDark={isDark}
               />
             </View>
-
-            <Footer />
           </View>
         </Animated.ScrollView>
       </View>

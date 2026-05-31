@@ -40,7 +40,7 @@ import {
 import {
   fetchProductVariants,
   processBuyNowCheckout,
-} from '../../services/products/buynowServices';
+} from '../../services/store/buynowServices';
 
 // Utils
 import {
@@ -50,7 +50,7 @@ import {
   createSelectedVariant,
   calculateDiscount,
   getVariantStockStatus,
-} from '../../utils/products/buynowUtils';
+} from '../../utils/store/buynowUtils';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

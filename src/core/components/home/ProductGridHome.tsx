@@ -1,11 +1,5 @@
-// components/ProductGrid.tsx - FINAL FIXED VERSION
-import React, {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
+// components/ProductGrid.tsx - FINAL CLEAN VERSION
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,100 +18,38 @@ import LottieView from 'lottie-react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-
-// Import your existing ProductCard component
+import { useProductGrid } from '../../hooks/useProductGrid';
+import { ProductGridService } from '../../services/home/productGridService';
+import {
+  safeFormatPrice,
+  getProductImage,
+} from '../../utils/home/productGridUtils';
 import ProductCard from './ProductCardHome';
 
+// Lottie animation
 const nofoundAnimation = require('../../components/animations/lotties/no-products.json');
 
-// --- TYPE DEFINITIONS ---
-type Variant = {
-  fields?: any[];
-  images?: string[];
-  video?: string;
-};
-
-type FullProduct = {
-  _id: string;
-  title: string;
-  brand: string;
-  description: string;
-  subcategory: string;
-  variants?: Variant[];
-  mrp: number;
-  price: number;
-  discount: number;
-  finalPrice: number;
-  offerText?: string;
-  averageRating?: number;
-  reviewCount?: number;
-};
-
-type Product = {
-  productId: string;
-  fullProduct: FullProduct;
+// Types
+type RootStackParamList = {
+  ProductDetail: { productId: string };
+  [key: string]: any;
 };
 
 type ProductGridProps = {
-  products: Product[];
+  products: any[];
   isLoading: boolean;
   userId: string;
   onRefresh?: () => void;
   refreshTrigger?: boolean;
 };
 
-// Define navigation param types
-type RootStackParamList = {
-  ProductDetail: { productId: string };
-  [key: string]: any;
-};
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Helper function to safely format price
-const safeFormatPrice = (price: any): string => {
-  const numPrice = typeof price === 'number' ? price : Number(price);
-  if (isNaN(numPrice) || numPrice === undefined || numPrice === null) {
-    return '0';
-  }
-  return numPrice.toLocaleString();
-};
+// ============ SUB-COMPONENTS ============
 
-// Helper function to safely get number value
-const safeGetNumber = (value: any, defaultValue: number = 0): number => {
-  const num = typeof value === 'number' ? value : Number(value);
-  return isNaN(num) ? defaultValue : num;
-};
-
-// Helper function to get the product image
-const getProductImage = (product: Product): string => {
-  try {
-    if (product?.fullProduct?.variants?.[0]?.images?.[0]) {
-      const imageUrl = product.fullProduct.variants[0].images[0];
-      return imageUrl.replace('…', '').trim();
-    }
-  } catch (error) {
-    console.log('Error getting product image:', error);
-  }
-  return 'https://placehold.co/500x500/6366f1/ffffff?text=Product';
-};
-
-// Function to get random products
-const getRandomProducts = (products: Product[], count: number): Product[] => {
-  if (products.length <= count) return products;
-
-  const shuffled = [...products];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled.slice(0, count);
-};
-
-// Simple Product Card for horizontal section
 const HorizontalProductCard: React.FC<{
-  product: Product;
-  onPress: (product: Product) => void;
+  product: any;
+  onPress: (product: any) => void;
 }> = ({ product, onPress }) => {
   const { isDark } = useTheme();
   const imageUrl = getProductImage(product);
@@ -156,19 +88,16 @@ const HorizontalProductCard: React.FC<{
   );
 };
 
-// Premium Pick Product Card
 const PremiumPickCard: React.FC<{
-  product: Product;
-  onPress: (product: Product) => void;
+  product: any;
+  onPress: (product: any) => void;
 }> = ({ product, onPress }) => {
   const { isDark } = useTheme();
   const imageUrl = getProductImage(product);
-  const scaleAnim = useState(new Animated.Value(1))[0];
+  const scaleAnim = React.useState(new Animated.Value(1))[0];
 
-  // Safe price getters
-  const finalPrice = safeGetNumber(product?.fullProduct?.finalPrice);
-  const mrp = safeGetNumber(product?.fullProduct?.mrp);
-  const averageRating = safeGetNumber(product?.fullProduct?.averageRating, 4.5);
+  const processedProduct = ProductGridService.processProduct(product);
+  const { finalPrice, mrp, averageRating } = processedProduct;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -204,15 +133,12 @@ const PremiumPickCard: React.FC<{
         onPressOut={handlePressOut}
         activeOpacity={0.9}
       >
-        {/* Premium Badge */}
         <View style={styles.premiumBadgeContainer}>
           <View style={styles.premiumBadge}>
             <Icon name="star" size={10} color="#ffffff" />
             <Text style={styles.premiumBadgeText}>FEATURED</Text>
           </View>
         </View>
-
-        {/* Product Image */}
         <View
           style={[
             styles.premiumImageContainer,
@@ -225,8 +151,6 @@ const PremiumPickCard: React.FC<{
             resizeMode="contain"
           />
         </View>
-
-        {/* Product Info */}
         <View style={styles.premiumInfoContainer}>
           <Text
             style={[
@@ -245,8 +169,6 @@ const PremiumPickCard: React.FC<{
           >
             {product.fullProduct.title || 'Product'}
           </Text>
-
-          {/* Price and Rating */}
           <View style={styles.premiumPriceRating}>
             <View style={styles.premiumPriceContainer}>
               <Text
@@ -268,8 +190,6 @@ const PremiumPickCard: React.FC<{
                 </Text>
               )}
             </View>
-
-            {/* Rating */}
             <View
               style={[
                 styles.premiumRating,
@@ -293,37 +213,18 @@ const PremiumPickCard: React.FC<{
   );
 };
 
-// Trending Bundle Card - FIXED KEY PROP ISSUE
 const TrendingBundleCard: React.FC<{
-  products: Product[];
-  onPress: (product: Product) => void;
+  products: any[];
+  onPress: (product: any) => void;
 }> = ({ products, onPress }) => {
   const { isDark } = useTheme();
-
-  // RANDOM 4 products for bundle
-  const bundleProducts = useMemo(() => {
-    return getRandomProducts(products, 4);
-  }, [products]);
-
-  const totalOriginalPrice = bundleProducts.reduce(
-    (sum, product) => sum + safeGetNumber(product?.fullProduct?.mrp),
-    0,
-  );
-
-  const totalBundlePrice = bundleProducts.reduce(
-    (sum, product) => sum + safeGetNumber(product?.fullProduct?.finalPrice),
-    0,
-  );
-
-  const totalDiscount = bundleProducts.reduce(
-    (sum, product) => sum + safeGetNumber(product?.fullProduct?.discount),
-    0,
-  );
-
-  const averageDiscount =
-    bundleProducts.length > 0
-      ? Math.round(totalDiscount / bundleProducts.length)
-      : 0;
+  const bundleData = ProductGridService.getBundleData(products);
+  const {
+    bundleProducts,
+    totalOriginalPrice,
+    totalBundlePrice,
+    averageDiscount,
+  } = bundleData;
 
   return (
     <View
@@ -335,7 +236,6 @@ const TrendingBundleCard: React.FC<{
         },
       ]}
     >
-      {/* Bundle Header */}
       <View
         style={[
           styles.bundleHeader,
@@ -361,16 +261,9 @@ const TrendingBundleCard: React.FC<{
         </View>
       </View>
 
-      {/* Bundle Products Grid - FIXED: Removed Date.now() from key */}
       <View style={styles.bundleProductsGrid}>
-        {bundleProducts.map((product, index) => {
-          // Create a stable unique key WITHOUT Date.now()
-          const stableKey = product?.fullProduct?._id
-            ? `bundle-${product.fullProduct._id}`
-            : `bundle-fallback-${index}-${
-                product.fullProduct.title?.substring(0, 10) || 'unknown'
-              }`;
-
+        {bundleProducts.map((product: any, index: any) => {
+          const stableKey = product?.fullProduct?._id || `bundle-${index}`;
           return (
             <TouchableOpacity
               key={stableKey}
@@ -405,17 +298,13 @@ const TrendingBundleCard: React.FC<{
                   { color: isDark ? '#FFFFFF' : '#1e293b' },
                 ]}
               >
-                ₹
-                {safeFormatPrice(
-                  safeGetNumber(product?.fullProduct?.finalPrice),
-                )}
+                ₹{safeFormatPrice(product?.fullProduct?.finalPrice)}
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* Bundle Footer */}
       <View
         style={[
           styles.bundleFooter,
@@ -462,6 +351,8 @@ const TrendingBundleCard: React.FC<{
   );
 };
 
+// ============ MAIN COMPONENT ============
+
 const ProductGrid: React.FC<ProductGridProps> = ({
   products,
   isLoading,
@@ -472,143 +363,45 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isDark } = useTheme();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
-  const [localProducts, setLocalProducts] = useState<Product[]>(products);
 
-  // Update local products when parent products change
-  useEffect(() => {
-    setLocalProducts(products);
-    setCurrentPage(1);
-  }, [products]);
-
-  // Handle refresh trigger from parent
-  useEffect(() => {
-    if (refreshTrigger) {
-      handleRefresh();
-    }
-  }, [refreshTrigger]);
-
-  // Pagination Logic
-  const itemsPerPage = 20;
-  const totalPages = Math.ceil(localProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentProducts = localProducts.slice(
+  const {
+    currentPage,
+    refreshing,
+    column1,
+    column2,
+    totalPages,
     startIndex,
-    startIndex + itemsPerPage,
-  );
-  const endIndex = Math.min(startIndex + itemsPerPage, localProducts.length);
+    endIndex,
+    horizontalProducts,
+    premiumPicks,
+    fastestSellingProduct,
+    handleRefresh,
+    handlePageChange,
+    generatePageNumbers,
+    isLoading: gridLoading,
+    isRefreshing,
+  } = useProductGrid({
+    products,
+    isLoading,
+    onRefresh,
+    refreshTrigger,
+  });
 
-  // Create 2 columns for grid layout
-  const { column1, column2 } = useMemo(() => {
-    const col1: Product[] = [];
-    const col2: Product[] = [];
-
-    currentProducts.forEach((product, index) => {
-      if (index % 2 === 0) {
-        col1.push(product);
-      } else {
-        col2.push(product);
-      }
-    });
-    return { column1: col1, column2: col2 };
-  }, [currentProducts]);
-
-  // Get products for different sections
-  const horizontalProducts = useMemo(() => {
-    return getRandomProducts(localProducts, 10);
-  }, [localProducts]);
-
-  // FASTEST SELLING
-  const fastestSellingProduct = useMemo(() => {
-    if (localProducts.length === 0) return null;
-    return localProducts[Math.floor(Math.random() * localProducts.length)];
-  }, [localProducts]);
-
-  // Get RANDOM 4 products for Premium Picks
-  const premiumPicks = useMemo(() => {
-    return getRandomProducts(localProducts, 4);
-  }, [localProducts]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setCurrentPage(1);
-    if (onRefresh) {
-      await onRefresh();
-    }
-    setRefreshing(false);
-  }, [onRefresh]);
-
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-  }, []);
-
-  // FIXED: handleProductPress with proper error handling and debug
   const handleProductPress = useCallback(
-    (product: Product) => {
-      // Debug log
-      console.log('🔍 Product pressed:', {
-        productId: product?.productId,
-        fullProductId: product?.fullProduct?._id,
-        title: product?.fullProduct?.title,
-      });
-
-      // Get product ID from multiple possible sources
-      const productId = product?.productId || product?.fullProduct?._id;
-
+    (product: any) => {
+      const productId = ProductGridService.getValidProductId(product);
       if (!productId) {
-        console.error('❌ No product ID found!', product);
+        console.error('No product ID found!', product);
         Alert.alert('Error', 'Product ID not found. Please try again.');
         return;
       }
-
-      console.log('✅ Navigating with productId:', productId);
-
-      navigation.navigate('ProductDetail', {
-        productId: productId,
-      });
+      navigation.navigate('ProductDetail', { productId });
     },
     [navigation],
   );
 
-  const generatePageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const maxVisiblePages = 5;
-
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(1);
-      let start = Math.max(2, currentPage - 1);
-      let end = Math.min(totalPages - 1, currentPage + 1);
-
-      if (currentPage <= 2) {
-        end = 3;
-      }
-      if (currentPage >= totalPages - 1) {
-        start = totalPages - 2;
-      }
-
-      if (start > 2) {
-        pages.push('...');
-      }
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-      if (end < totalPages - 1) {
-        pages.push('...');
-      }
-      if (totalPages > 1) {
-        pages.push(totalPages);
-      }
-    }
-    return pages;
-  };
-
   // Loading Skeleton
-  if (isLoading && localProducts.length === 0) {
+  if (gridLoading && products.length === 0) {
     return (
       <View
         style={[
@@ -658,7 +451,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   }
 
   // No Products State
-  if (localProducts.length === 0 && !isLoading) {
+  if (products.length === 0 && !isLoading) {
     return (
       <View
         style={[
@@ -698,7 +491,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={isRefreshing}
             onRefresh={handleRefresh}
             colors={['#3b82f6', '#60a5fa']}
             tintColor="#3b82f6"
@@ -706,7 +499,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* --- 1. HORIZONTAL PRODUCTS SECTION --- */}
+        {/* Horizontal Products Section */}
         {horizontalProducts.length > 0 && (
           <View style={styles.horizontalSection}>
             <View style={styles.horizontalHeader}>
@@ -722,7 +515,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 <Text style={styles.viewAllText}>View All</Text>
               </TouchableOpacity>
             </View>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -739,7 +531,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </View>
         )}
 
-        {/* --- 2. PREMIUM PICKS SECTION --- */}
+        {/* Premium Picks Section */}
         {premiumPicks.length > 0 && (
           <View style={styles.premiumSection}>
             <View style={styles.premiumHeader}>
@@ -760,7 +552,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 Handpicked just for you
               </Text>
             </View>
-
             <View style={styles.premiumGrid}>
               {premiumPicks.map(product => (
                 <PremiumPickCard
@@ -776,15 +567,15 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </View>
         )}
 
-        {/* --- 3. TRENDING BUNDLE SECTION --- */}
-        {localProducts.length >= 4 && (
+        {/* Trending Bundle Section */}
+        {products.length >= 4 && (
           <TrendingBundleCard
-            products={localProducts}
+            products={products}
             onPress={handleProductPress}
           />
         )}
 
-        {/* --- 4. FASTEST SELLING PRODUCT --- */}
+        {/* Fastest Selling Product */}
         {fastestSellingProduct && (
           <TouchableOpacity
             style={[
@@ -816,11 +607,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
               >
                 Grab it now at ₹
                 {safeFormatPrice(
-                  safeGetNumber(fastestSellingProduct?.fullProduct?.finalPrice),
+                  fastestSellingProduct?.fullProduct?.finalPrice,
                 )}
               </Text>
             </View>
-
             <View
               style={[
                 styles.fastestSellingImage,
@@ -836,7 +626,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* --- 5. PRODUCTS COUNT & PAGINATION INFO --- */}
+        {/* Products Count & Pagination Info */}
         <View style={styles.productsCountWrapper}>
           <LinearGradient
             colors={isDark ? ['#1E293B', '#334155'] : ['#3b82f6', '#60a5fa']}
@@ -857,8 +647,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                   <Text style={styles.highlight}>
                     {startIndex + 1}-{endIndex}
                   </Text>{' '}
-                  of{' '}
-                  <Text style={styles.highlight}>{localProducts.length}</Text>
+                  of <Text style={styles.highlight}>{products.length}</Text>
                 </Text>
               </View>
             </View>
@@ -869,9 +658,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </LinearGradient>
         </View>
 
-        {/* --- 6. MAIN PRODUCT GRID --- */}
+        {/* Main Product Grid */}
         <View style={styles.gridContainer}>
-          {/* FIRST COLUMN */}
           <View style={styles.column}>
             {column1.map(product => (
               <View
@@ -879,18 +667,13 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 style={styles.productCardWrapper}
               >
                 <ProductCard
-                  product={{
-                    productId: product.productId,
-                    fullProduct: product.fullProduct,
-                  }}
+                  product={product}
                   userId={userId}
                   showSocialButtons={true}
                 />
               </View>
             ))}
           </View>
-
-          {/* SECOND COLUMN */}
           <View style={styles.column}>
             {column2.map(product => (
               <View
@@ -898,10 +681,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 style={styles.productCardWrapper}
               >
                 <ProductCard
-                  product={{
-                    productId: product.productId,
-                    fullProduct: product.fullProduct,
-                  }}
+                  product={product}
                   userId={userId}
                   showSocialButtons={true}
                 />
@@ -910,7 +690,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </View>
         </View>
 
-        {/* --- 7. PAGINATION --- */}
+        {/* Pagination */}
         {totalPages > 1 && (
           <View
             style={[
@@ -933,7 +713,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                 <Icon name="arrow-back" size={16} color="white" />
                 <Text style={styles.paginationButtonText}>Previous</Text>
               </TouchableOpacity>
-
               <View style={styles.pageNumbers}>
                 {generatePageNumbers().map((pageNum, index) =>
                   pageNum === '...' ? (
@@ -973,7 +752,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                   ),
                 )}
               </View>
-
               <TouchableOpacity
                 onPress={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
@@ -994,39 +772,20 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   );
 };
 
-// Styles
+// Styles remain the same as original...
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#00000000',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  horizontalSection: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: '#00000000' },
+  scrollView: { flex: 1 },
+  horizontalSection: { paddingHorizontal: 16, marginTop: 16, marginBottom: 20 },
   horizontalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  horizontalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#3b82f6',
-    fontWeight: '500',
-  },
-  horizontalScrollView: {
-    flexDirection: 'row',
-  },
+  horizontalTitle: { fontSize: 18, fontWeight: '600', color: '#1e293b' },
+  viewAllText: { fontSize: 14, color: '#3b82f6', fontWeight: '500' },
+  horizontalScrollView: { flexDirection: 'row' },
   horizontalProductCard: {
     borderRadius: 12,
     marginRight: 12,
@@ -1049,10 +808,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
   },
-  horizontalProductImage: {
-    width: '100%',
-    height: '100%',
-  },
+  horizontalProductImage: { width: '100%', height: '100%' },
   horizontalProductName: {
     fontSize: 12,
     fontWeight: '500',
@@ -1060,23 +816,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 14,
   },
-  premiumSection: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-  },
-  premiumHeader: {
-    marginBottom: 16,
-  },
+  premiumSection: { marginHorizontal: 16, marginBottom: 20 },
+  premiumHeader: { marginBottom: 16 },
   premiumTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1e293b',
     marginBottom: 4,
   },
-  premiumSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-  },
+  premiumSubtitle: { fontSize: 14, color: '#64748b' },
   premiumGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1096,12 +844,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     height: 280,
   },
-  premiumBadgeContainer: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 10,
-  },
+  premiumBadgeContainer: { position: 'absolute', top: 8, left: 8, zIndex: 10 },
   premiumBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1124,13 +867,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
   },
-  premiumProductImage: {
-    width: '100%',
-    height: '100%',
-  },
-  premiumInfoContainer: {
-    padding: 12,
-  },
+  premiumProductImage: { width: '100%', height: '100%' },
+  premiumInfoContainer: { padding: 12 },
   premiumProductBrand: {
     fontSize: 10,
     color: '#3b82f6',
@@ -1150,10 +888,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  premiumPriceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
+  premiumPriceContainer: { flexDirection: 'row', alignItems: 'baseline' },
   premiumPrice: {
     fontSize: 15,
     fontWeight: '700',
@@ -1202,10 +937,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#fde68a',
   },
-  bundleTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  bundleTitleContainer: { flexDirection: 'row', alignItems: 'center' },
   bundleTitle: {
     fontSize: 14,
     fontWeight: '500',
@@ -1218,20 +950,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
-  bundleBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'white',
-  },
-  bundleProductsGrid: {
-    flexDirection: 'row',
-    padding: 16,
-  },
-  bundleProductItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
+  bundleBadgeText: { fontSize: 12, fontWeight: '700', color: 'white' },
+  bundleProductsGrid: { flexDirection: 'row', padding: 16 },
+  bundleProductItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   bundleProductImageContainer: {
     position: 'relative',
     width: 70,
@@ -1243,11 +964,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     overflow: 'visible',
   },
-  bundleProductImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
+  bundleProductImage: { width: 60, height: 60, borderRadius: 8 },
   bundleProductName: {
     fontSize: 11,
     fontWeight: '600',
@@ -1255,11 +972,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
-  bundleProductPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
+  bundleProductPrice: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
   bundleFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1269,24 +982,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
   },
-  bundlePriceContainer: {
-    flex: 1,
-  },
+  bundlePriceContainer: { flex: 1 },
   bundlePriceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     marginBottom: 4,
   },
-  bundleTotalLabel: {
-    fontSize: 14,
-    color: '#64748b',
-    marginRight: 6,
-  },
-  bundleTotalPrice: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
+  bundleTotalLabel: { fontSize: 14, color: '#64748b', marginRight: 6 },
+  bundleTotalPrice: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
   bundleOriginalPrice: {
     fontSize: 13,
     color: '#94a3b8',
@@ -1324,10 +1027,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bae6fd',
   },
-  fastestSellingTextContainer: {
-    flex: 1,
-    paddingRight: 10,
-  },
+  fastestSellingTextContainer: { flex: 1, paddingRight: 10 },
   fastestSellingBadge: {
     backgroundColor: '#3b82f6',
     color: 'white',
@@ -1345,21 +1045,14 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 4,
   },
-  fastestSellingSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
-  },
+  fastestSellingSubtitle: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   fastestSellingImage: {
     width: 100,
     height: 70,
     borderRadius: 8,
     backgroundColor: '#E5E7EB',
   },
-  productsCountWrapper: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  productsCountWrapper: { paddingHorizontal: 16, paddingVertical: 8 },
   productsCountContainer: {
     padding: 16,
     borderRadius: 12,
@@ -1372,13 +1065,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  countLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  countIcon: {
-    marginRight: 12,
-  },
+  countLeft: { flexDirection: 'row', alignItems: 'center' },
+  countIcon: { marginRight: 12 },
   countTitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
@@ -1390,14 +1078,8 @@ const styles = StyleSheet.create({
     color: 'white',
     marginTop: 2,
   },
-  highlight: {
-    color: '#fef3c7',
-    fontWeight: '800',
-  },
-  countRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  highlight: { color: '#fef3c7', fontWeight: '800' },
+  countRight: { flexDirection: 'row', alignItems: 'center' },
   countRightText: {
     color: 'white',
     fontSize: 14,
@@ -1410,13 +1092,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     justifyContent: 'space-between',
   },
-  column: {
-    flex: 1,
-    marginHorizontal: 2,
-  },
-  productCardWrapper: {
-    marginBottom: 10,
-  },
+  column: { flex: 1, marginHorizontal: 2 },
+  productCardWrapper: { marginBottom: 10 },
   paginationContainer: {
     marginTop: 16,
     padding: 16,
@@ -1442,20 +1119,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#3b82f6',
   },
-  disabledButton: {
-    opacity: 0.5,
-  },
+  disabledButton: { opacity: 0.5 },
   paginationButtonText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 12,
     marginHorizontal: 4,
   },
-  pageNumbers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
+  pageNumbers: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pageNumber: {
     width: 32,
     height: 32,
@@ -1466,23 +1137,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  activePageNumber: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-  },
-  pageNumberText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  activePageNumberText: {
-    color: '#fff',
-  },
-  ellipsis: {
-    fontSize: 14,
-    color: '#6B7280',
-    paddingHorizontal: 2,
-  },
+  activePageNumber: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  pageNumberText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  activePageNumberText: { color: '#fff' },
+  ellipsis: { fontSize: 14, color: '#6B7280', paddingHorizontal: 2 },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1490,11 +1148,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00000000',
     padding: 20,
   },
-  errorAnimation: {
-    width: 200,
-    height: 200,
-    marginBottom: 20,
-  },
+  errorAnimation: { width: 200, height: 200, marginBottom: 20 },
   noProductsText: {
     fontSize: 16,
     fontWeight: '600',
@@ -1510,11 +1164,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  retryButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
   skeletonCard: {
     width: (Dimensions.get('window').width - 24) / 2 - 8,
     backgroundColor: 'white',

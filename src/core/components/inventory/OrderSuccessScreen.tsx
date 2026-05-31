@@ -40,14 +40,14 @@ import { useTheme } from '../../contexts/theme/ThemeContext';
 import {
   orderSuccessService,
   OrderDetails,
-} from '../../services/orders/orderSuccessService';
+} from '../../services/inventory/orderSuccessService';
 import {
   getStatusDisplayInfo,
   calculateTotalAmount,
   getStepsWithStatus,
   getDefaultDeliveryEstimate,
   getPaymentMethodType,
-} from '../../utils/orders/orderSuccessUtils';
+} from '../../utils/inventory/orderSuccessUtils';
 import { DeliveryStatus, LiveDeliveryData } from '../../../api/features/private/orderSuccessPrivateSlice';
 
 const { width, height } = Dimensions.get('window');

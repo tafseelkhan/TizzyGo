@@ -1,5 +1,5 @@
 // utils/orderUtils.ts
-import { Order, OrderItem } from '../../../services/orders/yourOrders/orderService';
+import { Order, OrderItem } from '../../../services/inventory/yourOrders/orderService';
 
 export const getFirstProductData = (item: Order) => {
   const firstItem = item.items && item.items.length > 0 ? item.items[0] : null;

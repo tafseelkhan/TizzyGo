@@ -65,6 +65,12 @@ export interface Product {
   manufacturer?: boolean;
   cashOnDelivery?: boolean;
   deliveryVehicleType?: boolean;
+  // ✅ Add missing properties from ShopTypes Product
+  vendorCodeUID?: string;
+  sellerId?: string;
+  gstRate?: number;
+  gstSource?: string;
+  fulfillmentType?: 'SELLER' | 'FFC';
   [key: string]: any;
 }
 

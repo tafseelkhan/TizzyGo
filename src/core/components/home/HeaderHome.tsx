@@ -25,7 +25,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Import your components
 import SearchBar from './SearchBarHome';
-import FilterDropdown from './Common/FilterDropDownHome';
+import FilterDropdown from './common/FilterDropDownHome';
 import CartButton from './CartButtonHome';
 
 // Import Lottie animations

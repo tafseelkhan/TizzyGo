@@ -66,6 +66,34 @@ export const API_ENDPOINTS = {
   REVIEWS: '/api/ratings/reviews',
   REVIEW: '/api/ratings/review',
   USER_RATING: '/api/ratings/user-rating',
+
+  // Payment endpoints
+  CREATE_PAYMENT_INTENT: '/api/payment/create-payment-intent',
+  PROCESS_PAYMENT: '/api/payment/process-payment',
+  CONFIRM_COD: '/api/payment/confirm-cod',
+
+  // Checkout endpoints
+  CALCULATE_CHECKOUT: '/api/buyer/buy',
+
+  // Search endpoints
+  SEARCH_PRODUCTS: '/api/search/products',
+  RECENT_SEARCHES: '/api/search/recent',
+  POPULAR_SEARCHES: '/api/search/popular',
+  REMOVE_RECENT_SEARCH: '/api/search/recent',
+  CLEAR_RECENT_SEARCHES: '/api/search/recent/all',
+
+  // Stories endpoints
+  FETCH_STORIES: '/api/stories',
+  MARK_STORY_VIEWED: '/api/story/viewed',
+  FETCH_VIEWED_STORIES: '/api/story/viewed',
+
+  // Product Rating endpoints
+  GET_RATING_STATS: '/api/rating-review/rating/stats',
+  GET_REVIEWS: '/api/rating-review/rating/reviews',
+  GET_USER_REVIEW: '/api/rating-review/rating/user',
+  CREATE_REVIEW: '/api/rating-review/rating',
+  UPDATE_REVIEW: '/api/rating-review/rating',
+  DELETE_REVIEW: '/api/rating-review/rating',
 };
 
 /**

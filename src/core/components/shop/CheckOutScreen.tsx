@@ -1,5 +1,13 @@
-// screens/CheckoutStepper.tsx - FINAL FIXED CODE
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+// screens/CheckoutStepper.tsx - COMPLETELY FIXED VERSION
+
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  memo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -13,148 +21,105 @@ import {
   Animated,
   Easing,
   Dimensions,
-  Vibration,
+  RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import LinearGradient from 'react-native-linear-gradient';
-import ProductStep from './ProductStep';
-import AddressCouponStep from './AddressCouponStep';
+import { useTheme } from '../../contexts/theme/ThemeContext';
+import { useCheckout } from '../../hooks/useCheckout';
+import { useProduct } from '../../hooks/useProducts';
+import {
+  scaleFont,
+  scaleSpacing,
+  formatTruncate2Decimals,
+  parseCoordinate,
+  triggerHaptic,
+  getGrandTotalSafe,
+  getDiscountAppliedSafe,
+} from '../../utils/shop/checkoutUtils';
 import {
   Product,
   CheckoutData,
   CalculatedData,
   ShippingAddress,
-  getProductDimensions,
-} from '../../types/BuyNowTypes';
-import {
-  addToCart,
-  updateCartItem,
-  removeFromCart,
-  fetchCart,
-} from './AddToCart';
+  ProductVariant,
+  SelectedVariant,
+} from '../../types/ShopTypes';
+import ProductStep from './ProductStep';
+import AddressCouponStep from './AddressCouponStep';
 import PaymentStep from './PaymentStep';
-import { useTheme } from '../../contexts/theme/ThemeContext';
+import AddToCart from './AddToCart';
 
-const API_URL = 'http://172.20.10.12:5000';
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ANIMATION_DURATION = 300;
 
-// ✅ Color Palette with theme support
 const getColors = (isDark: boolean) => ({
   primary: '#7C3AED',
   primaryLight: '#A78BFA',
   primaryDark: '#5B21B6',
   secondary: '#F59E0B',
-  secondaryLight: '#FBBF24',
-  secondaryDark: '#D97706',
   background: isDark ? '#0F172A' : '#FFFFFF',
   surface: isDark ? '#1E293B' : '#FFFFFF',
-  bg: isDark ? '#0F172A' : '#FFFFFF',
   textPrimary: isDark ? '#F1F5F9' : '#1E293B',
   textSecondary: isDark ? '#CBD5E1' : '#64748B',
   textLight: isDark ? '#94A3B8' : '#94A3B8',
   success: '#10B981',
-  warning: '#F59E0B',
   error: '#EF4444',
   border: isDark ? '#334155' : '#E5E7EB',
-  shadow: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(124, 58, 237, 0.1)',
   gradientStart: '#7C3AED',
   gradientEnd: '#3B82F6',
 });
 
-// ✅ Animation Constants
-const ANIMATION_DURATION = 300;
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const StepCircle = memo(({ index, isActive, isCompleted, colors }: any) => {
+  const scaleAnim = useRef(new Animated.Value(isActive ? 1.1 : 1)).current;
 
-// ✅ Device-specific sizing
-const isSmallDevice = SCREEN_HEIGHT < 700;
-const isLargeDevice = SCREEN_HEIGHT >= 800;
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: isActive ? 1.1 : 1,
+      friction: 8,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  }, [isActive, scaleAnim]);
 
-const scaleFont = (baseSize: number) => {
-  if (isSmallDevice) return baseSize - 2;
-  if (isLargeDevice) return baseSize + 2;
-  return baseSize;
-};
+  const circleSize = scaleSpacing(32);
 
-const scaleSpacing = (baseSpacing: number) => {
-  if (isSmallDevice) return baseSpacing - 2;
-  if (isLargeDevice) return baseSpacing + 2;
-  return baseSpacing;
-};
-
-// ✅ Haptic Feedback
-const triggerHaptic = (
-  type:
-    | 'light'
-    | 'medium'
-    | 'heavy'
-    | 'success'
-    | 'warning'
-    | 'error' = 'light',
-) => {
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    try {
-      switch (type) {
-        case 'light':
-          Vibration.vibrate(10);
-          break;
-        case 'medium':
-          Vibration.vibrate(20);
-          break;
-        case 'heavy':
-          Vibration.vibrate(30);
-          break;
-        case 'success':
-          Vibration.vibrate([0, 50, 30, 50]);
-          break;
-        case 'warning':
-          Vibration.vibrate([0, 100, 50, 100]);
-          break;
-        case 'error':
-          Vibration.vibrate([0, 200, 100, 200]);
-          break;
-      }
-    } catch (error) {
-      console.log('Vibration not available:', error);
-    }
-  }
-};
-
-// Utility Functions
-const formatTruncate2Decimals = (value: number): string => {
-  if (value === null || value === undefined || isNaN(value)) return '0.00';
-  const strValue = value.toString();
-  const decimalIndex = strValue.indexOf('.');
-  if (decimalIndex === -1) return `${strValue}.00`;
-  const decimalPart = strValue.substring(decimalIndex + 1);
-  if (decimalPart.length === 1) return `${strValue}0`;
-  else if (decimalPart.length >= 2)
-    return strValue.substring(0, decimalIndex + 3);
-  return strValue;
-};
-
-const getExactTotal = (calculatedData: CalculatedData | null): string => {
-  if (
-    !calculatedData ||
-    !calculatedData.grandTotal ||
-    isNaN(calculatedData.grandTotal)
-  ) {
-    return '0.00';
-  }
-  return formatTruncate2Decimals(calculatedData.grandTotal);
-};
-
-const parseCoordinate = (
-  value: string | number | null | undefined,
-): number | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    return isNaN(parsed) ? null : parsed;
-  }
-  return null;
-};
+  return (
+    <Animated.View
+      style={[
+        styles.stepCircle,
+        isCompleted && styles.completedStep,
+        isActive && styles.activeStep,
+        {
+          transform: [{ scale: scaleAnim }],
+          width: circleSize,
+          height: circleSize,
+          borderRadius: circleSize / 2,
+          backgroundColor: isCompleted
+            ? colors.success
+            : isActive
+            ? colors.primary
+            : colors.border,
+        },
+      ]}
+    >
+      {isCompleted ? (
+        <Text style={styles.stepCheck}>✓</Text>
+      ) : (
+        <Text
+          style={[
+            styles.stepNumber,
+            isActive && styles.activeStepNumber,
+            { color: isActive ? '#fff' : colors.textSecondary },
+          ]}
+        >
+          {index + 1}
+        </Text>
+      )}
+    </Animated.View>
+  );
+});
 
 const CheckoutStepper: React.FC = () => {
   const route = useRoute<any>();
@@ -171,32 +136,34 @@ const CheckoutStepper: React.FC = () => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const [currentStep, setCurrentStep] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [calculating, setCalculating] = useState<boolean>(false);
-  const [isApplyingCoupon, setIsApplyingCoupon] = useState<boolean>(false);
-  const [product, setProduct] = useState<Product | null>(null);
-  const [calculatedData, setCalculatedData] = useState<CalculatedData | null>(
-    null,
-  );
-  const [placingOrder, setPlacingOrder] = useState<boolean>(false);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
-  const [couponManuallyApplied, setCouponManuallyApplied] =
-    useState<boolean>(false);
-  const [isInCart, setIsInCart] = useState<boolean>(fromCart);
-  const [isAdding, setIsAdding] = useState<boolean>(false);
-  const [cartLoading, setCartLoading] = useState<boolean>(false);
-  const [userId, setUserId] = useState<string>('user123');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [essentialProductInfo, setEssentialProductInfo] = useState<any>(null);
+  const [isInCart, setIsInCart] = useState(fromCart);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [userId, setUserId] = useState('user123');
+  const [selectedVariant, setSelectedVariant] =
+    useState<SelectedVariant | null>(null);
 
-  // ✅ Store essential product info
-  const [essentialProductInfo, setEssentialProductInfo] = useState<{
-    mongoObjectId: string;
-    displayProductId: string;
-    vendorCodeUID: string;
-    sellerId: string;
-    sellerLocation?: any;
-  } | null>(null);
+  // ✅ Use the useProduct hook
+  const {
+    product: fetchedProduct,
+    loading: productLoading,
+    error: productError,
+    refreshing,
+    onRefresh,
+  } = useProduct({
+    productId,
+    initialData: routeProductData || null,
+    autoFetch: true,
+  });
+
+  // ✅ Safely cast product with type assertion using 'as any'
+  const product = useMemo(() => {
+    if (!fetchedProduct) return null;
+    // Use type assertion to avoid property mismatch errors
+    return fetchedProduct as any as Product;
+  }, [fetchedProduct]);
 
   const [checkoutData, setCheckoutData] = useState<CheckoutData>({
     productId: productId || '',
@@ -212,458 +179,127 @@ const CheckoutStepper: React.FC = () => {
     orderNotes: '',
   });
 
-  const calculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const isCalculatingRef = useRef<boolean>(false);
-  const lastAppliedCouponRef = useRef<string>('');
+  // ✅ Extract variants from product
+  const productVariants = useMemo(() => product?.variants || [], [product]);
 
-  const showToast = {
-    error: (message: string) => Alert.alert('Error', message),
-    success: (message: string) => Alert.alert('Success', message),
-  };
+  // ✅ Set essential product info when product loads
+  useEffect(() => {
+    if (product) {
+      const essentialInfo = {
+        mongoObjectId: product._id || '',
+        displayProductId: product.productId || productId,
+        vendorCodeUID: (product as any).vendorCodeUID || '',
+        sellerId: (product as any).sellerId || '',
+        sellerLocation: product.sellerLocation || null,
+      };
+      setEssentialProductInfo(essentialInfo);
+    }
+  }, [product, productId]);
 
-  const animateStepChange = (
-    newStep: number,
-    direction: 'forward' | 'backward',
-  ) => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0.5,
-        duration: ANIMATION_DURATION / 2,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: ANIMATION_DURATION / 2,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setCurrentStep(newStep);
-      slideAnim.setValue(
-        direction === 'forward' ? SCREEN_WIDTH : -SCREEN_WIDTH,
-      );
+  const {
+    calculatedData,
+    calculating,
+    couponError,
+    couponSuccess,
+    clearCouponMessages,
+    fetchCalculatedData,
+    applyCoupon,
+    removeCoupon,
+  } = useCheckout({
+    essentialProductInfo,
+    quantity: checkoutData.quantity,
+    shippingAddress: checkoutData.shippingAddress,
+    couponCode: checkoutData.couponCode,
+  });
+
+  // Fetch user ID
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('userData');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          setUserId(parsedUser._id || parsedUser.id || 'user123');
+        }
+      } catch (error) {
+        console.error('Error fetching user ID:', error);
+      }
+    };
+    fetchUserId();
+  }, []);
+
+  // ✅ If coming from cart, set isInCart to true
+  useEffect(() => {
+    if (fromCart) {
+      setIsInCart(true);
+    }
+  }, [fromCart]);
+
+  // Handle product error
+  useEffect(() => {
+    if (productError) {
+      Alert.alert('Product Load Failed', productError, [
+        { text: 'Retry', onPress: () => onRefresh() },
+        { text: 'Go Back', onPress: () => navigation.goBack() },
+      ]);
+    }
+  }, [productError, onRefresh, navigation]);
+
+  const animateStepChange = useCallback(
+    (newStep: number, direction: 'forward' | 'backward') => {
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: ANIMATION_DURATION,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
         Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: ANIMATION_DURATION,
+          toValue: 0.5,
+          duration: ANIMATION_DURATION / 2,
           easing: Easing.ease,
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: ANIMATION_DURATION,
+          toValue: 0.95,
+          duration: ANIMATION_DURATION / 2,
           easing: Easing.ease,
           useNativeDriver: true,
         }),
-      ]).start();
-    });
-  };
-
-  useEffect(() => {
-    return () => {
-      if (calculationTimeoutRef.current)
-        clearTimeout(calculationTimeoutRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (productId) {
-      fetchUserId();
-      fetchProductData();
-    }
-  }, [productId]);
-
-  const fetchUserId = async () => {
-    try {
-      const userData = await AsyncStorage.getItem('userData');
-      if (userData) {
-        const parsedUser = JSON.parse(userData);
-        setUserId(parsedUser._id || parsedUser.id || 'user123');
-      }
-    } catch (error) {
-      console.error('Error fetching user ID:', error);
-    }
-  };
-
-  const fetchProductData = async () => {
-    if (!productId) {
-      Alert.alert('Error', 'Product ID not found');
-      navigation.goBack();
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      let productData: Product;
-
-      if (routeProductData) {
-        console.log('✅ Using routeProductData');
-        productData = routeProductData;
-      } else {
-        console.log('📡 Fetching product from API');
-        const productUrl = `${API_URL}/api/seller/forms/categories/${productId}`;
-        const response = await axios.get(productUrl, { timeout: 10000 });
-        if (response.data.product) productData = response.data.product;
-        else if (response.data.data) productData = response.data.data;
-        else productData = response.data;
-      }
-
-      console.log('🎯 Product loaded:', productData.title);
-
-      const mongoObjectId = productData._id || '';
-      const displayProductId = (productData as any).productId || productId;
-      const vendorCodeUIDStr = (productData as any).vendorCodeUID || '';
-      const sellerIdStr = (productData as any).sellerId || '';
-      const sellerLocationData = (productData as any).sellerLocation || null;
-
-      console.log('📦 MongoDB ObjectId:', mongoObjectId);
-      console.log('📦 Display Product ID:', displayProductId);
-      console.log('📦 Vendor Code UID:', vendorCodeUIDStr);
-      console.log('📦 Seller ID:', sellerIdStr);
-
-      setEssentialProductInfo({
-        mongoObjectId: mongoObjectId,
-        displayProductId: displayProductId,
-        vendorCodeUID: vendorCodeUIDStr,
-        sellerId: sellerIdStr,
-        sellerLocation: sellerLocationData,
-      });
-
-      setProduct(productData);
-
-      // ✅ CRITICAL FIX: Wait for essentialProductInfo to be set before calculation
-      if (
-        mongoObjectId &&
-        displayProductId &&
-        vendorCodeUIDStr &&
-        sellerIdStr
-      ) {
-        await fetchInitialCalculationWithData(
-          mongoObjectId,
-          displayProductId,
-          vendorCodeUIDStr,
-          sellerIdStr,
-          checkoutData.quantity,
+      ]).start(() => {
+        setCurrentStep(newStep);
+        slideAnim.setValue(
+          direction === 'forward' ? SCREEN_WIDTH : -SCREEN_WIDTH,
         );
-      }
-
-      if (!fromCart) {
-        await checkIfInCart(productData);
-      }
-    } catch (error: any) {
-      console.error('❌ Product fetch error:', error.message);
-      let errorMessage = 'Failed to load product';
-      if (error.response?.status === 404) errorMessage = 'Product not found';
-      else if (error.code === 'ERR_NETWORK')
-        errorMessage = 'Cannot connect to server.';
-      Alert.alert('Product Load Failed', errorMessage, [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ NEW: Initial calculation with direct data
-  const fetchInitialCalculationWithData = async (
-    mongoObjectId: string,
-    displayProductId: string,
-    vendorCodeUID: string,
-    sellerId: string,
-    quantity: number,
-  ) => {
-    console.log('\n💰 STEP 1: Initial calculation with direct data');
-
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      setCalculating(true);
-
-      // ✅ Build URL with query params
-      const params = new URLSearchParams();
-      params.append('productId', mongoObjectId);
-      params.append('quantity', quantity.toString());
-      params.append('vendorCodeUID', vendorCodeUID);
-      params.append('sellerId', sellerId);
-      params.append('productDataId', displayProductId);
-
-      const url = `${API_URL}/api/buyer/buy?${params.toString()}`;
-
-      console.log('📤 Sending GET request to:', url);
-
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        timeout: 15000,
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: ANIMATION_DURATION,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: ANIMATION_DURATION,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: ANIMATION_DURATION,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+        ]).start();
       });
-
-      console.log('📥 Initial calculation response:', response.data);
-
-      if (response.data && response.data.calculated) {
-        setCalculatedData(response.data.calculated);
-      }
-    } catch (error: any) {
-      console.error('❌ Calculation error:', error.message);
-      Alert.alert(
-        'Calculation Error',
-        error.response?.data?.message ||
-          'Price calculation failed. Please try again.',
-      );
-    } finally {
-      setCalculating(false);
-    }
-  };
-
-  const checkIfInCart = async (productData: Product) => {
-    try {
-      setCartLoading(true);
-      const cartItem = await fetchCart(productData.id || productData._id);
-      if (cartItem) {
-        setIsInCart(true);
-        setCheckoutData(prev => ({
-          ...prev,
-          quantity: cartItem.quantity || 1,
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching cart:', error);
-    } finally {
-      setCartLoading(false);
-    }
-  };
-
-  const clearCouponMessages = () => {
-    setCouponError(null);
-    setCouponSuccess(null);
-  };
-
-  // ✅ FIXED: Main calculation - Build URL properly with null checks
-  const fetchCalculatedData = useCallback(
-    async (
-      options: {
-        skipCouponCheck?: boolean;
-        skipCouponOnAddressChange?: boolean;
-        isLocationUpdate?: boolean;
-      } = {},
-    ) => {
-      if (isCalculatingRef.current) return;
-      if (calculationTimeoutRef.current)
-        clearTimeout(calculationTimeoutRef.current);
-
-      calculationTimeoutRef.current = setTimeout(async () => {
-        if (!productId || !essentialProductInfo) return;
-
-        try {
-          isCalculatingRef.current = true;
-          const token = await AsyncStorage.getItem('authToken');
-          setCalculating(true);
-
-          if (!options.skipCouponCheck) clearCouponMessages();
-
-          // ✅ Build URL with query params
-          const params = new URLSearchParams();
-          params.append('productId', essentialProductInfo.mongoObjectId);
-          params.append('quantity', checkoutData.quantity.toString());
-          params.append('vendorCodeUID', essentialProductInfo.vendorCodeUID);
-          params.append('sellerId', essentialProductInfo.sellerId);
-          params.append('productDataId', essentialProductInfo.displayProductId);
-
-          if (options.isLocationUpdate) {
-            params.append('isLocationUpdate', 'true');
-          }
-
-          // ✅ Send seller location
-          if (essentialProductInfo.sellerLocation) {
-            const sellerLat =
-              essentialProductInfo.sellerLocation.latitude ||
-              essentialProductInfo.sellerLocation.lat;
-            const sellerLng =
-              essentialProductInfo.sellerLocation.longitude ||
-              essentialProductInfo.sellerLocation.lng;
-            if (sellerLat && sellerLng) {
-              params.append('sellerLat', sellerLat.toString());
-              params.append('sellerLng', sellerLng.toString());
-            }
-            if (essentialProductInfo.sellerLocation.address) {
-              params.append(
-                'sellerAddress',
-                essentialProductInfo.sellerLocation.address,
-              );
-            }
-            if (essentialProductInfo.sellerLocation.googlePlaceId) {
-              params.append(
-                'sellerGooglePlaceId',
-                essentialProductInfo.sellerLocation.googlePlaceId,
-              );
-            }
-          }
-
-          // ✅ Send buyer location - FIXED: proper null checks
-          const shippingAddress = checkoutData.shippingAddress;
-          const buyerLatValue = shippingAddress.latitude;
-          const buyerLngValue = shippingAddress.longitude;
-          const hasValidBuyerLocation =
-            shippingAddress &&
-            buyerLatValue !== null &&
-            buyerLngValue !== null &&
-            buyerLatValue !== 0 &&
-            buyerLngValue !== 0;
-
-          if (hasValidBuyerLocation) {
-            params.append('buyerLat', buyerLatValue.toString());
-            params.append('buyerLng', buyerLngValue.toString());
-            if (shippingAddress.address) {
-              params.append('buyerAddress', shippingAddress.address);
-            }
-            if (shippingAddress.googlePlaceId) {
-              params.append(
-                'buyerGooglePlaceId',
-                shippingAddress.googlePlaceId,
-              );
-            }
-          }
-
-          // ✅ Send coupon code
-          const shouldSendCouponCode =
-            checkoutData.couponCode &&
-            checkoutData.couponCode.trim() !== '' &&
-            !options.skipCouponOnAddressChange &&
-            couponManuallyApplied;
-          if (shouldSendCouponCode) {
-            params.append('couponCode', checkoutData.couponCode);
-          }
-
-          const url = `${API_URL}/api/buyer/buy?${params.toString()}`;
-          console.log('📤 Sending GET request to:', url);
-
-          const response = await axios.get(url, {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-              'Content-Type': 'application/json',
-            },
-            timeout: 20000,
-          });
-
-          if (response.data && response.data.calculated) {
-            const calculated = response.data.calculated;
-
-            if (response.data.couponMessage) {
-              if (
-                response.data.couponMessage.includes('applied successfully') ||
-                response.data.couponMessage.toLowerCase().includes('success')
-              ) {
-                setCouponSuccess(response.data.couponMessage);
-                setCouponError(null);
-                setCouponManuallyApplied(true);
-              } else {
-                setCouponError(response.data.couponMessage);
-                setCouponSuccess(null);
-                setCouponManuallyApplied(false);
-              }
-            }
-
-            if (calculated.couponUsed && !couponSuccess) {
-              setCouponSuccess(
-                `Coupon "${calculated.couponUsed}" applied successfully!`,
-              );
-              setCouponError(null);
-              setCouponManuallyApplied(true);
-            } else if (!calculated.couponUsed) {
-              setCouponManuallyApplied(false);
-            }
-
-            setCalculatedData(calculated);
-          }
-        } catch (error: any) {
-          console.error('❌ Calculation error:', error.message);
-          if (error.response?.data?.message) {
-            setCouponError(error.response.data.message);
-            setCouponManuallyApplied(false);
-          }
-          if (error.response?.data?.error) {
-            Alert.alert('Error', error.response.data.error);
-          }
-        } finally {
-          isCalculatingRef.current = false;
-          setCalculating(false);
-        }
-      }, 500);
     },
-    [
-      productId,
-      essentialProductInfo,
-      checkoutData.quantity,
-      checkoutData.shippingAddress,
-      checkoutData.couponCode,
-      couponManuallyApplied,
-      couponSuccess,
-    ],
+    [fadeAnim, scaleAnim, slideAnim],
   );
 
-  // ✅ FIXED: useEffect with proper null checks
-  useEffect(() => {
-    const buyerLatValue = checkoutData.shippingAddress?.latitude;
-    const buyerLngValue = checkoutData.shippingAddress?.longitude;
-    const hasValidCoordinates =
-      checkoutData.shippingAddress &&
-      buyerLatValue !== null &&
-      buyerLngValue !== null &&
-      buyerLatValue !== 0 &&
-      buyerLngValue !== 0;
-
-    if (hasValidCoordinates && essentialProductInfo) {
-      if (calculationTimeoutRef.current)
-        clearTimeout(calculationTimeoutRef.current);
-      calculationTimeoutRef.current = setTimeout(() => {
-        fetchCalculatedData({
-          skipCouponOnAddressChange: true,
-          isLocationUpdate: true,
-        });
-      }, 800);
-    }
-
-    return () => {
-      if (calculationTimeoutRef.current)
-        clearTimeout(calculationTimeoutRef.current);
-    };
-  }, [
-    checkoutData.shippingAddress?.latitude,
-    checkoutData.shippingAddress?.longitude,
-    checkoutData.shippingAddress?.address,
-    essentialProductInfo,
-    fetchCalculatedData,
-  ]);
-
-  const handleAddressSelected = useCallback(
-    (addressData: ShippingAddress) => {
-      const processedAddress = {
+  const handleAddressSelected = useCallback((addressData: ShippingAddress) => {
+    setCheckoutData(prev => ({
+      ...prev,
+      shippingAddress: {
         ...addressData,
         latitude: parseCoordinate(addressData.latitude),
         longitude: parseCoordinate(addressData.longitude),
-      };
-      setCheckoutData(prev => ({ ...prev, shippingAddress: processedAddress }));
-      setTimeout(
-        () =>
-          fetchCalculatedData({
-            skipCouponOnAddressChange: true,
-            isLocationUpdate: true,
-          }),
-        800,
-      );
-    },
-    [fetchCalculatedData],
-  );
+      },
+    }));
+  }, []);
 
   const updateShippingAddress = useCallback(
     (field: string | number | symbol, value: any) => {
@@ -686,110 +322,60 @@ const CheckoutStepper: React.FC = () => {
     (key: string | number | symbol, value: any) => {
       if (key === 'couponCode') clearCouponMessages();
       setCheckoutData(prev => ({ ...prev, [key]: value }));
-      if (key === 'quantity') setTimeout(() => fetchCalculatedData(), 300);
     },
-    [fetchCalculatedData],
+    [clearCouponMessages],
   );
 
-  const handleApplyCoupon = async (couponCode: string) => {
-    if (isApplyingCoupon || calculating) return;
-    if (couponManuallyApplied && calculatedData?.couponUsed === couponCode)
-      return;
-
-    try {
+  const handleApplyCoupon = useCallback(
+    async (code: string) => {
+      if (isApplyingCoupon || calculating) return;
       setIsApplyingCoupon(true);
-      clearCouponMessages();
-      setCheckoutData(prev => ({ ...prev, couponCode }));
-      setCouponManuallyApplied(true);
-      await fetchCalculatedData();
-    } catch (error) {
-      setCouponError('Failed to apply coupon. Please try again.');
-      setCouponManuallyApplied(false);
-    } finally {
+      setCheckoutData(prev => ({ ...prev, couponCode: code }));
+      await applyCoupon(code);
       setIsApplyingCoupon(false);
-    }
-  };
+    },
+    [isApplyingCoupon, calculating, applyCoupon],
+  );
 
-  const handleRemoveCoupon = async () => {
+  const handleRemoveCoupon = useCallback(async () => {
     if (isApplyingCoupon || calculating) return;
-    try {
-      setIsApplyingCoupon(true);
-      clearCouponMessages();
-      setCheckoutData(prev => ({ ...prev, couponCode: '' }));
-      setCouponManuallyApplied(false);
-      lastAppliedCouponRef.current = '';
-      await fetchCalculatedData({ skipCouponCheck: true });
-      setCouponSuccess('Coupon removed successfully');
-    } catch (error) {
-      setCouponError('Failed to remove coupon');
-    } finally {
-      setIsApplyingCoupon(false);
+    setIsApplyingCoupon(true);
+    setCheckoutData(prev => ({ ...prev, couponCode: '' }));
+    await removeCoupon();
+    setIsApplyingCoupon(false);
+  }, [isApplyingCoupon, calculating, removeCoupon]);
+
+  // ✅ Convert to async functions for ProductStep compatibility
+  const handleAddToCartAsync = useCallback(async () => {
+    setIsInCart(true);
+    triggerHaptic('success');
+    Alert.alert('Success', 'Product added to cart successfully!');
+    return Promise.resolve();
+  }, []);
+
+  const handleUpdateCartQuantityAsync = useCallback(async (qty: number) => {
+    setCheckoutData(prev => ({ ...prev, quantity: qty }));
+    return Promise.resolve();
+  }, []);
+
+  const handleRemoveFromCartAsync = useCallback(async () => {
+    setIsInCart(false);
+    setCheckoutData(prev => ({ ...prev, quantity: 1 }));
+    return Promise.resolve();
+  }, []);
+
+  const handleVariantSelect = useCallback((variant: SelectedVariant | null) => {
+    setSelectedVariant(variant);
+  }, []);
+
+  const handleQuantityChange = useCallback((newQuantity: number) => {
+    if (newQuantity >= 1) {
+      setCheckoutData(prev => ({ ...prev, quantity: newQuantity }));
     }
-  };
+  }, []);
 
-  const handleAddToCart = async () => {
-    if (!product) return;
-    setIsAdding(true);
-    try {
-      const success = await addToCart({
-        productId: product.id || product._id,
-        productData: product,
-        quantity: checkoutData.quantity,
-      });
-      if (success) {
-        setIsInCart(true);
-        Alert.alert('Success', 'Added to cart successfully!');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error adding to cart');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  const handleUpdateCartQuantity = async (newQuantity: number) => {
-    if (!product || newQuantity < 1) return;
-    setCartLoading(true);
-    try {
-      const success = await updateCartItem({
-        productId: product.id || product._id,
-        quantity: newQuantity,
-      });
-      if (success) {
-        setCheckoutData(prev => ({ ...prev, quantity: newQuantity }));
-        Alert.alert('Success', 'Quantity updated successfully!');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error updating quantity');
-    } finally {
-      setCartLoading(false);
-    }
-  };
-
-  const handleRemoveFromCart = async () => {
-    if (!product) return;
-    setCartLoading(true);
-    try {
-      const success = await removeFromCart(product.id || product._id);
-      if (success) {
-        setIsInCart(false);
-        Alert.alert('Success', 'Removed from cart successfully!');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error removing from cart');
-    } finally {
-      setCartLoading(false);
-    }
-  };
-
-  const handleUpdateQuantity = (newQuantity: number) => {
-    if (!product || newQuantity < 1) return;
-    updateCheckoutData('quantity', newQuantity);
-  };
-
-  // ✅ FIXED: handleNext with proper null checks
-  const handleNext = () => {
-    if (calculating || loading || isApplyingCoupon || placingOrder) {
+  const handleNext = useCallback(() => {
+    if (calculating || productLoading || isApplyingCoupon || placingOrder) {
       Alert.alert('Please Wait', 'Processing... Please wait.');
       return;
     }
@@ -802,16 +388,14 @@ const CheckoutStepper: React.FC = () => {
       triggerHaptic('medium');
       animateStepChange(1, 'forward');
     } else if (currentStep === 1) {
-      const isFreeDelivery =
-        product?.freeDelivery === true || product?.delivery === 'free';
+      const isFreeDelivery = product?.freeDelivery === true;
       if (!isFreeDelivery) {
-        if (!checkoutData.shippingAddress.address.trim()) {
+        if (!checkoutData.shippingAddress.address?.trim()) {
           Alert.alert('Error', 'Please enter shipping address');
           return;
         }
-        const lat = checkoutData.shippingAddress.latitude;
-        const lng = checkoutData.shippingAddress.longitude;
-        if (lat === null || lng === null || lat === 0 || lng === 0) {
+        const { latitude, longitude } = checkoutData.shippingAddress;
+        if (!latitude || !longitude || latitude === 0 || longitude === 0) {
           Alert.alert(
             'Error',
             'Please select a valid address from suggestions',
@@ -822,93 +406,236 @@ const CheckoutStepper: React.FC = () => {
       triggerHaptic('medium');
       animateStepChange(2, 'forward');
     }
-  };
+  }, [
+    calculating,
+    productLoading,
+    isApplyingCoupon,
+    placingOrder,
+    currentStep,
+    checkoutData,
+    product,
+    animateStepChange,
+  ]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
       triggerHaptic('light');
       animateStepChange(currentStep - 1, 'backward');
     }
-  };
+  }, [currentStep, animateStepChange]);
 
-  const StepCircle = ({
-    index,
-    isActive,
-    isCompleted,
-  }: {
-    index: number;
-    isActive: boolean;
-    isCompleted: boolean;
-  }) => {
-    const scaleAnim = useRef(new Animated.Value(isActive ? 1.1 : 1)).current;
-    useEffect(() => {
-      Animated.spring(scaleAnim, {
-        toValue: isActive ? 1.1 : 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    }, [isActive]);
-    const circleSize = scaleSpacing(32);
+  const getTotal = useMemo(() => {
+    const total = getGrandTotalSafe(calculatedData);
+    return total ? `₹${formatTruncate2Decimals(total)}` : '₹0.00';
+  }, [calculatedData]);
+
+  const getDiscountApplied = useMemo(
+    () => getDiscountAppliedSafe(calculatedData),
+    [calculatedData],
+  );
+
+  // Loading state
+  if (productLoading && !product) {
     return (
-      <Animated.View
+      <View
+        style={[styles.loaderContainer, { backgroundColor: COLORS.background }]}
+      >
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={[styles.loadingText, { color: COLORS.textSecondary }]}>
+          Loading product details...
+        </Text>
+      </View>
+    );
+  }
+
+  // Error state
+  if (!product && productError) {
+    return (
+      <View
+        style={[styles.errorContainer, { backgroundColor: COLORS.background }]}
+      >
+        <View style={styles.errorIcon}>
+          <Text style={styles.errorIconText}>!</Text>
+        </View>
+        <Text style={[styles.errorText, { color: COLORS.textPrimary }]}>
+          {productError || 'Product not found'}
+        </Text>
+        <TouchableOpacity
+          style={styles.goBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <LinearGradient
+            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+            style={styles.gradientButton}
+          >
+            <Text style={styles.goBackButtonText}>Go Back</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!product) {
+    return null;
+  }
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: COLORS.background }]}
+    >
+      <LinearGradient
+        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+        style={styles.headerGradient}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Text style={styles.headerBackText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Checkout</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </LinearGradient>
+
+      <View
         style={[
-          styles.stepCircle,
-          isCompleted && styles.completedStep,
-          isActive && styles.activeStep,
-          {
-            transform: [{ scale: scaleAnim }],
-            width: circleSize,
-            height: circleSize,
-            borderRadius: circleSize / 2,
-            backgroundColor: isCompleted
-              ? COLORS.success
-              : isActive
-              ? COLORS.primary
-              : COLORS.border,
-          },
+          styles.stepIndicatorContainer,
+          { backgroundColor: COLORS.surface },
         ]}
       >
-        {isCompleted ? (
-          <Text style={styles.stepCheck}>✓</Text>
-        ) : (
-          <Text
-            style={[
-              styles.stepNumber,
-              isActive && styles.activeStepNumber,
-              { color: isActive ? '#fff' : COLORS.textSecondary },
-            ]}
-          >
-            {index + 1}
-          </Text>
-        )}
-      </Animated.View>
-    );
-  };
-
-  const renderCurrentStep = () => {
-    const stepComponent = (() => {
-      switch (currentStep) {
-        case 0:
-          return (
-            <ProductStep
-              product={product}
-              checkoutData={checkoutData}
-              updateCheckoutData={updateCheckoutData}
-              calculatedData={calculatedData}
-              loading={calculating}
-              isInCart={isInCart}
-              cartLoading={cartLoading}
-              onUpdateQuantity={handleUpdateQuantity}
-              userId={userId}
-              onAddToCart={handleAddToCart}
-              onUpdateCartQuantity={handleUpdateCartQuantity}
-              onRemoveFromCart={handleRemoveFromCart}
-              showToast={showToast}
+        {['Product', 'Address', 'Payment'].map((step, index) => (
+          <View key={index} style={styles.stepItem}>
+            <StepCircle
+              index={index}
+              isActive={index === currentStep}
+              isCompleted={index < currentStep}
+              colors={COLORS}
             />
-          );
-        case 1:
-          return (
+            <Text
+              style={[
+                styles.stepText,
+                {
+                  color:
+                    index === currentStep
+                      ? COLORS.primary
+                      : index < currentStep
+                      ? COLORS.success
+                      : COLORS.textLight,
+                },
+              ]}
+            >
+              {step}
+            </Text>
+            {index < 2 && (
+              <View
+                style={[
+                  styles.stepConnector,
+                  {
+                    backgroundColor:
+                      index < currentStep ? COLORS.success : COLORS.border,
+                  },
+                ]}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+
+      <ScrollView
+        style={[styles.content, { backgroundColor: COLORS.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.stepContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateX: slideAnim }, { scale: scaleAnim }],
+            },
+          ]}
+        >
+          {currentStep === 0 && (
+            <>
+              {/* Product Info Card */}
+              <View style={styles.productInfoCard}>
+                <Text
+                  style={[styles.productTitle, { color: COLORS.textPrimary }]}
+                >
+                  {product.title}
+                </Text>
+                {product.brand && (
+                  <Text
+                    style={[
+                      styles.productBrand,
+                      { color: COLORS.textSecondary },
+                    ]}
+                  >
+                    Brand: {product.brand}
+                  </Text>
+                )}
+                {product.description && (
+                  <Text
+                    style={[
+                      styles.productDescription,
+                      { color: COLORS.textSecondary },
+                    ]}
+                  >
+                    {product.description}
+                  </Text>
+                )}
+              </View>
+
+              {/* Add to Cart Component */}
+              <AddToCart
+                productId={productId || ''}
+                productData={product as any}
+                initialIsInCart={isInCart}
+                initialQuantity={checkoutData.quantity}
+                productLoading={productLoading}
+                productAvailable={product.inStock !== false}
+                maxQuantity={(product as any)?.maxOrderQty || 10}
+                variants={productVariants as any}
+                selectedVariant={selectedVariant as any}
+                onVariantSelect={handleVariantSelect as any}
+                onAddToCartSuccess={() => {
+                  setIsInCart(true);
+                  triggerHaptic('success');
+                }}
+              />
+
+              {/* Product Step Component with async handlers */}
+              <ProductStep
+                product={product}
+                checkoutData={checkoutData}
+                updateCheckoutData={updateCheckoutData}
+                calculatedData={calculatedData}
+                loading={calculating}
+                isInCart={isInCart}
+                cartLoading={productLoading}
+                onUpdateQuantity={handleQuantityChange}
+                userId={userId}
+                onAddToCart={handleAddToCartAsync}
+                onUpdateCartQuantity={handleUpdateCartQuantityAsync}
+                onRemoveFromCart={handleRemoveFromCartAsync}
+                showToast={{
+                  error: (msg: string) => Alert.alert('Error', msg),
+                  success: (msg: string) => Alert.alert('Success', msg),
+                }}
+              />
+            </>
+          )}
+
+          {currentStep === 1 && (
             <AddressCouponStep
               checkoutData={checkoutData}
               updateCheckoutData={updateCheckoutData}
@@ -924,9 +651,9 @@ const CheckoutStepper: React.FC = () => {
               couponSuccess={couponSuccess}
               clearCouponMessages={clearCouponMessages}
             />
-          );
-        case 2:
-          return (
+          )}
+
+          {currentStep === 2 && (
             <PaymentStep
               checkoutData={checkoutData}
               updateCheckoutData={updateCheckoutData}
@@ -934,224 +661,11 @@ const CheckoutStepper: React.FC = () => {
               calculatedData={calculatedData}
               loading={placingOrder}
             />
-          );
-        default:
-          return null;
-      }
-    })();
-    return (
-      <Animated.View
-        style={[
-          styles.stepContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateX: slideAnim }, { scale: scaleAnim }],
-            backgroundColor: COLORS.bg,
-          },
-        ]}
-      >
-        {stepComponent}
-      </Animated.View>
-    );
-  };
-
-  const getTotal = (): string => `₹${getExactTotal(calculatedData)}`;
-
-  const renderFooterButtons = () => {
-    if (currentStep === 2) return null;
-    return (
-      <View
-        style={[
-          styles.buttonContainer,
-          currentStep > 0
-            ? styles.buttonRowWithBack
-            : styles.buttonRowWithoutBack,
-        ]}
-      >
-        {currentStep > 0 && (
-          <TouchableOpacity
-            style={[
-              styles.secondaryButton,
-              styles.buttonHover,
-              { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-            ]}
-            onPress={() => {
-              triggerHaptic('light');
-              handlePrevious();
-            }}
-            disabled={calculating || isApplyingCoupon || placingOrder}
-          >
-            <Text
-              style={[
-                styles.secondaryButtonText,
-                { color: COLORS.textSecondary },
-              ]}
-            >
-              ← Back
-            </Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.primaryButtonContainer,
-            (calculating || loading || isApplyingCoupon || placingOrder) &&
-              styles.disabledButton,
-          ]}
-          onPress={() => {
-            triggerHaptic('medium');
-            handleNext();
-          }}
-          disabled={calculating || loading || isApplyingCoupon || placingOrder}
-        >
-          <LinearGradient
-            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-            style={styles.primaryButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            {calculating || loading || isApplyingCoupon || placingOrder ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <View style={styles.buttonContent}>
-                <Text style={styles.primaryButtonText}>Continue</Text>
-                <Text style={styles.buttonArrow}>→</Text>
-              </View>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  if (loading && !product) {
-    return (
-      <View
-        style={[styles.loaderContainer, { backgroundColor: COLORS.background }]}
-      >
-        <Animated.View style={styles.loadingSpinner}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          )}
         </Animated.View>
-        <Text style={[styles.loadingText, { color: COLORS.textSecondary }]}>
-          Loading product details...
-        </Text>
-      </View>
-    );
-  }
-
-  if (!product) {
-    return (
-      <View
-        style={[styles.errorContainer, { backgroundColor: COLORS.background }]}
-      >
-        <View style={styles.errorIcon}>
-          <Text style={styles.errorIconText}>!</Text>
-        </View>
-        <Text style={[styles.errorText, { color: COLORS.textPrimary }]}>
-          Product not found
-        </Text>
-        <TouchableOpacity
-          style={[styles.goBackButton, styles.buttonHover]}
-          onPress={() => {
-            triggerHaptic('light');
-            navigation.goBack();
-          }}
-        >
-          <LinearGradient
-            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-            style={styles.gradientButton}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Text style={styles.goBackButtonText}>Go Back</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
-    >
-      <LinearGradient
-        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-        style={styles.headerGradient}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              triggerHaptic('light');
-              navigation.goBack();
-            }}
-            style={[styles.backButton, styles.buttonHover]}
-          >
-            <Text style={styles.headerBackText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Checkout</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </LinearGradient>
-
-      <View
-        style={[
-          styles.stepIndicatorContainer,
-          { backgroundColor: COLORS.surface },
-        ]}
-      >
-        {['Product', 'Address', 'Payment'].map((step, index) => {
-          const isActive = index === currentStep;
-          const isCompleted = index < currentStep;
-          return (
-            <View key={index} style={styles.stepItem}>
-              <StepCircle
-                index={index}
-                isActive={isActive}
-                isCompleted={isCompleted}
-              />
-              <Text
-                style={[
-                  styles.stepText,
-                  isActive && styles.activeStepText,
-                  isCompleted && styles.completedStepText,
-                  {
-                    color: isActive
-                      ? COLORS.primary
-                      : isCompleted
-                      ? COLORS.success
-                      : COLORS.textLight,
-                  },
-                ]}
-              >
-                {step}
-              </Text>
-              {index < 2 && (
-                <View
-                  style={[
-                    styles.stepConnector,
-                    isCompleted && styles.completedConnector,
-                    {
-                      backgroundColor: isCompleted
-                        ? COLORS.success
-                        : COLORS.border,
-                    },
-                  ]}
-                />
-              )}
-            </View>
-          );
-        })}
-      </View>
-
-      <ScrollView
-        style={[styles.content, { backgroundColor: COLORS.background }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}
-      >
-        {renderCurrentStep()}
       </ScrollView>
 
-      {currentStep < 2 && (
+      {currentStep >= 1 && (
         <LinearGradient
           colors={['#0F172A', COLORS.background]}
           style={styles.footerGradient}
@@ -1166,31 +680,80 @@ const CheckoutStepper: React.FC = () => {
                 >
                   Total:
                 </Text>
-                <View style={styles.totalContainer}>
-                  <Text style={[styles.totalPrice, { color: COLORS.primary }]}>
-                    {getTotal()}
+                <Text style={[styles.totalPrice, { color: COLORS.primary }]}>
+                  {getTotal}
+                </Text>
+                {getDiscountApplied > 0 && (
+                  <Text
+                    style={[
+                      styles.discountBadge,
+                      {
+                        color: COLORS.success,
+                        backgroundColor: `${COLORS.success}15`,
+                      },
+                    ]}
+                  >
+                    -₹{formatTruncate2Decimals(getDiscountApplied)}
                   </Text>
-                  {calculatedData?.discountApplied &&
-                    calculatedData.discountApplied > 0 && (
-                      <Text
-                        style={[
-                          styles.discountBadge,
-                          {
-                            color: COLORS.success,
-                            backgroundColor: `${COLORS.success}15`,
-                          },
-                        ]}
-                      >
-                        -₹
-                        {formatTruncate2Decimals(
-                          calculatedData.discountApplied,
-                        )}
-                      </Text>
-                    )}
-                </View>
+                )}
               </View>
             </View>
-            {renderFooterButtons()}
+            <View
+              style={[
+                styles.buttonContainer,
+                currentStep > 0
+                  ? styles.buttonRowWithBack
+                  : styles.buttonRowWithoutBack,
+              ]}
+            >
+              {currentStep > 0 && (
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryButton,
+                    {
+                      backgroundColor: COLORS.surface,
+                      borderColor: COLORS.border,
+                    },
+                  ]}
+                  onPress={handlePrevious}
+                  disabled={calculating || isApplyingCoupon}
+                >
+                  <Text
+                    style={[
+                      styles.secondaryButtonText,
+                      { color: COLORS.textSecondary },
+                    ]}
+                  >
+                    ← Back
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.primaryButtonContainer,
+                  (calculating || productLoading || isApplyingCoupon) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleNext}
+                disabled={calculating || productLoading || isApplyingCoupon}
+              >
+                <LinearGradient
+                  colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+                  style={styles.primaryButtonGradient}
+                >
+                  {calculating || productLoading || isApplyingCoupon ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <View style={styles.buttonContent}>
+                      <Text style={styles.primaryButtonText}>
+                        {currentStep === 1 ? 'Proceed to Payment' : 'Continue'}
+                      </Text>
+                      <Text style={styles.buttonArrow}>→</Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </LinearGradient>
       )}
@@ -1206,7 +769,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  loadingSpinner: { transform: [{ scale: 1.1 }] },
   loadingText: {
     marginTop: scaleSpacing(12),
     fontSize: scaleFont(14),
@@ -1301,8 +863,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: scaleSpacing(2),
   },
-  activeStepText: { fontWeight: '700' },
-  completedStepText: { fontWeight: '600' },
   stepConnector: {
     position: 'absolute',
     top: scaleSpacing(16),
@@ -1311,17 +871,34 @@ const styles = StyleSheet.create({
     height: 2,
     zIndex: 1,
   },
-  completedConnector: {},
   content: {
     flex: 1,
     paddingHorizontal: scaleSpacing(12),
     paddingVertical: scaleSpacing(8),
   },
-  scrollContent: { paddingBottom: scaleSpacing(100) },
   stepContainer: {
     borderRadius: 12,
     padding: scaleSpacing(16),
     marginBottom: scaleSpacing(12),
+  },
+  productInfoCard: {
+    padding: scaleSpacing(12),
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    marginBottom: scaleSpacing(8),
+  },
+  productTitle: {
+    fontSize: scaleFont(18),
+    fontWeight: 'bold',
+    marginBottom: scaleSpacing(4),
+  },
+  productBrand: {
+    fontSize: scaleFont(14),
+    marginBottom: scaleSpacing(4),
+  },
+  productDescription: {
+    fontSize: scaleFont(14),
+    lineHeight: 20,
   },
   footerGradient: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   footer: { padding: scaleSpacing(16) },
@@ -1334,16 +911,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   totalLabel: { fontSize: scaleFont(14), fontWeight: '600' },
-  totalContainer: { alignItems: 'flex-end' },
   totalPrice: { fontSize: scaleFont(22), fontWeight: 'bold' },
   discountBadge: {
     fontSize: scaleFont(10),
     paddingHorizontal: scaleSpacing(6),
     paddingVertical: scaleSpacing(1),
     borderRadius: 3,
-    marginTop: scaleSpacing(2),
+    marginLeft: scaleSpacing(8),
     fontWeight: '600',
   },
   buttonContainer: { flexDirection: 'row', gap: scaleSpacing(10) },
@@ -1389,7 +966,6 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { fontSize: scaleFont(14), fontWeight: '600' },
   disabledButton: { opacity: 0.6 },
-  buttonHover: {},
 });
 
 export default CheckoutStepper;

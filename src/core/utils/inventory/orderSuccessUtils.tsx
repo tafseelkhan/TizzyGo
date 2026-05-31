@@ -3,7 +3,7 @@ import { JSX } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { DeliveryStatus } from '../../../api/features/private/orderSuccessPrivateSlice';
-import { StatusConfig } from '../../services/orders/orderSuccessService';
+import { StatusConfig } from '../../services/inventory/orderSuccessService';
 
 export type PaymentMethodType = 'stripe_payment' | 'cod' | 'online' | 'unknown';
 

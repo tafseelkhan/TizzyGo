@@ -32,13 +32,13 @@ import {
   getDescriptionText,
   Product,
   Variant,
-} from '../../utils/products/productDetailUtils';
-import { getStockStatus } from '../../services/products/stockService';
+} from '../../utils/store/productDetailUtils';
+import { getStockStatus } from '../../services/store/stockService';
 import {
   handleGoBack,
   handleCategoryPress,
   handleMorePress,
-} from '../../services/products/navigationService';
+} from '../../services/store/navigationService';
 import ProductImages from './ProductImages';
 import ProductVideo from './ProductVideos';
 import ProductInfo from './ProductInfo';
