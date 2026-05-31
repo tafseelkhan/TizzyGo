@@ -39,9 +39,9 @@ import {
   handleCategoryPress,
   handleMorePress,
 } from '../../services/products/navigationService';
-import ProductImages from '../../components/Products/ProductImages';
-import ProductVideo from '../../components/Products/ProductVideos';
-import ProductInfo from '../../components/Products/ProductInfo';
+import ProductImages from './ProductImages';
+import ProductVideo from './ProductVideos';
+import ProductInfo from './ProductInfo';
 import RelatedProducts from './RelatedProducts';
 import RelatedSecond from './RelatedSecond';
 import RelatedThird from './RelatedThird';
