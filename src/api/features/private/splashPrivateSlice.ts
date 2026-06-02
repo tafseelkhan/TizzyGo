@@ -3,8 +3,8 @@
 // This file is intentionally left blank as the splash screen does not require any state management at this time.
 import Config from 'react-native-config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getToken } from '../../connection/token/tokenSlice';
-import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
+import { getToken } from '../../connections/token/tokenSlice';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
 // Interface for token verification response
 interface VerifyTokenResponse {

@@ -15,7 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 
-import { getToken } from '../../../api/connection/token/tokenSlice';
+import { getToken } from '../../../api/connections/token/tokenSlice';
 
 // Import separated APIs
 import {

@@ -8,7 +8,7 @@ import {
   fetchLikeStatusAPI,
   toggleLikeAPI,
 } from '../../../api/features/private/likeGlobalPrivateSlice';
-import { getToken } from '../../../api/connection/token/tokenSlice';
+import { getToken } from '../../../api/connections/token/tokenSlice';
 
 interface LikeComponentProps {
   productId?: string;

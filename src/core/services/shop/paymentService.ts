@@ -1,6 +1,6 @@
 // src/services/paymentService.ts
 import * as paymentApi from '../../../api/features/private/paymentPrivateSlice';
-import { getToken } from '../../../api/connection/token/tokenSlice';
+import { getToken } from '../../../api/connections/token/tokenSlice';
 
 export interface PaymentSessionData {
   vendorCodeUID: string;

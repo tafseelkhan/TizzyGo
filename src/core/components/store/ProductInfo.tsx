@@ -37,7 +37,7 @@ import LikeComponent from '../global/LikeGlobal';
 import CommentComponent from '../global/CommentGlobal';
 import ShareWithStats from '../global/ShareGlobal';
 import RatingReviewSystem from '../global/RatingGlobal';
-import ProductHighlights from '../../mapping/Icons';
+import ProductHighlights from '../../mappings/Icons';
 import { useUser } from '../../contexts/auth/UserContext';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 

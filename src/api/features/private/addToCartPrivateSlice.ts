@@ -6,8 +6,8 @@ import {
   CartStatusResponse,
 } from '../../../core/types/CartTypes';
 
-import { getToken } from '../../connection/token/tokenSlice';
-import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
+import { getToken } from '../../connections/token/tokenSlice';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
 const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 

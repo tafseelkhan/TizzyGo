@@ -1,5 +1,5 @@
 import Config from 'react-native-config';
-import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 
 // ================================

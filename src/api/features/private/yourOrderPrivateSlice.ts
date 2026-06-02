@@ -1,8 +1,8 @@
 import Config from 'react-native-config';
 
-import { API_ENDPOINTS } from '../../connection/snippet/apiEndpoints';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
-import { getToken } from '../../connection/token/tokenSlice';
+import { getToken } from '../../connections/token/tokenSlice';
 
 const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 
