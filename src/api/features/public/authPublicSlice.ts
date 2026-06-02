@@ -1,6 +1,7 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
+import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { setToken } from '../../connections/token/tokenSlice';
 
 // ================================
@@ -29,8 +30,6 @@ interface VerifyLoginPayload {
 const formatIdentifier = (identifier: string) => {
   return identifier.toLowerCase().trim();
 };
-
-const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 
 /**
  * @param identifier - The user's identifier, which can be an email or phone number.

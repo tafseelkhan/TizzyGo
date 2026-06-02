@@ -5,6 +5,7 @@ import Config from 'react-native-config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // Interface for token verification response
 interface VerifyTokenResponse {
@@ -49,9 +50,9 @@ export const verifyToken = async (): Promise<VerifyTokenResponse> => {
      */
 
     const response = await fetch(
-      `${Config.API_AXIOS_BASE_URL}${API_ENDPOINTS.VERIFY_USER_ROUTE}`,
+      `${API_BASE_URL}${API_ENDPOINTS.VERIFY_USER_ROUTE}`,
       /**
-       * @Config.API_AXIOS_BASE_URL - The base URL for the API, defined in the environment variables.
+       * @API_BASE_URL - The base URL for the API, defined in the environment variables.
 
        * @API_ENDPOINTS.VERIFY_USER_ROUTE - The specific endpoint for verifying the user's token, defined in the API endpoints configuration.
        */

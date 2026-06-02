@@ -7,8 +7,7 @@ import {
   SelectedVariant,
   ProductData,
 } from '../../../core/types/BuyNowTypes';
-
-const API_BASE_URL = Config.API_AXIOS_BASE_URL;
+import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 export interface ApiResponse<T = any> {
   success: boolean;

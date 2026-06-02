@@ -1,6 +1,7 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
+import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -29,12 +30,6 @@ export interface Review {
     url: string;
   }[];
 }
-
-// ================================
-// BASE URL
-// ================================
-
-const API_BASE_URL = Config.API_AXIOS_BASE_URL;
 
 // ================================
 // GET RATING STATS

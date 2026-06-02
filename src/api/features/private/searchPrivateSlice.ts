@@ -2,8 +2,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-
-const API_BASE_URL = Config.API_AXIOS_BASE_URL;
+import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
