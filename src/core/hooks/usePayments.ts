@@ -1,5 +1,5 @@
-// src/hooks/usePayment.ts
-import { useState, useEffect, useCallback } from 'react';
+// src/hooks/usePayment.ts - FULLY FIXED
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { useZeptPay } from '@flixora/zeptpay-payment-react-native';
 import paymentService from '../services/shop/paymentService';
@@ -20,6 +20,10 @@ export const usePayment = ({
   onOrderConfirmed,
   onPaymentMethodChange,
 }: UsePaymentProps) => {
+  console.log('========================================');
+  console.log('🎯 [usePayment] HOOK INITIALIZED');
+  console.log('========================================');
+
   // ZeptPay hooks
   const zeptPayHook = useZeptPay();
   const openZeptPayPaymentSheet = (zeptPayHook as any).openZeptPayPaymentSheet;
@@ -42,63 +46,155 @@ export const usePayment = ({
   const [checkoutSessionId, setCheckoutSessionId] = useState<string>('');
   const [checkoutSessionCreated, setCheckoutSessionCreated] = useState(false);
   const [paymentSheetData, setPaymentSheetData] = useState<any>(null);
+  const [isServiceReady, setIsServiceReady] = useState(false);
 
-  // Initialize payment service
+  // Refs to prevent duplicate calls
+  const initializedRef = useRef(false);
+  const creatingSessionRef = useRef(false);
+
+  // ✅ FIX 1: Initialize payment service properly with await
   useEffect(() => {
-    paymentService.initialize();
+    const initService = async () => {
+      if (initializedRef.current) {
+        console.log('⏭️ Already initialized, skipping');
+        return;
+      }
+
+      initializedRef.current = true;
+      setLoading(true);
+
+      console.log('🔄 Initializing payment service...');
+      const success = await paymentService.initialize();
+
+      setIsServiceReady(success);
+      setLoading(false);
+
+      console.log(`✅ Initialization ${success ? 'SUCCESS' : 'FAILED'}`);
+      console.log('Service status:', paymentService.getStatus());
+    };
+
+    initService();
   }, []);
 
-  // Create checkout session
+  // ✅ FIX 2: Create checkout session only when service is ready
   useEffect(() => {
-    if (product && calculatedData && checkoutData.shippingAddress) {
-      createCheckoutSession();
-    }
-  }, [product, calculatedData, checkoutData.shippingAddress, paymentMethod]);
+    const createSession = async () => {
+      // Don't create if already created or currently creating
+      if (checkoutSessionCreated || creatingSessionRef.current) {
+        return;
+      }
+
+      // Wait for service to be ready
+      if (!isServiceReady) {
+        console.log('⏳ Service not ready yet, waiting...');
+        return;
+      }
+
+      // Check if we have all required data
+      if (!product || !calculatedData || !checkoutData?.shippingAddress) {
+        console.log('⏳ Missing required data:', {
+          product: !!product,
+          calculatedData: !!calculatedData,
+          address: !!checkoutData?.shippingAddress,
+        });
+        return;
+      }
+
+      // Create session
+      creatingSessionRef.current = true;
+      await createCheckoutSession();
+      creatingSessionRef.current = false;
+    };
+
+    createSession();
+  }, [
+    product,
+    calculatedData,
+    checkoutData?.shippingAddress,
+    paymentMethod,
+    isServiceReady,
+    checkoutSessionCreated,
+  ]);
 
   // ZeptPay health check
   useEffect(() => {
-    if (paymentMethod === 'online' && verifyProvider) {
+    if (paymentMethod === 'online' && verifyProvider && isServiceReady) {
       if (!isVerified && health?.status !== 'verifying') {
+        console.log('🔄 Verifying ZeptPay provider...');
         verifyProvider();
       }
     }
-  }, [paymentMethod, isVerified, health?.status, verifyProvider]);
+  }, [
+    paymentMethod,
+    isVerified,
+    health?.status,
+    verifyProvider,
+    isServiceReady,
+  ]);
 
   const createCheckoutSession = async () => {
+    console.log('========================================');
+    console.log('🚀 createCheckoutSession CALLED');
+    console.log('========================================');
+
     try {
       setCheckoutSessionCreated(false);
       setPaymentSheetData(null);
+
+      console.log('📤 Calling paymentService.createCheckoutSession...');
 
       const result = await paymentService.createCheckoutSession(
         checkoutData.shippingAddress,
         paymentMethod,
       );
 
+      console.log('📥 Result:', {
+        success: result.success,
+        hasSessionId: !!result.checkoutSessionId,
+        error: result.error,
+      });
+
       if (result.success) {
+        console.log('✅ Checkout session created successfully');
         setCheckoutSessionId(result.checkoutSessionId!);
         setCheckoutSessionCreated(true);
+
         if (result.paymentSheetData) {
+          console.log('📦 Setting payment sheet data');
           setPaymentSheetData(result.paymentSheetData);
         }
       } else {
+        console.error('❌ Failed:', result.error);
         Alert.alert(
           'Error',
           result.error || 'Failed to create checkout session',
         );
       }
-    } catch (error) {
-      console.error('Create session error:', error);
+    } catch (error: any) {
+      console.error('❌ Exception:', error.message);
       Alert.alert('Error', 'Failed to initialize payment');
     }
   };
 
   const handlePaymentMethodChange = (method: 'online' | 'cod') => {
     if (paymentMethod === method) return;
+
+    console.log(
+      `🔄 Changing payment method from ${paymentMethod} to ${method}`,
+    );
     setPaymentMethod(method);
     onPaymentMethodChange?.(method);
+
+    // Reset session so new one can be created
+    setCheckoutSessionCreated(false);
+    setCheckoutSessionId('');
+    setPaymentSheetData(null);
+    creatingSessionRef.current = false;
   };
 
   const handleOnlinePayment = async () => {
+    console.log('💳 handleOnlinePayment CALLED');
+
     if (!checkoutSessionCreated || !paymentSheetData) {
       Alert.alert('Error', 'Payment session not ready. Please wait.');
       return;
@@ -135,6 +231,7 @@ export const usePayment = ({
         paymentUtils.parsePaymentResult(result);
 
       if (isSuccessful) {
+        console.log('✅ Payment successful');
         if (setPaymentLoading) setPaymentLoading(true);
 
         const paymentResult = await paymentService.processOnlinePayment(
@@ -154,10 +251,7 @@ export const usePayment = ({
           );
 
           if (success) {
-            setTimeout(() => {
-              onOrderConfirmed?.(transaction);
-              // Navigation handled by parent
-            }, 3000);
+            setTimeout(() => onOrderConfirmed?.(transaction), 3000);
           }
         } else {
           if (failPayment)
@@ -170,9 +264,8 @@ export const usePayment = ({
 
         if (setPaymentLoading) setPaymentLoading(false);
       } else if (isCancelled) {
-        console.log('🚫 Payment cancelled');
+        console.log('Payment cancelled');
       } else if (isError) {
-        console.log('❌ Payment error:', result.error);
         Alert.alert(
           'Payment Failed',
           result.error || 'Payment could not be completed',
@@ -190,6 +283,8 @@ export const usePayment = ({
   };
 
   const handleCODConfirmation = async () => {
+    console.log('📦 handleCODConfirmation CALLED');
+
     if (!checkoutSessionCreated) {
       Alert.alert('Error', 'Order session not ready. Please wait.');
       return;
@@ -200,16 +295,14 @@ export const usePayment = ({
       const result = await paymentService.confirmCODOrder(checkoutSessionId);
 
       if (result.success) {
+        console.log('✅ COD order confirmed');
         Alert.alert(
           'Order Confirmed! 🎉',
           'Your COD order has been confirmed.',
           [
             {
               text: 'View Order',
-              onPress: () => {
-                onOrderConfirmed?.(result.transaction);
-                // Navigation handled by parent
-              },
+              onPress: () => onOrderConfirmed?.(result.transaction),
             },
           ],
         );
@@ -224,14 +317,18 @@ export const usePayment = ({
   };
 
   const handlePayment = async () => {
+    console.log('🟢 handlePayment CALLED');
+
     if (!calculatedData) {
       Alert.alert('Error', 'Please wait for calculations');
       return;
     }
+
     if (!checkoutSessionCreated) {
       Alert.alert('Info', 'Setting up payment session...');
       return;
     }
+
     if (paymentMethod === 'online') {
       await handleOnlinePayment();
     } else {
@@ -240,7 +337,7 @@ export const usePayment = ({
   };
 
   return {
-    loading,
+    loading: loading || paymentProcessing,
     paymentProcessing,
     paymentMethod,
     checkoutSessionCreated,

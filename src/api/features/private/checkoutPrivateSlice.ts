@@ -86,7 +86,7 @@ class CheckoutApi {
     }
 
     const data = await fetchHandler(
-      `${API_BASE_URL}/api/buyer/buy?${urlParams.toString()}`,
+      `${API_BASE_URL}${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`,
       {
         method: 'GET',
         headers: await getHeaders(),

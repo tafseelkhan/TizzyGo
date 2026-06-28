@@ -159,14 +159,29 @@ export interface ShippingAddress {
  */
 export interface SelectedVariant {
   variantId: string;
-  combinationKey: string;
-  price: number;
-  mrp: number;
-  finalPrice: number;
-  sku: string;
   fields: VariantFields;
+  combinationKey: string;
+  mrp: number;
+  price: number;
+  savedAmount: number;
+  discount: number;
+  offerText?: string;
+  finalPrice: number;
+  weight?: string;
+  height?: string;
+  width?: string;
+  length?: string;
+  inStock: boolean;
+  quantityAvailable: number;
+  sku: string;
+  images: string[];
+  video?: string;
+  isDefault: boolean;
+  _id?: string;
+  availableQuantity?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
-
 /**
  * Checkout Data
  */
@@ -344,6 +359,18 @@ export const toSelectedVariant = (variant: ProductVariant): SelectedVariant => {
     finalPrice: variant.finalPrice,
     sku: variant.sku,
     fields: variant.fields,
+    savedAmount: variant.savedAmount,
+    discount: variant.discount,
+    offerText: variant.offerText,
+    weight: variant.weight,
+    height: variant.height,
+    width: variant.width,
+    length: variant.length,
+    inStock: variant.inStock,
+    quantityAvailable: variant.quantityAvailable,
+    images: variant.images,
+    video: variant.video,
+    isDefault: variant.isDefault,
   };
 };
 

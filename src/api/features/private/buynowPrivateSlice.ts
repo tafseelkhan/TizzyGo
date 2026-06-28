@@ -124,6 +124,7 @@ export const processBuyNowAPI = async (
     const data = await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.BUY_NOW}`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(requestBody),

@@ -137,3 +137,27 @@ export const debounceAdvanced = <T extends (...args: any[]) => any>(
     }
   };
 };
+
+/**
+ * Generate idempotency key in format: Idem-{timestamp}-{randomNo}-{randomAlphabet}
+ * Example: Idem-1781240086125-83472-KxYzW
+ */
+export const generateIdempotencyKey = (userId?: string): string => {
+  const timestamp = Date.now();
+  const randomNo = Math.floor(Math.random() * 1000000)
+    .toString()
+    .padStart(6, '0');
+  const randomAlphabet = Math.random()
+    .toString(36)
+    .substring(2, 10)
+    .toUpperCase();
+  const idempotencyKey = `Idem-${timestamp}-${randomNo}-${randomAlphabet}`;
+
+  console.log('🔑 [Idempotency Key Generated]:', idempotencyKey);
+  return idempotencyKey;
+};
+
+// Example outputs:
+// Idem-1781240086125-83472-KxYzW
+// Idem-1781240086126-12345-ABCDEF
+// Idem-1781240086127-99887-ZxYwVt

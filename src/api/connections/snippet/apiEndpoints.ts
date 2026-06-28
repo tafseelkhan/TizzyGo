@@ -32,8 +32,8 @@ export const API_ENDPOINTS = {
   // Buy Now endpoints
   BUYNOW_PRODUCT_VARIANTS: (productId: string) =>
     `/api/products/${productId}/variants`,
-  CLEAR_BUY_NOW: '/api/buy-now/clear',
-  BUY_NOW: '/api/buy-now',
+  CLEAR_BUY_NOW: '/api/shop/buy-now/clear',
+  BUY_NOW: '/api/shop/buy-now',
 
   // Product endpoints
   GET_PRODUCT: '/api/seller/forms/categories',
@@ -95,6 +95,11 @@ export const API_ENDPOINTS = {
   CREATE_REVIEW: '/api/rating-review/rating',
   UPDATE_REVIEW: '/api/rating-review/rating',
   DELETE_REVIEW: '/api/rating-review/rating',
+
+  // Location endpoints
+  POST_LOCATION_ADDRESS: '/api/user/address/location',
+  POST_GPS_TRACKING_ENABLED: '/api/user/address/gps-tracking',
+  GET_FULL_LOCATION: '/api/user/address/get-location',
 };
 
 /**

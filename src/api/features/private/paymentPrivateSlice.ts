@@ -25,6 +25,7 @@ const getHeaders = async () => {
 export const createPaymentIntentAPI = async (
   address: any,
   paymentMethod: 'online' | 'cod',
+  idempotencyKey?: string, // <--- 🔥 YAHAN ADD KIYA
 ) => {
   const data = await fetchHandler(
     `${API_BASE_URL}${API_ENDPOINTS.CREATE_PAYMENT_INTENT}`,
@@ -34,6 +35,7 @@ export const createPaymentIntentAPI = async (
       body: JSON.stringify({
         address,
         paymentMethod,
+        idempotencyKey, // <--- 🔥 YAHAN ADD KIYA
       }),
     },
   );
