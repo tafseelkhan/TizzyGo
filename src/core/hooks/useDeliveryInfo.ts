@@ -2,8 +2,8 @@
 import { useMemo } from 'react';
 import { Product, CalculatedData } from '../types/ShopTypes';
 import { ShippingAddress } from '../types/ShopTypes';
-import { isValidCoordinates } from '../utils/shop/validationUtils';
-import { formatDistance } from '../utils/shop/formatterUtils';
+import { isValidCoordinates } from '../utils/buyers/shop/validationUtils';
+import { formatDistance } from '../utils/buyers/shop/formatterUtils';
 
 interface UseDeliveryInfoProps {
   product: Product | null;

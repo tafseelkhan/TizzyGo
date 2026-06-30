@@ -11,7 +11,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { shareService } from '../../../../api/features/private/shareGlobalPrivateSlice';
-import { shareMessages } from '../Mappings/global/shareMessageGlobalMapping';
+import { shareMessages } from '../../../Mappings/global/shareMessageGlobalMapping';
 
 interface Props {
   productId: string;

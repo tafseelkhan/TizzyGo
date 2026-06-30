@@ -5,7 +5,7 @@ import {
   safeGetNumber,
   getProductImage,
   calculateBundlePrices,
-} from '../../utils/home/productGridUtils';
+} from '../../../utils/home/productGridUtils';
 
 export class ProductGridService {
   /**

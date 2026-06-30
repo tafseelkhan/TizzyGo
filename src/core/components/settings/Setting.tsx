@@ -133,11 +133,6 @@ export const SettingsScreen: React.FC = () => {
         style: 'destructive',
         onPress: async () => {
           try {
-            await AsyncStorage.multiRemove([
-              'authToken',
-              'userData',
-              'app-theme',
-            ]);
             navigation.reset({
               index: 0,
               routes: [{ name: 'Login' as never }],

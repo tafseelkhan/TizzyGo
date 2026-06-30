@@ -1,7 +1,7 @@
 // src/hooks/useCoupon.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
-import couponService from '../services/shop/couponService';
-import { parseCouponError } from '../utils/shop/couponUtils';
+import couponService from '../services/buyers/shop/couponService';
+import { parseCouponError } from '../utils/buyers/shop/couponUtils';
 
 interface UseCouponProps {
   initialCode?: string;

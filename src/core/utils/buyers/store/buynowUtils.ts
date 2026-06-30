@@ -1,7 +1,7 @@
 // utils/buyNow.utils.ts
 
 import { Platform, Vibration } from 'react-native';
-import { MediaItem, ProductVariant, SelectedVariant, VariantField } from '../../types/BuyNowTypes';
+import { MediaItem, ProductVariant, SelectedVariant, VariantField } from '../../../types/BuyNowTypes';
 
 export const isVideoUrl = (url?: string): boolean => {
   if (!url) return false;

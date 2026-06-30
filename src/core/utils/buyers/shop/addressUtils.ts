@@ -1,5 +1,5 @@
 // src/utils/addressUtils.ts
-import { ShippingAddress } from '../../types/ShopTypes';
+import { ShippingAddress } from '../../../types/ShopTypes';
 
 export const createEmptyAddress = (): ShippingAddress => ({
   address: '',

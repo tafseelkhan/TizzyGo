@@ -14,7 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../../contexts/theme/ThemeContext';
 import { useRating } from '../../../../hooks/useRating';
-import { ratingService } from '../../../../services/home/ratingService';
+import { ratingService } from '../../../../services/buyers/home/ratingService';
 
 interface RatingDisplayProps {
   productId: string;

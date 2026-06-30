@@ -19,7 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { useSearch } from '../../../hooks/useSearch';
-import { searchService } from '../../../services/home/searchService';
+import { searchService } from '../../../services/buyers/home/searchService';
 import {
   getUserIdFromToken,
   placeholderWords,

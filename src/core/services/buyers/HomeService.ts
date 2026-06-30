@@ -4,8 +4,8 @@ import { Alert, Platform } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 
 // Base URL - aapka local IP ya production URL
-const BASE_URL = 'http://172.20.10.12:5000';
-const CART_BASE_URL = 'http://172.20.10.12:5000';
+const BASE_URL = 'http://192.168.250.121:5000';
+const CART_BASE_URL = 'http://192.168.250.121:5000';
 
 // Internal API Key
 const INTERNAL_API_KEY =
@@ -352,18 +352,6 @@ export const APIUtils = {
     } catch (error) {
       console.error('Cache get error:', error);
       return null;
-    }
-  },
-
-  // Clear all cache
-  clearAllCache: async (): Promise<void> => {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const cacheKeys = keys.filter(key => key.startsWith('cache_'));
-      await AsyncStorage.multiRemove(cacheKeys);
-      console.log('✅ All cache cleared');
-    } catch (error) {
-      console.error('Clear cache error:', error);
     }
   },
 };

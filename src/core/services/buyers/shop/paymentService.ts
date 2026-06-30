@@ -1,7 +1,7 @@
 // src/services/paymentService.ts - FULLY FIXED
-import * as paymentApi from '../../../api/features/private/paymentPrivateSlice';
-import { getToken } from '../../../api/connections/token/tokenSlice';
-import { generateIdempotencyKey } from "../../../core/utils/shop/throttle";
+import * as paymentApi from '../../../../api/features/private/paymentPrivateSlice';
+import { getToken } from '../../../../api/connections/token/tokenSlice';
+import { generateIdempotencyKey } from "../../../../core/utils/buyers/shop/throttle";
 
 export interface PaymentSessionData {
   vendorCodeUID: string;

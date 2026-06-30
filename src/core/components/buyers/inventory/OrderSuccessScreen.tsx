@@ -53,8 +53,8 @@ import { DeliveryStatus, LiveDeliveryData } from '../../../../api/features/priva
 const { width, height } = Dimensions.get('window');
 
 // Animation JSON files
-const SUCCESS_ANIMATION_LIGHT = require('../animations/lotties/successcheck.json');
-const DELIVERY_ANIMATION = require('../animations/lotties/delivery.json');
+const SUCCESS_ANIMATION_LIGHT = require('../../animations/lotties/successcheck.json');
+const DELIVERY_ANIMATION = require('../../animations/lotties/delivery.json');
 
 // Navigation param types
 type RootStackParamList = {

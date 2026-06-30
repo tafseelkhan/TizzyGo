@@ -1,7 +1,7 @@
 // hooks/useProductGrid.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Product } from '../utils/home/productGridUtils';
-import { ProductGridService } from '../services/home/productGridService';
+import { ProductGridService } from '../services/buyers/home/productGridService';
 import {
   getPaginatedProducts,
   splitIntoColumns,

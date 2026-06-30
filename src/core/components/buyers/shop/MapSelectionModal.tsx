@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { useLocation } from '../../../hooks/useLocations';
 import { getMapThemeAPI } from '../../../../api/constants/googleMapsApi';
-import * as locationUtils from '../../../utils/shop/locationUtils';
+import * as locationUtils from '../../../utils/buyers/shop/locationUtils';
 import { CheckoutData, ShippingAddress } from '../../../types/ShopTypes';
 import GetLocation from 'react-native-get-location';
 

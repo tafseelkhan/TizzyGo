@@ -53,13 +53,15 @@ export interface ProductVariantExtended extends ShopProductVariant {
 }
 
 // Extended SelectedVariant with more flexible properties
-export interface SelectedVariantExtended extends ShopSelectedVariant {
+// Don't extend - use intersection type instead to avoid property conflicts
+export type SelectedVariantExtended = ShopSelectedVariant & {
   variantImages?: string[];
   variantVideo?: string;
   variantImage?: string;
   variantSku?: string;
+  fieldsArray?: VariantField[];
   [key: string]: any;
-}
+};
 
 // ============ CART SPECIFIC TYPES ============
 
@@ -152,6 +154,13 @@ export function toShopSelectedVariant(
     });
   }
 
+  // Get images from various possible sources
+  const images =
+    variant.images ||
+    variant.variantImages ||
+    (variant.variantImage ? [variant.variantImage] : []) ||
+    [];
+
   return {
     variantId: variant.variantId,
     combinationKey: variant.combinationKey || '',
@@ -160,6 +169,13 @@ export function toShopSelectedVariant(
     finalPrice: variant.finalPrice || variant.price || 0,
     sku: variant.variantSku || variant.sku || '',
     fields: fields,
+    inStock: variant.inStock ?? false,
+    quantityAvailable: variant.quantityAvailable ?? 0,
+    images: images,
+    isDefault: variant.isDefault ?? false,
+    // Include required properties from ShopSelectedVariant
+    savedAmount: variant.savedAmount ?? 0,
+    discount: variant.discount ?? 0,
   };
 }
 
@@ -183,20 +199,85 @@ export function createSelectedVariant(
     }));
   }
 
-  return {
+  // Create base object that matches ShopSelectedVariant
+  const baseVariant: ShopSelectedVariant = {
     variantId: variant.variantId,
+    combinationKey: variant.combinationKey || '',
+    price: variant.price || 0,
+    mrp: variant.mrp || 0,
+    finalPrice: variant.finalPrice || variant.price || 0,
+    sku: variant.sku || '',
+    fields: variant.fields || {},
+    inStock: variant.inStock ?? false,
+    quantityAvailable: variant.quantityAvailable ?? 0,
+    images: variant.images || [],
+    isDefault: variant.isDefault ?? false,
+    savedAmount: variant.savedAmount ?? 0,
+    discount: variant.discount ?? 0,
+  };
+
+  // Add extended properties
+  return {
+    ...baseVariant,
     _id: variant._id,
-    mrp: variant.mrp,
-    price: variant.price,
-    savedAmount: variant.savedAmount,
-    discount: variant.discount,
-    finalPrice: variant.finalPrice || variant.price,
     variantImages: variant.images,
     variantVideo: variant.video,
     variantImage: variant.images?.[0],
-    sku: variant.sku,
-    fields: variant.fields,
+    variantSku: variant.sku,
     fieldsArray: fieldsArray,
-    combinationKey: variant.combinationKey,
   };
+}
+
+/**
+ * Check if a variant is in stock
+ */
+export function isVariantInStock(
+  variant: SelectedVariantExtended | ShopSelectedVariant | null | undefined,
+): boolean {
+  if (!variant) return false;
+  return variant.inStock === true && (variant.quantityAvailable ?? 0) > 0;
+}
+
+/**
+ * Get available quantity for a variant
+ */
+export function getVariantQuantity(
+  variant: SelectedVariantExtended | ShopSelectedVariant | null | undefined,
+): number {
+  if (!variant) return 0;
+  return variant.quantityAvailable ?? 0;
+}
+
+/**
+ * Get display image for a variant
+ */
+export function getVariantImage(
+  variant: SelectedVariantExtended | ShopSelectedVariant | null | undefined,
+): string | undefined {
+  if (!variant) return undefined;
+
+  const images =
+    variant.images || (variant as SelectedVariantExtended).variantImages || [];
+
+  return images.length > 0 ? images[0] : undefined;
+}
+
+/**
+ * Get saved amount (MRP - Price)
+ */
+export function getSavedAmount(
+  variant: SelectedVariantExtended | ShopSelectedVariant | null | undefined,
+): number {
+  if (!variant) return 0;
+  return (variant.mrp || 0) - (variant.price || 0);
+}
+
+/**
+ * Get discount percentage
+ */
+export function getDiscountPercentage(
+  variant: SelectedVariantExtended | ShopSelectedVariant | null | undefined,
+): number {
+  if (!variant || !variant.mrp || variant.mrp === 0) return 0;
+  return Math.round(((variant.mrp - (variant.price || 0)) / variant.mrp) * 100);
 }

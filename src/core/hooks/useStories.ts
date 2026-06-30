@@ -1,6 +1,6 @@
 // hooks/useStories.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { storiesService, Story } from '../services/home/storiesService';
+import { storiesService, Story } from '../services/buyers/home/storiesService';
 import { TimeoutId } from '../utils/home/storiesUtils';
 
 interface UseStoriesReturn {

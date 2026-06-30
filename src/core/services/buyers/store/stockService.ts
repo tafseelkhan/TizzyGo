@@ -1,6 +1,6 @@
 // services/stockService.ts
 
-import { Product, Variant } from '../../utils/store/productDetailUtils';
+import { Product, Variant } from '../../../utils/buyers/store/productDetailUtils';
 
 export interface StockStatus {
   isInStock: boolean;

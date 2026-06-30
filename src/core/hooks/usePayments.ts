@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { useZeptPay } from '@flixora/zeptpay-payment-react-native';
-import paymentService from '../services/shop/paymentService';
-import * as paymentUtils from '../utils/shop/paymentUtils';
+import paymentService from '../services/buyers/shop/paymentService';
+import * as paymentUtils from '../utils/buyers/shop/paymentUtils';
 
 interface UsePaymentProps {
   product: any;

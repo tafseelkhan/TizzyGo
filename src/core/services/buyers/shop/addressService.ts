@@ -1,5 +1,5 @@
 // src/services/addressService.ts
-import { GOOGLE_API_KEY } from '../../../api/constants/mapConfig';
+import { GOOGLE_API_KEY } from '../../../../api/constants/mapConfig';
 
 export interface PlacePrediction {
   place_id: string;

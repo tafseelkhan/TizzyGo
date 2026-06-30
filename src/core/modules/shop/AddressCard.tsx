@@ -16,12 +16,12 @@ import Feather from 'react-native-vector-icons/Feather';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import { useAddressSearch } from '../../hooks/useAddressSearch';
 import { ShippingAddress, CheckoutData } from '../../types/ShopTypes';
-import { isValidCoordinates } from '../../utils/shop/validationUtils';
+import { isValidCoordinates } from '../../utils/buyers/shop/validationUtils';
 import {
   formatCoordinate,
   truncateText,
-} from '../../utils/shop/formatterUtils';
-import { getAddressDisplayText } from '../../utils/shop/addressUtils';
+} from '../../utils/buyers/shop/formatterUtils';
+import { getAddressDisplayText } from '../../utils/buyers/shop/addressUtils';
 
 const { height } = Dimensions.get('window');
 

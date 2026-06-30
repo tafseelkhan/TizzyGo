@@ -1,8 +1,8 @@
 // src/services/locationService.ts
 import { PermissionsAndroid, Platform, Alert } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
-import * as googleMapsApi from '../../../api/constants/googleMapsApi';
-import { LOCATION_TIMEOUT, LOCATION_MAX_AGE } from '../../../api/constants/mapConfig';
+import * as googleMapsApi from '../../../../api/constants/googleMapsApi';
+import { LOCATION_TIMEOUT, LOCATION_MAX_AGE } from '../../../../api/constants/mapConfig';
 
 export interface LocationData {
   latitude: number;

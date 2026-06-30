@@ -14,11 +14,11 @@ import LottieView from 'lottie-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { APIs } from '../../../../services/HomeService';
+import { APIs } from '../../../../services/buyers/homeService';
 import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
-const FilterAnimation = require('../../animations/lotties/Line Filter Icon Animations.json');
+const FilterAnimation = require('../../../animations/lotties/Line Filter Icon Animations.json');
 
 // Local theme colors function - SOLID COLORS, NO GLASS EFFECT
 const getLocalThemeColors = (isDark: boolean) => {

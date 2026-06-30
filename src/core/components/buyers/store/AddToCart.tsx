@@ -36,8 +36,8 @@ import {
   triggerVibration,
   createSelectedVariant,
   getThemeColors,
-} from '../../../utils/store/cartUtils';
-import { CartService } from '../../../services/store/addToCartService'; // Import service
+} from '../../../utils/buyers/store/cartUtils';
+import { CartService } from '../../../services/buyers/store/addToCartService'; // Import service
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -1074,8 +1074,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
             <LottieView
               source={
                 showAnim === 'success'
-                  ? require('../animations/lotties/Success.json')
-                  : require('../animations/lotties/Failed.json')
+                  ? require('../../animations/lotties/Success.json')
+                  : require('../../animations/lotties/Failed.json')
               }
               autoPlay
               loop={false}

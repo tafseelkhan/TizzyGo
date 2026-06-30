@@ -18,7 +18,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { usePayment } from '../../../hooks/usePayments';
-import * as paymentUtils from '../../../utils/shop/paymentUtils';
+import * as paymentUtils from '../../../utils/buyers/shop/paymentUtils';
 
 interface PaymentStepProps {
   checkoutData: any;

@@ -11,13 +11,13 @@ import {
 import LottieView from "lottie-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { APIs } from "../../../services/HomeService";
+import { APIs } from "../../../services/buyers/homeService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // Import Lottie animation
-const cartAnimation = require("../../components/animations/lotties/Add to cart.json");
+const cartAnimation = require("../../../components/animations/lotties/Add to cart.json");
 
 interface CartButtonProps {
   userId: string;

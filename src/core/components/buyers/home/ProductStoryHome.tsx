@@ -19,14 +19,14 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { useStories } from '../../../hooks/useStories';
-import { storiesService } from '../../../services/home/storiesService';
+import { storiesService } from '../../../services/buyers/home/storiesService';
 import {
   getStoryDisplayDate,
   formatPrice,
 } from '../../../utils/home/storiesUtils';
 
 // Lottie animations
-const nofoundAnimation = require('../../components/animations/lotties/shop cart kdp.json');
+const nofoundAnimation = require('../../../components/animations/lotties/shop cart kdp.json');
 
 type RootStackParamList = {
   [key: string]: any;

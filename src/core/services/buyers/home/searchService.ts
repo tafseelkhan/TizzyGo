@@ -4,7 +4,7 @@ import {
   SearchResult,
   PopularSearch,
   RecentSearch,
-} from '../../../api/features/private/searchPrivateSlice';
+} from '../../../../api/features/private/searchPrivateSlice';
 
 class SearchService {
   async searchProducts(query: string): Promise<SearchResult[]> {

@@ -2,8 +2,8 @@
 import {
   storiesApi,
   ApiStory,
-} from '../../../api/features/public/storiesPublicSlice';
-import { STORY_CONTENT_OPTIONS } from '../../../api/constants/storyConstants';
+} from '../../../../api/features/public/storiesPublicSlice';
+import { STORY_CONTENT_OPTIONS } from '../../../../api/constants/storyConstants';
 import Config from 'react-native-config';
 
 export interface Story {

@@ -22,7 +22,7 @@ import {
   getNoCoordinatesSubtext,
   getModalTitle,
   getMarkerTitle,
-} from '../../../utils/shop/mapUtils';
+} from '../../../utils/buyers/shop/mapUtils';
 import { ShippingAddress } from '../../../types/ShopTypes';
 
 const { width, height } = Dimensions.get('window');

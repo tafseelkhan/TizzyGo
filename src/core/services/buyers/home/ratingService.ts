@@ -4,7 +4,7 @@ import {
   RatingStats,
   Review,
   SubmitReviewData,
-} from '../../../api/features/private/productRatingReviewStatesPrivateSlice';
+} from '../../../../api/features/private/productRatingReviewStatesPrivateSlice';
 
 class RatingService {
   async getRatingData(productId: string): Promise<{

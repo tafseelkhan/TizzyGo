@@ -4,12 +4,12 @@ import {
   ProductVariant,
   SelectedVariant,
   ProductData,
-} from '../../types/BuyNowTypes';
+} from '../../../types/BuyNowTypes';
 import {
   fetchProductVariantsAPI,
   processBuyNowAPI,
   clearBuyNowCartAPI,
-} from '../../../api/features/private/buynowPrivateSlice';
+} from '../../../../api/features/private/buynowPrivateSlice';
 
 export interface BuyNowResult {
   success: boolean;

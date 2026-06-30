@@ -37,7 +37,7 @@ import {
 import {
   fetchProductVariants,
   processBuyNowCheckout,
-} from '../../../services/store/buynowServices';
+} from '../../../services/buyers/store/buynowServices';
 
 import {
   normalizeMedia,
@@ -46,7 +46,7 @@ import {
   createSelectedVariant,
   calculateDiscount,
   getVariantStockStatus,
-} from '../../../utils/store/buynowUtils';
+} from '../../../utils/buyers/store/buynowUtils';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

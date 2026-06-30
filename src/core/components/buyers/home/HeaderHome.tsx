@@ -31,7 +31,7 @@ import { locationApi } from '../../../../api/features/private/locationPrivateSli
 import {
   googlePlacesService,
   PlaceSuggestion,
-} from '../../../services/home/googlePlacesService';
+} from '../../../services/buyers/home/googlePlacesService';
 import { getCurrentGpsLocation } from '../../../utils/home/permissions';
 import {
   formatCoordinates,

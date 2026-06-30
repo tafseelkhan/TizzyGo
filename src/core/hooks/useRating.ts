@@ -1,7 +1,7 @@
 // hooks/useRating.ts
 import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { ratingService } from '../services/home/ratingService';
+import { ratingService } from '../services/buyers/home/ratingService';
 import {
   RatingStats,
   Review,

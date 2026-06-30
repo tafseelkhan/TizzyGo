@@ -1,6 +1,6 @@
 // src/services/mapsService.ts
 import { Alert, Linking } from 'react-native';
-import { getGoogleMapsUrl, hasValidCoordinates } from '../../utils/shop/mapUtils';
+import { getGoogleMapsUrl, hasValidCoordinates } from '../../../utils/buyers/shop/mapUtils';
 
 export interface OpenMapsOptions {
   latitude: number;

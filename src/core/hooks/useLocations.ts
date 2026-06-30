@@ -2,10 +2,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Region } from 'react-native-maps';
-import locationService from '../services/shop/locationService';
-import { createMapRegion, isValidCoordinates, getDefaultRegion } from '../utils/shop/locationUtils';
+import locationService from '../services/buyers/shop/locationService';
+import { createMapRegion, isValidCoordinates, getDefaultRegion } from '../utils/buyers/shop/locationUtils';
 import { THROTTLE_DELAY } from '../../api/constants/mapConfig';
-import { throttle } from '../utils/shop/throttle';
+import { throttle } from '../utils/buyers/shop/throttle';
 
 interface UseLocationProps {
   initialLatitude?: number | null;

@@ -19,7 +19,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { useProductGrid } from '../../../hooks/useProductGrid';
-import { ProductGridService } from '../../../services/home/productGridService';
+import { ProductGridService } from '../../../services/buyers/home/productGridService';
 import {
   safeFormatPrice,
   getProductImage,
@@ -27,7 +27,7 @@ import {
 import ProductCard from './ProductCardHome';
 
 // Lottie animation
-const nofoundAnimation = require('../../components/animations/lotties/no-products.json');
+const nofoundAnimation = require('../../../components/animations/lotties/no-products.json');
 
 // Types
 type RootStackParamList = {

@@ -1,6 +1,6 @@
 // services/cartService.ts
-import { CartAPI } from '../../../api/features/private/addToCartPrivateSlice';
-import { SelectedVariant, ProductVariant } from '../../types/CartTypes';
+import { CartAPI } from '../../../../api/features/private/addToCartPrivateSlice';
+import { SelectedVariant, ProductVariant } from '../../../types/CartTypes';
 
 /**
  * Cart Service - All cart related business logic and API calls

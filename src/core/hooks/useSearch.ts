@@ -1,6 +1,6 @@
 // hooks/useSearch.ts
 import { useState, useEffect, useCallback } from 'react';
-import { searchService } from '../services/home/searchService';
+import { searchService } from '../services/buyers/home/searchService';
 import {
   SearchResult,
   PopularSearch,

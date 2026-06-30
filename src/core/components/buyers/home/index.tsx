@@ -43,12 +43,12 @@ import {
   rotatingBannerItems,
 } from './common/data/images';
 import { Product as ProductType } from '../../../types/HomeTypes';
-import { AuthUtils } from '../../../services/HomeService';
+import { AuthUtils } from '../../../services/buyers/HomeService';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://172.20.10.12:5000';
+const API_BASE_URL = 'http://192.168.250.121:5000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -671,7 +671,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://172.20.10.12:5000/api/seller/forms/categories',
+        'http://192.168.250.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -720,7 +720,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://172.20.10.12:5000/api/seller/forms/categories',
+        'http://192.168.250.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
       if (data.products && Array.isArray(data.products)) {

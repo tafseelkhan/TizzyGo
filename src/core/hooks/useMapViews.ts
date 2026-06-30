@@ -2,8 +2,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import MapView from 'react-native-maps';
-import mapsService from '../services/shop/mapsService';
-import { getMapRegion, hasValidCoordinates } from '../utils/shop/mapUtils';
+import mapsService from '../services/buyers/shop/mapsService';
+import { getMapRegion, hasValidCoordinates } from '../utils/buyers/shop/mapUtils';
 import { ShippingAddress } from '../types/ShopTypes';
 
 interface UseMapViewProps {

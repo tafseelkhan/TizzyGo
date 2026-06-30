@@ -1,4 +1,7 @@
 {
   "name": "TizzyGo",
-  "displayName": "TizzyGo"
+  "displayName": "TizzyGo",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3901529039906994~2562788033"
+  }
 }

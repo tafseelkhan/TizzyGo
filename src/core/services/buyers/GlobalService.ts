@@ -6,10 +6,10 @@ import {
   Review,
   User,
   RatingStats,
-} from "../types/HomeTypes";
+} from "./../../types/HomeTypes";
 
 // ✅ BASE URL aur TOKEN KEYS
-const BASE_URL = 'http://172.20.10.12:5000';
+const BASE_URL = 'http://192.168.250.121:5000';
 const TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
@@ -36,7 +36,7 @@ export const setTokenInStorage = async (token: string): Promise<void> => {
 
 export const clearTokensFromStorage = async (): Promise<void> => {
   try {
-    await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    await AsyncStorage.removeItem(TOKEN_KEY);
     console.log('🗑️ Tokens cleared from storage');
   } catch (error) {
     console.error('❌ Error clearing tokens:', error);

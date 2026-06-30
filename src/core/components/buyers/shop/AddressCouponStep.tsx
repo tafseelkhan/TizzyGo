@@ -22,7 +22,7 @@ import {
 } from '../../../types/ShopTypes';
 import MapSelectionModal from './MapSelectionModal';
 import MapViewModal from './MapViewModal';
-import { isValidCoordinates } from '../../../utils/shop/validationUtils';
+import { isValidCoordinates } from '../../../utils/buyers/shop/validationUtils';
 
 interface AddressCouponStepProps {
   checkoutData: CheckoutData;

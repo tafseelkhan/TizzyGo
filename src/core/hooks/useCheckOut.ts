@@ -3,9 +3,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   checkoutService,
   EssentialProductInfo,
-} from '../services/shop/checkoutService';
+} from '../services/buyers/shop/checkoutService';
 import { Product, CalculatedData, ShippingAddress } from '../types/ShopTypes';
-import { triggerHaptic } from '../utils/shop/checkoutUtils';
+import { triggerHaptic } from '../utils/buyers/shop/checkoutUtils';
 
 interface UseCheckoutProps {
   essentialProductInfo: EssentialProductInfo | null;

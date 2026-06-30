@@ -4,7 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { formatPrice, formatDistance } from '../../utils/shop/formatterUtils';
+import { formatPrice, formatDistance } from '../../utils/buyers/shop/formatterUtils';
 
 interface DeliveryInfoCardProps {
   isFreeDelivery: boolean;

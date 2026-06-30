@@ -2,12 +2,12 @@
 import {
   checkoutApi,
   CalculationParams,
-} from '../../../api/features/private/checkoutPrivateSlice';
+} from '../../../../api/features/private/checkoutPrivateSlice';
 import {
   Product,
   CalculatedData,
   ShippingAddress,
-} from '../../types/ShopTypes';
+} from '../../../types/ShopTypes';
 
 export interface EssentialProductInfo {
   mongoObjectId: string;

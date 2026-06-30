@@ -1,8 +1,8 @@
 // src/hooks/useAddressSearch.ts
 import { useState, useCallback, useRef } from 'react';
 import { Alert, Keyboard } from 'react-native';
-import addressService from '../services/shop/addressService';
-import { PlacePrediction } from '../services/shop/addressService';
+import addressService from '../services/buyers/shop/addressService';
+import { PlacePrediction } from '../services/buyers/shop/addressService';
 import { ShippingAddress, CheckoutData } from '../types/ShopTypes';
 
 interface UseAddressSearchProps {

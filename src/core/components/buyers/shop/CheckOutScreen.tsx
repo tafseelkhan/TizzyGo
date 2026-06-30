@@ -38,7 +38,7 @@ import {
   triggerHaptic,
   getGrandTotalSafe,
   getDiscountAppliedSafe,
-} from '../../../utils/shop/checkoutUtils';
+} from '../../../utils/buyers/shop/checkoutUtils';
 import {
   Product,
   CheckoutData,

@@ -3,7 +3,7 @@ import {
   GOOGLE_API_KEY,
   MAPS_BASE_URL,
   PLACES_API_ENDPOINTS,
-} from '../../../api/constants/mapConfig';
+} from '../../../../api/constants/mapConfig';
 
 export interface PlaceSuggestion {
   description: string;
