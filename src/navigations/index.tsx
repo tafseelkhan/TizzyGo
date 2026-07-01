@@ -25,14 +25,14 @@ export type RootStackParamList = {
   EditProfile: undefined;
 
   // Buyers Screens
-  Home: undefined;
+  CustomerShop: undefined;
   Settings: undefined;
   ProductDetail: { productId: string };
   OrderSuccessScreen: undefined;
   BuyNow: { productId: string; variantId?: string | null };
 
   // Cabs Screens
-  CustomerHome: undefined;
+  CustomerCab: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -51,7 +51,7 @@ export default function AppNavigator() {
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
 
         {/* Buyer Screens - Add more when neeeded */}
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="CustomerShop" component={HomeScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
         <Stack.Screen
@@ -61,7 +61,7 @@ export default function AppNavigator() {
         <Stack.Screen name="BuyNow" component={BuyNowScreen} />
 
         {/* Cabs Screens - Add more when needed */}
-        <Stack.Screen name="CustomerHome" component={CustomerHome} />
+        <Stack.Screen name="CustomerCab" component={CustomerHome} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -152,7 +152,7 @@ export default function LoginScreen() {
     const result = await loginService.verifyOTP(identifier, otp);
 
     if (result.success) {
-      navigation.navigate('Home');
+      navigation.navigate('CustomerShop');
     } else {
       setError(result.message);
     }

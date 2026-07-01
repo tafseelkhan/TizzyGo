@@ -72,7 +72,7 @@ interface Variant {
 }
 
 type RootStackParamList = {
-  Home: undefined;
+  CustomerShop: undefined;
   ProductDetail: { productId: string };
   TizzyChat: { userId: string; id: string };
 };
@@ -508,7 +508,7 @@ const TizzyChatButton: React.FC<TizzyChatButtonProps> = ({
     >
       <View style={styles.tizzyChatButtonContent}>
         <Image
-          source={require('../../../assets/images/nex-logo.png')}
+          source={require('../../../../assets/images/nex-logo.png')}
           style={styles.tizzyChatLogo}
         />
         <View style={styles.tizzyChatTextContainer}>

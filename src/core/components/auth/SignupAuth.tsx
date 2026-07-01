@@ -161,7 +161,7 @@ export default function SignupScreen() {
     const res = await signupService.verifyOTP(emailOrPhone, otp, name);
 
     if (res.success) {
-      navigation.navigate('Home');
+      navigation.navigate('CustomerShop');
     } else {
       Alert.alert('Error', res.message);
     }

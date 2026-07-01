@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FA5Icon from 'react-native-vector-icons/FontAwesome5';
 import FAIcon from 'react-native-vector-icons/FontAwesome';
 import IIcon from 'react-native-vector-icons/Ionicons';
-import BottomNavigation from '../buyers/home/BottomNavigationHome';
+import BottomNavigation from '../BottomNavigationHome';
 import { useTheme } from '../../contexts/theme/ThemeContext';
 import { profileService } from '../../services/profile/profileService';
 

@@ -40,75 +40,75 @@ const CategoryGrid = () => {
 
   // Categories data with images and screen names
   const categories = [
-    { 
-      name: 'Mans', 
-      image: require('../../../assets/taskfile/man.png'),
-      screenName: 'MansScreen'
+    {
+      name: 'Mans',
+      image: require('../../../../assets/taskfile/man.png'),
+      screenName: 'MansScreen',
     },
-    { 
-      name: 'Women', 
-      image: require('../../../assets/taskfile/women.png'), 
-      screenName: 'WomenScreen'
+    {
+      name: 'Women',
+      image: require('../../../../assets/taskfile/women.png'),
+      screenName: 'WomenScreen',
     },
     {
       name: 'Mobiles',
-      image: require('../../../assets/taskfile/mobile.png'),
-      screenName: 'MobilesScreen'
+      image: require('../../../../assets/taskfile/mobile.png'),
+      screenName: 'MobilesScreen',
     },
     {
       name: 'All in Sell',
-      image: require('../../../assets/taskfile/sell.png'),
-      screenName: 'SellScreen'
+      image: require('../../../../assets/taskfile/sell.png'),
+      screenName: 'SellScreen',
     },
-    { 
-      name: 'Kids', 
-      image: require('../../../assets/taskfile/kids.png'), 
-      screenName: 'KidsScreen'
+    {
+      name: 'Kids',
+      image: require('../../../../assets/taskfile/kids.png'),
+      screenName: 'KidsScreen',
     },
-    { 
-      name: 'Electronics', 
-      image: require('../../../assets/taskfile/electronics.png'), 
-      screenName: 'ElectronicsScreen'
+    {
+      name: 'Electronics',
+      image: require('../../../../assets/taskfile/electronics.png'),
+      screenName: 'ElectronicsScreen',
     },
-    { 
-      name: 'Home', 
-      image: require('../../../assets/taskfile/home.png'), 
-      screenName: 'HomeScreen'
+    {
+      name: 'Home',
+      image: require('../../../../assets/taskfile/home.png'),
+      screenName: 'HomeScreen',
     },
-    { 
-      name: 'Sports', 
-      image: require('../../../assets/taskfile/sports.png'), 
-      screenName: 'SportsScreen'
+    {
+      name: 'Sports',
+      image: require('../../../../assets/taskfile/sports.png'),
+      screenName: 'SportsScreen',
     },
-    { 
-      name: 'Beauty', 
-      image: require('../../../assets/taskfile/beauty.png'), 
-      screenName: 'BeautyScreen'
+    {
+      name: 'Beauty',
+      image: require('../../../../assets/taskfile/beauty.png'),
+      screenName: 'BeautyScreen',
     },
-    { 
-      name: 'Books', 
-      image: require('../../../assets/taskfile/books.png'), 
-      screenName: 'BooksScreen'
+    {
+      name: 'Books',
+      image: require('../../../../assets/taskfile/books.png'),
+      screenName: 'BooksScreen',
     },
-    { 
-      name: 'Toys', 
-      image: require('../../../assets/taskfile/toy.png'), 
-      screenName: 'ToysScreen'
+    {
+      name: 'Toys',
+      image: require('../../../../assets/taskfile/toy.png'),
+      screenName: 'ToysScreen',
     },
-    { 
-      name: 'Furniture', 
-      image: require('../../../assets/taskfile/furniture.png'), 
-      screenName: 'FurnitureScreen'
+    {
+      name: 'Furniture',
+      image: require('../../../../assets/taskfile/furniture.png'),
+      screenName: 'FurnitureScreen',
     },
-    { 
-      name: 'Cars', 
-      image: require('../../../assets/taskfile/car.png'), 
-      screenName: 'CarsScreen'
+    {
+      name: 'Cars',
+      image: require('../../../../assets/taskfile/car.png'),
+      screenName: 'CarsScreen',
     },
-    { 
-      name: 'Bikes', 
-      image: require('../../../assets/taskfile/bike.png'), 
-      screenName: 'BikesScreen'
+    {
+      name: 'Bikes',
+      image: require('../../../../assets/taskfile/bike.png'),
+      screenName: 'BikesScreen',
     },
   ];
 

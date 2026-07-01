@@ -58,7 +58,7 @@ const DELIVERY_ANIMATION = require('../../animations/lotties/delivery.json');
 
 // Navigation param types
 type RootStackParamList = {
-  Home: undefined;
+  CustomerShop: undefined;
   RateOrder: { orderId: string };
   OrderDetails: { orderId: string };
   OrderTracking: { orderId: string; liveData?: LiveDeliveryData | null };
@@ -290,7 +290,7 @@ const OrderSuccessScreen: React.FC = () => {
   useEffect(() => {
     if (!params.orderId) {
       Alert.alert('Error', 'Order information not found.', [
-        { text: 'Go Home', onPress: () => navigation.navigate('Home') },
+        { text: 'Go Home', onPress: () => navigation.navigate('CustomerShop') },
       ]);
       return;
     }
@@ -423,7 +423,7 @@ const OrderSuccessScreen: React.FC = () => {
           </Text>
           <TouchableOpacity
             style={styles.errorButton}
-            onPress={() => navigation.navigate('Home')}
+            onPress={() => navigation.navigate('CustomerShop')}
           >
             <Text style={[styles.errorButtonText, { color: colors.primary }]}>
               Go to Home

@@ -25,7 +25,7 @@ export const verifyAndNavigate = async (minTimeElapsed: boolean) => {
     const { success } = await verifyToken();
 
     if (success) {
-      return { shouldNavigate: true, route: 'Home' };
+      return { shouldNavigate: true, route: 'CustomerShop' };
     } else {
       await AsyncStorage.removeItem('authToken');
       return { shouldNavigate: true, route: 'Login' };

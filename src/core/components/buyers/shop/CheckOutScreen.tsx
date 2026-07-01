@@ -421,7 +421,7 @@ const CheckoutStepper: React.FC = () => {
       console.log('🎉 Order confirmed:', orderData);
       Alert.alert('Success', 'Order placed successfully!', [
         { text: 'View Orders', onPress: () => navigation.navigate('Orders') },
-        { text: 'OK', onPress: () => navigation.replace('Home') },
+        { text: 'OK', onPress: () => navigation.navigate('CustomerShop') },
       ]);
     },
     [navigation],

@@ -23,7 +23,7 @@ import { verifyAndNavigate } from '../../utils/animations/authUtils';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type RootStackParamList = {
-  Home: undefined;
+  CustomerShop: undefined;
   Login: undefined;
   Signup: undefined;
 };

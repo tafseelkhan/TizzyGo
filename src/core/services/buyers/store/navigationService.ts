@@ -10,7 +10,7 @@ export const handleGoBack = (navigation: Navigation) => {
 };
 
 export const handleGoHome = (navigation: Navigation) => {
-  navigation.navigate('Home');
+  navigation.navigate('CustomerShop');
 };
 
 export const handleCategoryPress = (

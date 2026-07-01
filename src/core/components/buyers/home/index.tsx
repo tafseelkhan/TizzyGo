@@ -33,7 +33,7 @@ import { jwtDecode } from 'jwt-decode';
 import Banner from './BannerHome';
 import CategoryGrid from './CategoryGridHome';
 import Header from './HeaderHome';
-import BottomNavigation from './BottomNavigationHome';
+import BottomNavigation from '../../BottomNavigationHome';
 import ProductGrid from './ProductGridHome';
 import ProductStories from './ProductStoryHome';
 import BrandSlider from './BrandSliderHome';
@@ -48,7 +48,7 @@ import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://192.168.250.121:5000';
+const API_BASE_URL = 'http://192.168.11.121:5000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -671,7 +671,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.250.121:5000/api/seller/forms/categories',
+        'http://192.168.11.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -720,7 +720,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://192.168.250.121:5000/api/seller/forms/categories',
+        'http://192.168.11.121:5000/api/seller/forms/categories',
       );
       const data = await response.json();
       if (data.products && Array.isArray(data.products)) {

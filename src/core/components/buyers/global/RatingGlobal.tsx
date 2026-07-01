@@ -345,7 +345,7 @@ export default function RatingComponent({
         style={styles.starButton}
       >
         <Image
-          source={require('../../../assets/images/star-logo.png')}
+          source={require('../../../../assets/images/star-logo.png')}
           style={styles.starImage}
         />
       </TouchableOpacity>

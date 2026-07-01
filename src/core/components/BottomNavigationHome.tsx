@@ -15,12 +15,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import LottieView from 'lottie-react-native';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
+import { useTheme } from '../contexts/theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 // ✅ Import profile SERVICE
-import { profileService } from '../../../services/profile/profileService';
+import { profileService } from '../services/profile/profileService';
 
 // Type definitions for props
 interface BottomNavigationProps {
@@ -31,7 +31,7 @@ interface BottomNavigationProps {
 // Define navigation param types
 type RootStackParamList = {
   BottomNavigator: { screen: string };
-  Home: undefined;
+  CustomerShop: undefined;
   Seller: undefined;
   BookCab: undefined;
   Rentes: undefined;
@@ -122,9 +122,7 @@ const BottomNavigation = ({
       icon: 'storefront' as const,
       action: () => {
         triggerLightHaptic();
-        navigation
-          .getParent()
-          ?.navigate('BottomNavigator', { screen: 'Seller' });
+        navigation.navigate('CustomerShop');
       },
     },
     {
@@ -132,9 +130,7 @@ const BottomNavigation = ({
       icon: 'two-wheeler' as const,
       action: () => {
         triggerLightHaptic();
-        navigation
-          .getParent()
-          ?.navigate('BottomNavigator', { screen: 'BookCab' });
+        navigation.navigate('CustomerCab');
       },
     },
     {
@@ -254,7 +250,7 @@ const BottomNavigation = ({
       <View style={styles.lottieContainer}>
         <LottieView
           ref={animationRef}
-          source={require('../../../core/components/animations/lotties/Login icon (1).json')}
+          source={require('../components/animations/lotties/Login icon (1).json')}
           style={styles.lottieAnimation}
           autoPlay={true}
           loop={true}
@@ -315,12 +311,12 @@ const BottomNavigation = ({
           onPress={() => {
             triggerLightHaptic();
             setActiveTab('home');
-            navigation.navigate('Home');
+            navigation.navigate('CustomerShop');
           }}
         >
           <View style={styles.navIconContainer}>
             <Image
-              source={require('../../../assets/images/tizzy-logo.jpg')}
+              source={require('../../assets/images/tizzy-logo.jpg')}
               style={styles.navIconImage}
             />
           </View>
@@ -343,7 +339,7 @@ const BottomNavigation = ({
         >
           <View style={styles.navIconContainer}>
             <Image
-              source={require('../../../assets/images/nex-logo.png')}
+              source={require('../../assets/images/nex-logo.png')}
               style={styles.navIconImage}
             />
           </View>

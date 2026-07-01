@@ -30,7 +30,7 @@ interface PaymentStepProps {
   onPaymentMethodChange?: (method: 'online' | 'cod') => void;
 }
 
-const AIRCLOUD_LOGO = require('../../../assets/images/aircloud.png');
+const AIRCLOUD_LOGO = require('../../../../assets/images/aircloud.png');
 
 const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   checkoutData,

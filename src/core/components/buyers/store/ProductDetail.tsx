@@ -50,7 +50,7 @@ import BottomNavigation from './BottomNavigation';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 type RootStackParamList = {
-  Home: undefined;
+  CustomerShop: undefined;
   ProductDetail: { productId: string };
   CategoryProducts: { category: string };
   ProductMore: { productId: string; productTitle: string };

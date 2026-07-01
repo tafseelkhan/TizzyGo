@@ -41,7 +41,7 @@ interface BottomNavigationProps {
 }
 
 type RootStackParamList = {
-  Home: undefined;
+  CustomerShop: undefined;
   ProductDetail: {
     productId: string;
     category?: string;

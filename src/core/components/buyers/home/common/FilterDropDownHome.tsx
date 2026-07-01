@@ -14,7 +14,7 @@ import LottieView from 'lottie-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { APIs } from '../../../../services/buyers/homeService';
+import { APIs } from '../../../../services/buyers/HomeService';
 import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
