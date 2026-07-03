@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Octicons from 'react-native-vector-icons/Octicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import LottieView from 'lottie-react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
@@ -21,7 +22,7 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Speed Dial Actions - YAHAN DEFINED
+// Speed Dial Actions
 const DEFAULT_ACTIONS = [
   {
     id: 1,
@@ -183,12 +184,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   return (
     <View style={styles.bottomNavContainer}>
       <View style={styles.bottomNavBar}>
-        {/* Home Button - Tizzy Logo */}
+        {/* Home Button - Home Icon (Tizzy ki jagah) */}
         <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === 'home' && styles.tizzyButtonActive,
-          ]}
+          style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
           onPress={() => {
             triggerLightHaptic();
             if (onTabPress) onTabPress('home');
@@ -196,13 +194,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             if (navigation) navigation.navigate('CustomerCab');
           }}
         >
-          <Image
-            source={require('../../../../assets/images/tizzy-logo.jpg')}
-            style={styles.navIconImage}
-          />
+          <Octicons name="home" size={24} color="#000" />
         </TouchableOpacity>
 
-        {/* Search Button - Profile ke left mein */}
+        {/* Search Button */}
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -266,21 +261,24 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   style={[styles.speedDialButton, styles.speedDialSolidStyle]}
                   onPress={() => handleSpeedDialAction(action.action)}
                 >
-                  <MaterialIcon name={action.icon} size={24} color="#2ECC71" />
+                  <MaterialIcon name={action.icon} size={24} color="#000" />
                 </TouchableOpacity>
               </Animated.View>
             ))}
           </Animated.View>
 
-          {/* Plus Button */}
+          {/* Plus Button - Green BG when open, else white */}
           <TouchableOpacity
-            style={[styles.fab, styles.coloredSolidStyle]}
+            style={[
+              styles.fabButton,
+              speedDialOpen ? styles.fabButtonOpen : styles.fabButtonClosed,
+            ]}
             onPress={toggleSpeedDial}
           >
             <Ionicons
               name={speedDialOpen ? 'close' : 'add'}
               size={32}
-              color="#2ECC71"
+              color="#000"
             />
           </TouchableOpacity>
         </View>
@@ -338,9 +336,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  tizzyButtonActive: {
-    backgroundColor: '#ffffff',
-  },
   navItemActive: {
     backgroundColor: '#2ECC71',
   },
@@ -356,23 +351,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1001,
   },
-  fab: {
+  // ✅ Plus Button Styles - Green when open, White when closed
+  fabButton: {
     width: 45,
     height: 45,
-    borderRadius: 28,
+    borderRadius: 22.5,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1002,
-  },
-  coloredSolidStyle: {
-    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 8,
+  },
+  fabButtonClosed: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  fabButtonOpen: {
+    backgroundColor: '#2ECC71', // ✅ Green BG when open
+    borderWidth: 0,
   },
   speedDial: {
     position: 'absolute',
@@ -389,6 +389,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 20,
+    right: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
