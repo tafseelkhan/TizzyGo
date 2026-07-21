@@ -4,6 +4,7 @@ import React, {
   useRef,
   useMemo,
   useCallback,
+  memo,
 } from 'react';
 import {
   View,
@@ -11,11 +12,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Platform,
   Dimensions,
   Animated,
   StatusBar,
-  Keyboard,
   Easing,
   Image,
   TouchableOpacity,
@@ -31,10 +30,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { debounce } from 'lodash';
 
 import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
 import { VEHICLE_CLASSES } from '../../../../api/constants/vehicleClasses';
@@ -44,31 +41,20 @@ import {
   Location,
 } from '../../../../api/features/private/rideBookingPrivateSlice';
 import {
-  Suggestion,
   RouteCoordinate,
   RideTypeGroup,
-  DriverResponse,
 } from '../../../types/FWSLocalRideTypes';
 import {
   decodePolyline,
-  formatDistance,
   formatPrice,
   getFirstDriver,
   getRideTypeName,
   getRideTypeFare,
-  getDriverCount,
-  getClosestDriverDistance,
-  getDriverMaxPassengers,
-  getDriverHasAC,
 } from '../../../utils/cabs/FWSLocalRideHelperUtils';
 import { SelectedRideTicket } from './SelectedRideTicket';
 import { RideModal } from './RideModal';
 import { AnimatedPressable } from './AnimatedPressable';
-
-// ✅ IMPORT SOCKET LIVE TRACKING
 import SocketLiveTracking from '../../../utils/socket/socketLiveTracking';
-
-// ✅ IMPORT LOCATION HELPER
 import {
   requestLocationPermission,
   fetchCurrentLocation,
@@ -79,7 +65,6 @@ const { height, width } = Dimensions.get('window');
 
 const DRIVER_MARKER_IMAGE = require('../../../../assets/map/driver-car-marker.png');
 
-// ✅ TYPED NAVIGATION
 type BookingScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'FWSLocalRide'
@@ -127,67 +112,231 @@ const LIGHT_MAP_STYLE = [
   },
 ];
 
+// ✅ OPTIMIZED: Memoized Driver Marker Component
+const DriverMarker = memo(
+  ({
+    driver,
+    liveLocation,
+    isTrackingLive,
+  }: {
+    driver: any;
+    liveLocation: any;
+    isTrackingLive: boolean;
+  }) => {
+    const location = liveLocation || {
+      latitude: driver?.latestLatitude ?? 0,
+      longitude: driver?.latestLongitude ?? 0,
+      heading: driver?.heading ?? 0,
+    };
+
+    return (
+      <Marker
+        coordinate={{
+          latitude: location.latitude,
+          longitude: location.longitude,
+        }}
+        title="Driver"
+        description={`${driver?.driverCode ?? 'Driver'} • ${isTrackingLive ? '🟢 Live' : '📍 Initial'}`}
+        anchor={{ x: 0.5, y: 0.5 }}
+        rotation={location.heading ?? 0}
+      >
+        {isTrackingLive && (
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>LIVE</Text>
+          </View>
+        )}
+        <Image
+          source={DRIVER_MARKER_IMAGE}
+          style={{ width: 40, height: 40, resizeMode: 'contain' }}
+        />
+      </Marker>
+    );
+  },
+);
+
+// ✅ OPTIMIZED: Memoized Drop Marker Component
+const DropMarker = memo(({ drop }: { drop: Location | null }) => {
+  if (!drop) return null;
+  return (
+    <Marker
+      coordinate={{
+        latitude: drop.latitude,
+        longitude: drop.longitude,
+      }}
+      title="Drop"
+      description={drop.address}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <View style={styles.markerDrop}>
+        <Icon name="flag" size={12} color={COLORS.white} />
+      </View>
+    </Marker>
+  );
+});
+
 const BookingScreen: React.FC = () => {
-  // ✅ TYPED HOOKS
   const navigation = useNavigation<BookingScreenNavigationProp>();
   const route = useRoute<BookingScreenRouteProp>();
   const insets = useSafeAreaInsets();
 
-  // Refs
   const mapRef = useRef<MapView>(null);
   const bottomSheetAnim = useRef(new Animated.Value(height)).current;
+  const isMounted = useRef(true);
 
   // ============================================================
-  //  ✅ POLYLINE ANIMATION - USE REF FOR ANIMATED VALUE
-  // ============================================================
-  const polylineOpacity = useRef(new Animated.Value(1)).current;
-  const routeDrawAnim = useRef(new Animated.Value(0)).current;
+  //  ✅ POLYLINE ANIMATION - Using Animated.View wrapper
+  //  ============================================================
+  const routeOpacity1 = useRef(new Animated.Value(1)).current;
+  const routeOpacity2 = useRef(new Animated.Value(0)).current;
+
+  const routeForward = useRef<RouteCoordinate[]>([]);
+  const routeReverse = useRef<RouteCoordinate[]>([]);
   const animationTimer = useRef<number | null>(null);
   const isAnimating = useRef<boolean>(false);
 
-  // State for displayed route
-  const [displayedRoute, setDisplayedRoute] = useState<RouteCoordinate[]>([]);
-  const [isPolylineVisible, setIsPolylineVisible] = useState(true);
-  const [routeCoordinates, setRouteCoordinates] = useState<RouteCoordinate[]>(
-    [],
-  );
+  const [routeVersion, setRouteVersion] = useState(0);
 
   // ============================================================
-  //  ✅ PROPS RECEIVE
-  // ============================================================
-  const routeParams = route?.params || {};
+  //  ✅ POLYLINE ANIMATION LOGIC
+  //  ============================================================
+  const startPolylineAnimation = useCallback(() => {
+    if (
+      routeForward.current.length < 2 ||
+      isAnimating.current ||
+      !isMounted.current
+    ) {
+      return;
+    }
+
+    isAnimating.current = true;
+
+    routeOpacity1.setValue(1);
+    routeOpacity2.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(routeOpacity1, {
+        toValue: 0,
+        duration: 15000,
+        useNativeDriver: true,
+        easing: Easing.linear,
+      }),
+      Animated.timing(routeOpacity2, {
+        toValue: 1,
+        duration: 15000,
+        useNativeDriver: true,
+        easing: Easing.linear,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && isMounted.current && isAnimating.current) {
+        Animated.parallel([
+          Animated.timing(routeOpacity1, {
+            toValue: 1,
+            duration: 15000,
+            useNativeDriver: true,
+            easing: Easing.linear,
+          }),
+          Animated.timing(routeOpacity2, {
+            toValue: 0,
+            duration: 15000,
+            useNativeDriver: true,
+            easing: Easing.linear,
+          }),
+        ]).start(({ finished: reverseFinished }) => {
+          if (reverseFinished && isMounted.current && isAnimating.current) {
+            if (animationTimer.current) {
+              clearTimeout(animationTimer.current);
+            }
+            animationTimer.current = setTimeout(() => {
+              startPolylineAnimation();
+            }, 500);
+          }
+        });
+      }
+    });
+  }, [routeOpacity1, routeOpacity2]);
+
+  const stopPolylineAnimation = useCallback(() => {
+    isAnimating.current = false;
+    routeOpacity1.stopAnimation();
+    routeOpacity2.stopAnimation();
+    if (animationTimer.current) {
+      clearTimeout(animationTimer.current);
+      animationTimer.current = null;
+    }
+  }, [routeOpacity1, routeOpacity2]);
+
+  const updateRoute = useCallback(
+    (coords: RouteCoordinate[]) => {
+      if (coords.length < 2) {
+        routeForward.current = [];
+        routeReverse.current = [];
+        setRouteVersion(v => v + 1);
+        return;
+      }
+
+      stopPolylineAnimation();
+      routeForward.current = coords;
+      routeReverse.current = [...coords].reverse();
+      routeOpacity1.setValue(1);
+      routeOpacity2.setValue(0);
+      isAnimating.current = false;
+      setRouteVersion(v => v + 1);
+
+      if (animationTimer.current) {
+        clearTimeout(animationTimer.current);
+      }
+      animationTimer.current = setTimeout(() => {
+        if (isMounted.current) {
+          startPolylineAnimation();
+        }
+      }, 1000);
+    },
+    [
+      stopPolylineAnimation,
+      startPolylineAnimation,
+      routeOpacity1,
+      routeOpacity2,
+    ],
+  );
 
   useEffect(() => {
-    console.log('🔵 [BookingScreen] Route Params:', routeParams);
-    console.log('🔵 [BookingScreen] Pickup:', routeParams.pickup);
-    console.log('🔵 [BookingScreen] Drop:', routeParams.drop);
-  }, []);
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      stopPolylineAnimation();
+      if (animationTimer.current) {
+        clearTimeout(animationTimer.current);
+        animationTimer.current = null;
+      }
+    };
+  }, [stopPolylineAnimation]);
 
-  // ✅ Initialize with props
+  // ============================================================
+  //  ✅ PROPS RECEIVE - MEMOIZED
+  //  ============================================================
+  const routeParams = useMemo(() => route?.params ?? {}, [route?.params]);
+
   const [pickup, setPickup] = useState<Location | null>(
-    routeParams.pickup || null,
+    routeParams.pickup ?? null,
   );
-  const [drop, setDrop] = useState<Location | null>(routeParams.drop || null);
+  const [drop, setDrop] = useState<Location | null>(routeParams.drop ?? null);
   const [pickupText, setPickupText] = useState<string>(
-    routeParams.pickupText || 'Pickup location',
+    routeParams.pickupText ?? 'Pickup location',
   );
   const [dropText, setDropText] = useState<string>(
-    routeParams.dropText || 'Where to?',
+    routeParams.dropText ?? 'Where to?',
   );
 
-  // ✅ User current location (ONLY FOR MAP DISPLAY - NOT SENT TO BACKEND)
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-
-  // ✅ Region from pickup or user location
-  const [region, setRegion] = useState<Region>({
-    latitude: routeParams.pickup?.latitude || 28.6139,
-    longitude: routeParams.pickup?.longitude || 77.209,
-    latitudeDelta: 0.02,
-    longitudeDelta: 0.02,
-  });
+  const initialRegion = useMemo(
+    () => ({
+      latitude: routeParams.pickup?.latitude ?? 28.6139,
+      longitude: routeParams.pickup?.longitude ?? 77.209,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    }),
+    [routeParams.pickup],
+  );
 
   // Ride States
   const [rideTypeGroups, setRideTypeGroups] = useState<RideTypeGroup[]>([]);
@@ -205,11 +354,12 @@ const BookingScreen: React.FC = () => {
     null,
   );
   const [bookingId, setBookingId] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<ReturnType<
-    typeof setInterval
-  > | null>(null);
 
-  // ✅ SOCKET LIVE TRACKING STATES
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+
+  // Socket Tracking
   const [liveDriverLocation, setLiveDriverLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -218,191 +368,42 @@ const BookingScreen: React.FC = () => {
   } | null>(null);
   const [isTrackingLive, setIsTrackingLive] = useState<boolean>(false);
   const liveTracking = SocketLiveTracking;
+  const lastLocationUpdate = useRef<number>(0);
+  const MIN_LOCATION_UPDATE_INTERVAL = 2000;
 
   // ============================================================
-  //  ✅ GET USER CURRENT LOCATION (ONLY FOR DISPLAY)
-  // ============================================================
-  useEffect(() => {
-    const getUserLocation = async () => {
+  //  ✅ REVERSE GEOCODE - FIXED WITH TYPE ASSERTION
+  //  ============================================================
+  const reverseGeocodeFn = useCallback(
+    async (latitude: number, longitude: number): Promise<string> => {
       try {
-        const hasPermission = await requestLocationPermission();
-        if (hasPermission) {
-          const location = await fetchCurrentLocation();
-          if (location) {
-            console.log('📍 User location fetched for display:', location);
-            setUserLocation({
-              latitude: location.latitude,
-              longitude: location.longitude,
-            });
-
-            if (!pickup) {
-              setRegion({
-                latitude: location.latitude,
-                longitude: location.longitude,
-                latitudeDelta: 0.02,
-                longitudeDelta: 0.02,
-              });
-            }
-          }
+        const response = await axios.get(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`,
+        );
+        if (response.data.results && response.data.results.length > 0) {
+          return response.data.results[0].formatted_address;
         }
+        return '';
       } catch (error) {
-        console.log('⚠️ Could not fetch user location:', error);
+        console.log('Reverse geocode error:', error);
+        return '';
       }
-    };
+    },
+    [],
+  );
 
-    getUserLocation();
-  }, []);
-
-  // ============================================================
-  //  ✅ AUTO-FETCH RIDE OPTIONS
-  // ============================================================
-  useEffect(() => {
-    if (pickup && drop) {
-      console.log('✅ Pickup & Drop available, fetching ride options...');
-      setTimeout(() => {
-        getRideOptions();
-      }, 500);
-    }
-  }, [pickup, drop]);
+  const reverseGeocode = useCallback(
+    debounce(reverseGeocodeFn, 300, { leading: false, trailing: true }) as (
+      latitude: number,
+      longitude: number,
+    ) => Promise<string>,
+    [reverseGeocodeFn],
+  );
 
   // ============================================================
-  //  ✅ FIXED POLYLINE ANIMATION - ONLY GREEN COLOR
-  // ============================================================
-  useEffect(() => {
-    // Clear previous animation
-    if (animationTimer.current) {
-      clearTimeout(animationTimer.current);
-      animationTimer.current = null;
-    }
-    isAnimating.current = false;
-
-    if (routeCoordinates.length < 2) {
-      setDisplayedRoute(routeCoordinates);
-      polylineOpacity.setValue(1);
-      setIsPolylineVisible(true);
-      return;
-    }
-
-    // Reset animation
-    routeDrawAnim.setValue(0);
-    polylineOpacity.setValue(1);
-    setIsPolylineVisible(true);
-    isAnimating.current = true;
-
-    // Draw route animation - progressive reveal
-    const listenerId = routeDrawAnim.addListener(({ value }) => {
-      const count = Math.max(
-        2,
-        Math.round(value * (routeCoordinates.length - 1)) + 1,
-      );
-      setDisplayedRoute(routeCoordinates.slice(0, count));
-    });
-
-    Animated.timing(routeDrawAnim, {
-      toValue: 1,
-      duration: 1000,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(() => {
-      routeDrawAnim.removeListener(listenerId);
-      setDisplayedRoute(routeCoordinates);
-
-      // Start fade loop after drawing is complete
-      animationTimer.current = setTimeout(() => {
-        if (isAnimating.current) {
-          startPolylineFadeLoop();
-        }
-      }, 800);
-    });
-
-    return () => {
-      routeDrawAnim.removeListener(listenerId);
-      routeDrawAnim.stopAnimation();
-      polylineOpacity.stopAnimation();
-      isAnimating.current = false;
-      if (animationTimer.current) {
-        clearTimeout(animationTimer.current);
-        animationTimer.current = null;
-      }
-    };
-  }, [routeCoordinates]);
-
-  // ============================================================
-  //  ✅ POLYLINE FADE LOOP - ONLY GREEN
-  // ============================================================
-  const startPolylineFadeLoop = () => {
-    if (routeCoordinates.length < 2 || !isAnimating.current) return;
-
-    const fadeOut = () => {
-      if (!isAnimating.current) return;
-
-      Animated.timing(polylineOpacity, {
-        toValue: 0.3,
-        duration: 6000,
-        useNativeDriver: true,
-        easing: Easing.linear,
-      }).start(({ finished }) => {
-        if (finished && isAnimating.current) {
-          // Fade in
-          Animated.timing(polylineOpacity, {
-            toValue: 1,
-            duration: 6000,
-            useNativeDriver: true,
-            easing: Easing.linear,
-          }).start(({ finished: fadeInFinished }) => {
-            if (fadeInFinished && isAnimating.current) {
-              // Loop
-              fadeOut();
-            }
-          });
-        }
-      });
-    };
-
-    fadeOut();
-  };
-
-  // ============================================================
-  //  STOP POLYLINE ANIMATION
-  // ============================================================
-  const stopPolylineAnimation = () => {
-    isAnimating.current = false;
-    polylineOpacity.stopAnimation();
-    polylineOpacity.setValue(1);
-    setIsPolylineVisible(true);
-    setDisplayedRoute(routeCoordinates);
-    if (animationTimer.current) {
-      clearTimeout(animationTimer.current);
-      animationTimer.current = null;
-    }
-  };
-
-  // ============================================================
-  //  REVERSE GEOCODE
-  // ============================================================
-  const reverseGeocode = async (
-    latitude: number,
-    longitude: number,
-  ): Promise<string> => {
-    try {
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`,
-      );
-      if (response.data.results && response.data.results.length > 0) {
-        return response.data.results[0].formatted_address;
-      }
-      return '';
-    } catch (error) {
-      console.log('Reverse geocode error:', error);
-      return '';
-    }
-  };
-
-  // ============================================================
-  //  ✅ CHANGE LOCATION BUTTON
-  // ============================================================
-  const openLocationInput = () => {
-    console.log('🔵 [BookingScreen] Opening LocationInput');
+  //  ✅ NAVIGATION FUNCTIONS
+  //  ============================================================
+  const openLocationInput = useCallback(() => {
     try {
       navigation.navigate('LocationInput', {
         pickupText,
@@ -414,117 +415,127 @@ const BookingScreen: React.FC = () => {
       console.error('❌ Navigation error:', error);
       Alert.alert('Error', 'Unable to navigate to location input');
     }
-  };
+  }, [navigation, pickupText, dropText, pickup, drop]);
 
   // ============================================================
-  //  MAP FUNCTIONS
-  // ============================================================
-  const onMapPress = (event: any) => {
-    const { coordinate } = event.nativeEvent;
-    const { latitude, longitude } = coordinate;
+  //  ✅ MAP FUNCTIONS - TYPE SAFE
+  //  ============================================================
+  const onMapPress = useCallback(
+    (event: any) => {
+      const coordinate = event?.nativeEvent?.coordinate;
 
-    reverseGeocode(latitude, longitude)
-      .then(address => {
-        setSelectedLocation({
-          latitude,
-          longitude,
-          address: address || 'Selected Location',
-          googlePlaceId: '',
+      if (
+        !coordinate ||
+        coordinate.latitude == null ||
+        coordinate.longitude == null
+      ) {
+        return;
+      }
+
+      const { latitude, longitude } = coordinate;
+
+      reverseGeocode(latitude, longitude)
+        .then((address: string) => {
+          if (!isMounted.current) return;
+
+          const finalAddress = address || 'Selected Location';
+
+          setSelectedLocation({
+            latitude,
+            longitude,
+            address: finalAddress,
+            googlePlaceId: '',
+          });
+
+          Animated.spring(bottomSheetAnim, {
+            toValue: height * 0.35,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+
+          setShowBottomSheet(true);
+        })
+        .catch(() => {
+          if (!isMounted.current) return;
+          setSelectedLocation({
+            latitude,
+            longitude,
+            address: 'Selected Location',
+            googlePlaceId: '',
+          });
+
+          Animated.spring(bottomSheetAnim, {
+            toValue: height * 0.35,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+
+          setShowBottomSheet(true);
         });
+    },
+    [reverseGeocode, bottomSheetAnim],
+  );
 
-        Animated.spring(bottomSheetAnim, {
-          toValue: height * 0.35,
-          useNativeDriver: true,
-          tension: 65,
-          friction: 11,
-        }).start();
+  const confirmMapLocation = useCallback(
+    async (type: 'pickup' | 'drop') => {
+      if (!selectedLocation) return;
 
-        setShowBottomSheet(true);
-      })
-      .catch(() => {
-        setSelectedLocation({
-          latitude,
-          longitude,
-          address: 'Selected Location',
-          googlePlaceId: '',
-        });
-
-        Animated.spring(bottomSheetAnim, {
-          toValue: height * 0.35,
-          useNativeDriver: true,
-          tension: 65,
-          friction: 11,
-        }).start();
-
-        setShowBottomSheet(true);
-      });
-  };
-
-  const confirmMapLocation = async (type: 'pickup' | 'drop') => {
-    if (!selectedLocation) return;
-
-    const address = await reverseGeocode(
-      selectedLocation.latitude,
-      selectedLocation.longitude,
-    );
-
-    const locationData: Location = {
-      ...selectedLocation,
-      address: address || selectedLocation.address || 'Selected Location',
-    };
-
-    if (type === 'pickup') {
-      setPickup(locationData);
-      setPickupText(address || selectedLocation.address || 'Selected Location');
-      mapRef.current?.animateToRegion(
-        {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        },
-        500,
+      const address = await reverseGeocode(
+        selectedLocation.latitude,
+        selectedLocation.longitude,
       );
-      setRegion({
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-      });
-    } else {
-      setDrop(locationData);
-      setDropText(address || selectedLocation.address || 'Selected Location');
-      mapRef.current?.animateToRegion(
-        {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        },
-        500,
-      );
-      setRegion({
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-      });
-    }
 
-    Animated.spring(bottomSheetAnim, {
-      toValue: height,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
-    }).start();
-    setShowBottomSheet(false);
-    setSelectedLocation(null);
-  };
+      const locationData: Location = {
+        ...selectedLocation,
+        address: address || selectedLocation.address || 'Selected Location',
+      };
+
+      if (type === 'pickup') {
+        setPickup(locationData);
+        setPickupText(
+          address || selectedLocation.address || 'Selected Location',
+        );
+        mapRef.current?.animateToRegion(
+          {
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          },
+          500,
+        );
+      } else {
+        setDrop(locationData);
+        setDropText(address || selectedLocation.address || 'Selected Location');
+        mapRef.current?.animateToRegion(
+          {
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          },
+          500,
+        );
+      }
+
+      Animated.spring(bottomSheetAnim, {
+        toValue: height,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+      setShowBottomSheet(false);
+      setSelectedLocation(null);
+    },
+    [selectedLocation, reverseGeocode, bottomSheetAnim],
+  );
 
   // ============================================================
-  //  RIDE OPTIONS FUNCTIONS
-  // ============================================================
-  const getRideOptions = async () => {
+  //  ✅ RIDE OPTIONS
+  //  ============================================================
+  const getRideOptions = useCallback(async () => {
     if (!pickup || !drop) return;
     setIsGettingOptions(true);
     try {
@@ -532,39 +543,24 @@ const BookingScreen: React.FC = () => {
       if (response.success && response.data) {
         const groups = response.data.options as unknown as RideTypeGroup[];
         setRideTypeGroups(groups);
+
         if (groups.length > 0 && groups[0].pickupToDropPolyline) {
           const decoded = decodePolyline(groups[0].pickupToDropPolyline);
           if (decoded.length >= 2) {
-            setRouteCoordinates(decoded);
-          } else {
-            setRouteCoordinates([]);
+            updateRoute(decoded);
           }
-        } else {
-          setRouteCoordinates([]);
         }
+
         if (groups.length > 0) setSelectedRideTypeGroup(groups[0]);
-        const firstRideType = groups[0]?.rideType?.toLowerCase();
-        if (firstRideType) {
-          const classMap: Record<string, string> = {
-            basic: 'economy',
-            go: 'economy',
-            lite: 'economy',
-            mini: 'economy',
-            economy: 'economy',
-            standard: 'standard',
-            comfort: 'comfort',
-            premium: 'premium',
-            luxury: 'luxury',
-          };
-          setActiveClassTab(classMap[firstRideType] || 'economy');
-        }
+
         const allCoords = [
-          ...routeCoordinates,
+          ...routeForward.current,
           pickup
             ? { latitude: pickup.latitude, longitude: pickup.longitude }
             : null,
           drop ? { latitude: drop.latitude, longitude: drop.longitude } : null,
         ].filter(Boolean) as RouteCoordinate[];
+
         if (allCoords.length > 0 && mapRef.current) {
           mapRef.current.fitToCoordinates(allCoords, {
             edgePadding: { top: 120, right: 60, bottom: 340, left: 60 },
@@ -582,12 +578,12 @@ const BookingScreen: React.FC = () => {
     } finally {
       setIsGettingOptions(false);
     }
-  };
+  }, [pickup, drop, updateRoute]);
 
   // ============================================================
-  //  BOOKING FUNCTIONS
-  // ============================================================
-  const createBooking = async () => {
+  //  ✅ BOOKING FUNCTIONS
+  //  ============================================================
+  const createBooking = useCallback(async () => {
     if (!pickup || !drop || !selectedRideTypeGroup) {
       Alert.alert('Error', 'Please select all required fields');
       return;
@@ -618,29 +614,32 @@ const BookingScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pickup, drop, selectedRideTypeGroup, navigation]);
 
-  const startPolling = (id: string) => {
-    if (pollingInterval) clearInterval(pollingInterval);
-    const interval = setInterval(async () => {
+  const startPolling = useCallback((id: string) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    pollingIntervalRef.current = setInterval(async () => {
       try {
         const response = await rideBooking.getSearchStatus(id);
         if (response.success && response.data) {
           setSearchStatus(response.data);
           const finalStates = ['accepted', 'no_driver_found', 'cancelled'];
           if (finalStates.includes(response.data.status)) {
-            clearInterval(interval);
-            setPollingInterval(null);
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
           }
         }
       } catch (error) {
         console.error('Polling error:', error);
       }
     }, 5000);
-    setPollingInterval(interval);
-  };
+  }, []);
 
-  const cancelBooking = async () => {
+  const cancelBooking = useCallback(async () => {
     if (!bookingId) return;
     Alert.alert('Cancel Booking', 'Are you sure?', [
       { text: 'No', style: 'cancel' },
@@ -655,9 +654,9 @@ const BookingScreen: React.FC = () => {
               'User cancelled',
             );
             if (response.success) {
-              if (pollingInterval) {
-                clearInterval(pollingInterval);
-                setPollingInterval(null);
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
               }
               setBookingId(null);
               setSearchStatus(null);
@@ -674,10 +673,96 @@ const BookingScreen: React.FC = () => {
         },
       },
     ]);
-  };
+  }, [bookingId]);
 
-  // Group ride types
-  const getGroupedRideTypes = () => {
+  // ============================================================
+  //  ✅ SOCKET LIVE TRACKING
+  //  ============================================================
+  const startLiveTracking = useCallback(
+    async (driverId: string, rideId: string) => {
+      try {
+        const connected = await liveTracking.connect();
+        if (!connected) {
+          console.log('⚠️ [BookingScreen] Failed to connect socket');
+          return;
+        }
+
+        const customerId = liveTracking.getUserId();
+        if (!customerId) {
+          console.log('⚠️ [BookingScreen] No customer ID found');
+          return;
+        }
+
+        liveTracking.onLocation((data: any) => {
+          const now = Date.now();
+          if (now - lastLocationUpdate.current < MIN_LOCATION_UPDATE_INTERVAL) {
+            return;
+          }
+          lastLocationUpdate.current = now;
+
+          setLiveDriverLocation({
+            latitude: data.latitude,
+            longitude: data.longitude,
+            heading: data.heading || 0,
+            speed: data.speed || 0,
+          });
+        });
+
+        liveTracking.onStatus((data: any) => {
+          if (data.type === 'stopped') {
+            setIsTrackingLive(false);
+          } else if (data.type === 'success') {
+            console.log('✅ [BookingScreen] Tracking started successfully');
+          }
+        });
+
+        liveTracking.startTracking(customerId, driverId, rideId);
+        setIsTrackingLive(true);
+      } catch (error) {
+        console.error(
+          '❌ [BookingScreen] Failed to start live tracking:',
+          error,
+        );
+      }
+    },
+    [liveTracking],
+  );
+
+  const stopLiveTracking = useCallback(() => {
+    if (liveTracking.isTrackingActive()) {
+      liveTracking.stopTracking();
+      liveTracking.removeCallbacks();
+      setIsTrackingLive(false);
+      setLiveDriverLocation(null);
+    }
+  }, [liveTracking]);
+
+  useEffect(() => {
+    if (bookingId && selectedRideTypeGroup) {
+      const firstDriver = selectedRideTypeGroup
+        ? getFirstDriver(selectedRideTypeGroup)
+        : null;
+      if (firstDriver) {
+        startLiveTracking(firstDriver.driverId, bookingId);
+      }
+    }
+
+    return () => {
+      stopLiveTracking();
+      liveTracking.disconnect();
+    };
+  }, [
+    bookingId,
+    selectedRideTypeGroup,
+    startLiveTracking,
+    stopLiveTracking,
+    liveTracking,
+  ]);
+
+  // ============================================================
+  //  ✅ GROUP RIDE TYPES
+  //  ============================================================
+  const groupedRideTypes = useMemo(() => {
     const grouped: Record<string, RideTypeGroup[]> = {};
     VEHICLE_CLASSES.forEach(cls => {
       grouped[cls.id] = [];
@@ -698,97 +783,18 @@ const BookingScreen: React.FC = () => {
       else grouped['economy'].push(group);
     });
     return grouped;
-  };
+  }, [rideTypeGroups]);
 
-  const groupedRideTypes = getGroupedRideTypes();
-  const classesWithItems = VEHICLE_CLASSES.filter(
-    c => (groupedRideTypes[c.id] || []).length > 0,
+  const classesWithItems = useMemo(
+    () =>
+      VEHICLE_CLASSES.filter(c => (groupedRideTypes[c.id] || []).length > 0),
+    [groupedRideTypes],
   );
 
   // ============================================================
-  //  SOCKET LIVE TRACKING - START/STOP
-  // ============================================================
-  const startLiveTracking = async (driverId: string, rideId: string) => {
-    try {
-      console.log(
-        '🔵 [BookingScreen] Starting live tracking for driver:',
-        driverId,
-      );
-
-      const connected = await liveTracking.connect();
-      if (!connected) {
-        console.log('⚠️ [BookingScreen] Failed to connect socket');
-        return;
-      }
-
-      const customerId = liveTracking.getUserId();
-      if (!customerId) {
-        console.log('⚠️ [BookingScreen] No customer ID found');
-        return;
-      }
-
-      liveTracking.onLocation((data: any) => {
-        console.log('📍 [BookingScreen] Live location received:', data);
-        setLiveDriverLocation({
-          latitude: data.latitude,
-          longitude: data.longitude,
-          heading: data.heading || 0,
-          speed: data.speed || 0,
-        });
-      });
-
-      liveTracking.onStatus((data: any) => {
-        if (data.type === 'stopped') {
-          console.log('🛑 [BookingScreen] Driver stopped sharing location');
-          setIsTrackingLive(false);
-        } else if (data.type === 'error') {
-          console.log('❌ [BookingScreen] Tracking error:', data);
-        } else if (data.type === 'success') {
-          console.log('✅ [BookingScreen] Tracking started successfully');
-        }
-      });
-
-      liveTracking.startTracking(customerId, driverId, rideId);
-      setIsTrackingLive(true);
-      console.log('✅ [BookingScreen] Started tracking driver:', driverId);
-    } catch (error) {
-      console.error('❌ [BookingScreen] Failed to start live tracking:', error);
-    }
-  };
-
-  const stopLiveTracking = () => {
-    if (liveTracking.isTrackingActive()) {
-      liveTracking.stopTracking();
-      liveTracking.removeCallbacks();
-      setIsTrackingLive(false);
-      setLiveDriverLocation(null);
-      console.log('🔴 [BookingScreen] Stopped live tracking');
-    }
-  };
-
-  // ============================================================
-  //  EFFECT: Start/Stop live tracking based on booking
-  // ============================================================
-  useEffect(() => {
-    if (bookingId && selectedRideTypeGroup) {
-      const firstDriver = selectedRideTypeGroup
-        ? getFirstDriver(selectedRideTypeGroup)
-        : null;
-      if (firstDriver) {
-        startLiveTracking(firstDriver.driverId, bookingId);
-      }
-    }
-
-    return () => {
-      stopLiveTracking();
-      liveTracking.disconnect();
-    };
-  }, [bookingId, selectedRideTypeGroup]);
-
-  // ============================================================
-  //  GET CURRENT DRIVER LOCATION (Live or Initial)
-  // ============================================================
-  const getDriverLocation = () => {
+  //  ✅ GET DRIVER LOCATION
+  //  ============================================================
+  const getDriverLocation = useCallback(() => {
     if (liveDriverLocation) {
       return liveDriverLocation;
     }
@@ -804,12 +810,12 @@ const BookingScreen: React.FC = () => {
       };
     }
     return null;
-  };
+  }, [liveDriverLocation, selectedRideTypeGroup]);
 
   // ============================================================
   //  ✅ MY LOCATION BUTTON
-  // ============================================================
-  const goToMyLocation = async () => {
+  //  ============================================================
+  const goToMyLocation = useCallback(async () => {
     try {
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
@@ -818,8 +824,8 @@ const BookingScreen: React.FC = () => {
       }
 
       const location = await fetchCurrentLocation();
-      if (location) {
-        mapRef.current?.animateToRegion(
+      if (location && mapRef.current) {
+        mapRef.current.animateToRegion(
           {
             latitude: location.latitude,
             longitude: location.longitude,
@@ -833,11 +839,15 @@ const BookingScreen: React.FC = () => {
       console.error('Error getting location:', error);
       Alert.alert('Error', 'Unable to get your location');
     }
-  };
+  }, []);
 
   // ============================================================
-  //  RENDER
-  // ============================================================
+  //  ✅ RENDER
+  //  ============================================================
+  const driver = selectedRideTypeGroup
+    ? getFirstDriver(selectedRideTypeGroup)
+    : null;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
@@ -847,87 +857,63 @@ const BookingScreen: React.FC = () => {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
-          region={region}
+          initialRegion={initialRegion}
           customMapStyle={LIGHT_MAP_STYLE}
           showsUserLocation={true}
           showsMyLocationButton={false}
           zoomEnabled={true}
           zoomControlEnabled={false}
           onPress={onMapPress}
-          pointerEvents="auto"
           moveOnMarkerPress={false}
           scrollEnabled={true}
           zoomTapEnabled={true}
           pitchEnabled={false}
           rotateEnabled={false}
           loadingEnabled={false}
+          minZoomLevel={10}
+          maxZoomLevel={20}
+          mapPadding={{ top: 80, right: 0, bottom: 200, left: 0 }}
+          onMapReady={() => {
+            console.log('Map ready');
+          }}
         >
-          {/* ✅ ONLY GREEN POLYLINE - NO BLACK, NO Animated.View */}
-          {displayedRoute.length > 0 && isPolylineVisible && (
-            <Polyline
-              coordinates={displayedRoute}
-              strokeColor={COLORS.green}
-              strokeWidth={5}
-              lineCap="round"
-              lineJoin="round"
-              tappable={false}
+          {/* ✅ FIXED: Animated.View wrapper for Polyline opacity */}
+          {routeForward.current.length > 0 && (
+            <>
+              <Animated.View style={{ opacity: routeOpacity1 }}>
+                <Polyline
+                  coordinates={routeForward.current}
+                  strokeColor={COLORS.green}
+                  strokeWidth={5}
+                  lineCap="round"
+                  lineJoin="round"
+                  tappable={false}
+                />
+              </Animated.View>
+              <Animated.View style={{ opacity: routeOpacity2 }}>
+                <Polyline
+                  coordinates={routeReverse.current}
+                  strokeColor={COLORS.green}
+                  strokeWidth={5}
+                  lineCap="round"
+                  lineJoin="round"
+                  tappable={false}
+                />
+              </Animated.View>
+            </>
+          )}
+
+          {driver && (
+            <DriverMarker
+              driver={driver}
+              liveLocation={liveDriverLocation}
+              isTrackingLive={isTrackingLive}
             />
           )}
 
-          {selectedRideTypeGroup && getFirstDriver(selectedRideTypeGroup) && (
-            <Marker
-              coordinate={{
-                latitude:
-                  getDriverLocation()?.latitude ||
-                  getFirstDriver(selectedRideTypeGroup)!.latestLatitude,
-                longitude:
-                  getDriverLocation()?.longitude ||
-                  getFirstDriver(selectedRideTypeGroup)!.latestLongitude,
-              }}
-              title="Driver"
-              description={`${getFirstDriver(selectedRideTypeGroup)!.driverCode} • ${liveDriverLocation ? '🟢 Live' : '📍 Initial'}`}
-              anchor={{ x: 0.5, y: 0.5 }}
-              rotation={
-                getDriverLocation()?.heading ||
-                getFirstDriver(selectedRideTypeGroup)!.heading ||
-                0
-              }
-            >
-              {liveDriverLocation && (
-                <View style={styles.liveIndicator}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveText}>LIVE</Text>
-                </View>
-              )}
-              <Image
-                source={DRIVER_MARKER_IMAGE}
-                style={{
-                  width: 40,
-                  height: 40,
-                  resizeMode: 'contain',
-                }}
-              />
-            </Marker>
-          )}
-
-          {drop && (
-            <Marker
-              coordinate={{
-                latitude: drop.latitude,
-                longitude: drop.longitude,
-              }}
-              title="Drop"
-              description={drop.address}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <View style={styles.markerDrop}>
-                <Icon name="flag" size={12} color={COLORS.white} />
-              </View>
-            </Marker>
-          )}
+          <DropMarker drop={drop} />
         </MapView>
 
-        {/* ✅ CHANGE LOCATION BUTTON */}
         <TouchableOpacity
           style={styles.changeLocationButton}
           onPress={openLocationInput}
@@ -937,11 +923,9 @@ const BookingScreen: React.FC = () => {
           <Text style={styles.changeLocationText}>Change</Text>
         </TouchableOpacity>
 
-        {/* ✅ BACK BUTTON */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            console.log('🔵 [BookingScreen] Back button pressed');
             try {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -949,7 +933,6 @@ const BookingScreen: React.FC = () => {
                 navigation.navigate('CustomerCab');
               }
             } catch (error) {
-              console.error('❌ Back navigation error:', error);
               navigation.navigate('CustomerCab');
             }
           }}
@@ -958,7 +941,6 @@ const BookingScreen: React.FC = () => {
           <Icon name="arrow-back" size={24} color={COLORS.ink} />
         </TouchableOpacity>
 
-        {/* ✅ MY LOCATION BUTTON */}
         <TouchableOpacity
           style={styles.myLocationButton}
           onPress={goToMyLocation}
@@ -1093,13 +1075,11 @@ const BookingScreen: React.FC = () => {
           if (group.pickupToDropPolyline) {
             const decoded = decodePolyline(group.pickupToDropPolyline);
             if (decoded.length >= 2) {
-              setRouteCoordinates(decoded);
-              stopPolylineAnimation();
-              setTimeout(() => startPolylineFadeLoop(), 500);
+              updateRoute(decoded);
             }
           }
         }}
-        onRouteUpdate={setRouteCoordinates}
+        onRouteUpdate={updateRoute}
         onBook={createBooking}
       />
 
@@ -1324,14 +1304,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  routeTip: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.green,
-    borderWidth: 2,
-    borderColor: COLORS.white,
   },
   bottomSheet: {
     position: 'absolute',

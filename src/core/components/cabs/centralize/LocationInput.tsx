@@ -12,6 +12,7 @@ import {
   Keyboard,
   StatusBar,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {
@@ -22,7 +23,6 @@ import axios from 'axios';
 import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
 import { Suggestion } from '../../../types/FWSLocalRideTypes';
 import { GOOGLE_API_KEY } from '../../../../api/constants/mapConfig';
-import { SuggestionItem } from '../FWSLocalRide/SuggestionItem';
 import { AnimatedPressable } from '../FWSLocalRide/AnimatedPressable';
 
 // ✅ IMPORT LOCATION HELPER
@@ -51,6 +51,7 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
   // Refs
   const pickupInputRef = useRef<TextInput>(null);
   const dropInputRef = useRef<TextInput>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // States
   const [pickupText, setPickupText] = useState<string>(initialPickupText);
@@ -63,10 +64,19 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [searchType, setSearchType] = useState<'pickup' | 'drop'>('pickup');
+  const [searchLoading, setSearchLoading] = useState<boolean>(false);
 
   // ✅ Location fetch states
   const [fetchingLocation, setFetchingLocation] = useState<boolean>(true);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: showSuggestions ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [showSuggestions]);
 
   // ✅ Reverse geocode function
   const reverseGeocode = async (
@@ -151,6 +161,7 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       setShowSuggestions(false);
       return;
     }
+    setSearchLoading(true);
     try {
       const response = await axios.get(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GOOGLE_API_KEY}&components=country:in`,
@@ -170,6 +181,8 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       }
     } catch (error) {
       console.log('Search error:', error);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -198,6 +211,13 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           setPickupText(address);
           Keyboard.dismiss();
           pickupInputRef.current?.blur();
+          // ✅ auto-shift focus to drop field if empty, feels natural
+          if (!dropText) {
+            setTimeout(() => {
+              setSearchType('drop');
+              dropInputRef.current?.focus();
+            }, 200);
+          }
         } else {
           setDrop(locationData);
           setDropText(address);
@@ -253,6 +273,35 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
     setDrop(null);
   };
 
+  const closeSuggestions = () => {
+    Keyboard.dismiss();
+    setShowSuggestions(false);
+    setFocusedField(null);
+  };
+
+  const renderSuggestionRow = ({ item }: { item: Suggestion }) => (
+    <TouchableOpacity
+      style={styles.suggestionRow}
+      onPress={() => selectSuggestion(item)}
+      activeOpacity={0.6}
+    >
+      <View style={styles.suggestionIconWrap}>
+        <Icon name="location-on" size={18} color={COLORS.textSecondary} />
+      </View>
+      <View style={styles.suggestionTextWrap}>
+        <Text style={styles.suggestionMain} numberOfLines={1}>
+          {item.mainText || item.description}
+        </Text>
+        {!!item.secondaryText && (
+          <Text style={styles.suggestionSecondary} numberOfLines={1}>
+            {item.secondaryText}
+          </Text>
+        )}
+      </View>
+      <Icon name="north-west" size={16} color={COLORS.textMuted} />
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
@@ -261,16 +310,28 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() =>
+            showSuggestions ? closeSuggestions() : navigation.goBack()
+          }
           activeOpacity={0.7}
         >
-          <Icon name="arrow-back" size={24} color={COLORS.ink} />
+          <Icon
+            name={showSuggestions ? 'close' : 'arrow-back'}
+            size={22}
+            color={COLORS.ink}
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Where to?</Text>
+        <Text style={styles.headerTitle}>
+          {showSuggestions
+            ? searchType === 'pickup'
+              ? 'Set pickup'
+              : 'Set drop'
+            : 'Where to?'}
+        </Text>
         <View style={styles.headerRight} />
       </View>
 
-      {/* Location Inputs */}
+      {/* Location Card */}
       <View style={styles.inputContainer}>
         {fetchingLocation ? (
           <View style={styles.loadingContainer}>
@@ -291,153 +352,164 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           </View>
         ) : (
           <>
-            {/* Pickup */}
-            <TouchableOpacity
-              style={[
-                styles.locationRow,
-                focusedField === 'pickup' && styles.locationRowFocused,
-              ]}
-              onPress={() => {
-                setSearchType('pickup');
-                pickupInputRef.current?.focus();
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.railWrap}>
-                <View style={styles.dotPickup} />
-                <View style={styles.railLine} />
-              </View>
-              <TextInput
-                ref={pickupInputRef}
-                style={styles.locationInput}
-                placeholder="Pickup location"
-                placeholderTextColor={COLORS.textMuted}
-                value={pickupText}
-                onChangeText={text => {
-                  setPickupText(text);
-                  searchLocations(text);
-                  if (text.length === 0) {
-                    setSuggestions([]);
-                    setShowSuggestions(false);
-                  }
-                }}
-                onFocus={() => {
-                  setSearchType('pickup');
-                  setFocusedField('pickup');
-                  if (pickupText.length > 0) searchLocations(pickupText);
-                }}
-                onBlur={() => setFocusedField(null)}
-              />
-              {pickupText.length > 0 && (
-                <TouchableOpacity
-                  onPress={clearPickup}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Icon name="close" size={16} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-
-            {/* Swap Button */}
-            <AnimatedPressable
-              style={styles.swapButton}
-              onPress={swapLocations}
-              scaleTo={0.85}
-            >
-              <Icon name="swap-vert" size={18} color={COLORS.ink} />
-            </AnimatedPressable>
-
-            {/* Drop */}
-            <TouchableOpacity
-              style={[
-                styles.locationRow,
-                styles.locationRowLast,
-                focusedField === 'drop' && styles.locationRowFocused,
-              ]}
-              onPress={() => {
-                setSearchType('drop');
-                dropInputRef.current?.focus();
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.railWrap}>
-                <View style={styles.dotDrop} />
-              </View>
-              <TextInput
-                ref={dropInputRef}
-                style={styles.locationInput}
-                placeholder="Where to?"
-                placeholderTextColor={COLORS.textMuted}
-                value={dropText}
-                onChangeText={text => {
-                  setDropText(text);
-                  searchLocations(text);
-                  if (text.length === 0) {
-                    setSuggestions([]);
-                    setShowSuggestions(false);
-                  }
-                }}
-                onFocus={() => {
-                  setSearchType('drop');
-                  setFocusedField('drop');
-                  if (dropText.length > 0) searchLocations(dropText);
-                }}
-                onBlur={() => setFocusedField(null)}
-              />
-              {dropText.length > 0 && (
-                <TouchableOpacity
-                  onPress={clearDrop}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Icon name="close" size={16} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-
-            {/* Suggestions */}
-            {showSuggestions && suggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsHeaderText}>SUGGESTIONS</Text>
+            <View style={styles.card}>
+              {/* Pickup */}
+              <View
+                style={[
+                  styles.locationRow,
+                  focusedField === 'pickup' && styles.locationRowFocused,
+                ]}
+              >
+                <View style={styles.railWrap}>
+                  <View style={styles.dotPickup} />
+                  <View style={styles.railLine} />
                 </View>
-                <FlatList
-                  data={suggestions}
-                  renderItem={({ item, index }) => (
-                    <SuggestionItem
-                      item={item}
-                      index={index}
-                      total={suggestions.length}
-                      onSelect={selectSuggestion}
-                    />
-                  )}
-                  keyExtractor={item => item.placeId}
-                  keyboardShouldPersistTaps="always"
-                  style={styles.suggestionsList}
-                  nestedScrollEnabled={true}
-                  showsVerticalScrollIndicator={true}
+                <TextInput
+                  ref={pickupInputRef}
+                  style={styles.locationInput}
+                  placeholder="Pickup location"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={pickupText}
+                  onChangeText={text => {
+                    setPickupText(text);
+                    searchLocations(text);
+                    if (text.length === 0) {
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    setSearchType('pickup');
+                    setFocusedField('pickup');
+                    if (pickupText.length > 0) searchLocations(pickupText);
+                  }}
                 />
+                {pickupText.length > 0 && (
+                  <TouchableOpacity
+                    onPress={clearPickup}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon name="close" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                )}
               </View>
+
+              <View style={styles.divider} />
+
+              {/* Drop */}
+              <View
+                style={[
+                  styles.locationRow,
+                  focusedField === 'drop' && styles.locationRowFocused,
+                ]}
+              >
+                <View style={styles.railWrap}>
+                  <View style={styles.dotDrop} />
+                </View>
+                <TextInput
+                  ref={dropInputRef}
+                  style={styles.locationInput}
+                  placeholder="Where to?"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={dropText}
+                  onChangeText={text => {
+                    setDropText(text);
+                    searchLocations(text);
+                    if (text.length === 0) {
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    setSearchType('drop');
+                    setFocusedField('drop');
+                    if (dropText.length > 0) searchLocations(dropText);
+                  }}
+                />
+                {dropText.length > 0 && (
+                  <TouchableOpacity
+                    onPress={clearDrop}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon name="close" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Swap Button */}
+              <AnimatedPressable
+                style={styles.swapButton}
+                onPress={swapLocations}
+                scaleTo={0.85}
+              >
+                <Icon name="swap-vert" size={18} color={COLORS.ink} />
+              </AnimatedPressable>
+            </View>
+
+            {/* ✅ SEARCH BUTTON — hidden while suggestion sheet is open */}
+            {!showSuggestions && (
+              <AnimatedPressable
+                style={[
+                  styles.searchButton,
+                  (!pickup || !drop) && styles.searchButtonDisabled,
+                ]}
+                onPress={handleSearch}
+                disabled={!pickup || !drop || isSearching}
+                scaleTo={0.95}
+              >
+                {isSearching ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.searchButtonText}>Search Rides</Text>
+                    <Icon name="arrow-forward" size={20} color={COLORS.white} />
+                  </>
+                )}
+              </AnimatedPressable>
             )}
 
-            {/* ✅ SEARCH BUTTON */}
-            <AnimatedPressable
-              style={[
-                styles.searchButton,
-                (!pickup || !drop) && styles.searchButtonDisabled,
-              ]}
-              onPress={handleSearch}
-              disabled={!pickup || !drop || isSearching}
-              scaleTo={0.95}
-            >
-              {isSearching ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <>
-                  <Text style={styles.searchButtonText}>Search Rides</Text>
-                  <Icon name="arrow-forward" size={20} color={COLORS.white} />
-                </>
-              )}
-            </AnimatedPressable>
+            {/* ✅ Full-screen immersive suggestions sheet */}
+            {showSuggestions && (
+              <Animated.View
+                style={[styles.suggestionsSheet, { opacity: fadeAnim }]}
+              >
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsHeaderText}>
+                    {searchLoading ? 'SEARCHING…' : 'SUGGESTIONS'}
+                  </Text>
+                  {searchLoading && (
+                    <ActivityIndicator size="small" color={COLORS.green} />
+                  )}
+                </View>
+
+                {suggestions.length > 0 ? (
+                  <FlatList
+                    data={suggestions}
+                    renderItem={renderSuggestionRow}
+                    keyExtractor={item => item.placeId}
+                    keyboardShouldPersistTaps="always"
+                    style={styles.suggestionsList}
+                    ItemSeparatorComponent={() => (
+                      <View style={styles.suggestionSeparator} />
+                    )}
+                    showsVerticalScrollIndicator={false}
+                  />
+                ) : (
+                  !searchLoading && (
+                    <View style={styles.emptyState}>
+                      <Icon
+                        name="search-off"
+                        size={28}
+                        color={COLORS.textMuted}
+                      />
+                      <Text style={styles.emptyStateText}>
+                        Keep typing to find a place
+                      </Text>
+                    </View>
+                  )
+                )}
+              </Animated.View>
+            )}
           </>
         )}
       </View>
@@ -478,7 +550,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -510,26 +582,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  card: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    position: 'relative',
+  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    marginBottom: 8,
-    backgroundColor: COLORS.bg,
   },
   locationRowFocused: {
-    borderColor: COLORS.green,
-    shadowColor: COLORS.green,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    // subtle emphasis handled via input text weight; row itself stays flat
+    // so the card reads as one continuous unit like real ride-hailing apps
   },
-  locationRowLast: {
-    marginBottom: 0,
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.hairline,
+    marginLeft: 24,
   },
   railWrap: {
     width: 12,
@@ -538,7 +612,7 @@ const styles = StyleSheet.create({
   },
   railLine: {
     width: 2,
-    height: 16,
+    height: 24,
     backgroundColor: COLORS.borderStrong,
     marginTop: 4,
     borderRadius: 1,
@@ -563,41 +637,14 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   swapButton: {
-    alignSelf: 'center',
+    position: 'absolute',
+    right: 14,
+    top: '50%',
+    marginTop: -14,
     backgroundColor: COLORS.surfaceSunken,
     borderRadius: 11,
     padding: 7,
-    marginVertical: 4,
     zIndex: 5,
-  },
-  suggestionsContainer: {
-    backgroundColor: COLORS.bg,
-    borderRadius: 16,
-    marginTop: 12,
-    maxHeight: 300,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 999,
-    zIndex: 999,
-    overflow: 'hidden',
-  },
-  suggestionsHeader: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
-  suggestionsHeaderText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 1,
-  },
-  suggestionsList: {
-    paddingBottom: 4,
   },
   searchButton: {
     flexDirection: 'row',
@@ -624,6 +671,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.white,
     letterSpacing: 0.5,
+  },
+  // ✅ Immersive full-screen suggestions sheet — replaces the old dropdown
+  suggestionsSheet: {
+    flex: 1,
+    marginTop: 14,
+    backgroundColor: COLORS.bg,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingBottom: 10,
+  },
+  suggestionsHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    letterSpacing: 1.2,
+  },
+  suggestionsList: {
+    flex: 1,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  suggestionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  suggestionTextWrap: {
+    flex: 1,
+  },
+  suggestionMain: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.ink,
+  },
+  suggestionSecondary: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  suggestionSeparator: {
+    height: 1,
+    backgroundColor: COLORS.hairline,
+    marginLeft: 46,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
+  emptyStateText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: COLORS.textMuted,
   },
 });
 
