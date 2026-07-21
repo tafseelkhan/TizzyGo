@@ -15,16 +15,10 @@ import {
   Dimensions,
   Animated,
   StatusBar,
-  Easing,
   Image,
   TouchableOpacity,
 } from 'react-native';
-import MapView, {
-  Marker,
-  Polyline,
-  PROVIDER_GOOGLE,
-  Region,
-} from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
@@ -54,6 +48,7 @@ import {
 import { SelectedRideTicket } from './SelectedRideTicket';
 import { RideModal } from './RideModal';
 import { AnimatedPressable } from './AnimatedPressable';
+import AnimatedRoute from './AnimatedRoute';
 import SocketLiveTracking from '../../../utils/socket/socketLiveTracking';
 import {
   requestLocationPermission,
@@ -63,7 +58,10 @@ import { RootStackParamList } from './RootStackParamList';
 
 const { height, width } = Dimensions.get('window');
 
-const DRIVER_MARKER_IMAGE = require('../../../../assets/map/driver-car-marker.png');
+// ✅ VEHICLE TYPE IMAGES
+const BIKE_MARKER_IMAGE = require('../../../../assets/map/driver-bike-marker.png');
+const CAR_MARKER_IMAGE = require('../../../../assets/map/driver-car-marker.png');
+const AUTO_MARKER_IMAGE = require('../../../../assets/map/driver-auto-marker.png');
 
 type BookingScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -112,16 +110,63 @@ const LIGHT_MAP_STYLE = [
   },
 ];
 
-// ✅ OPTIMIZED: Memoized Driver Marker Component
+// ✅ Get vehicle type image based on vehicleType string
+const getVehicleMarkerImage = (vehicleType: string) => {
+  const type = vehicleType?.toLowerCase() || '';
+  if (type === 'bike' || type === 'motorcycle' || type === 'twowheeler') {
+    return BIKE_MARKER_IMAGE;
+  } else if (
+    type === 'car' ||
+    type === 'fourwheeler' ||
+    type === 'suv' ||
+    type === 'sedan'
+  ) {
+    return CAR_MARKER_IMAGE;
+  } else if (
+    type === 'auto' ||
+    type === 'rickshaw' ||
+    type === 'threewheeler'
+  ) {
+    return AUTO_MARKER_IMAGE;
+  }
+  // Default to car if unknown
+  return CAR_MARKER_IMAGE;
+};
+
+// ✅ Get vehicle type label for display
+const getVehicleTypeLabel = (vehicleType: string) => {
+  const type = vehicleType?.toLowerCase() || '';
+  if (type === 'bike' || type === 'motorcycle' || type === 'twowheeler') {
+    return 'Bike';
+  } else if (
+    type === 'car' ||
+    type === 'fourwheeler' ||
+    type === 'suv' ||
+    type === 'sedan'
+  ) {
+    return 'Car';
+  } else if (
+    type === 'auto' ||
+    type === 'rickshaw' ||
+    type === 'threewheeler'
+  ) {
+    return 'Auto';
+  }
+  return vehicleType || 'Car';
+};
+
+// ✅ OPTIMIZED: Memoized Driver Marker Component with vehicle type
 const DriverMarker = memo(
   ({
     driver,
     liveLocation,
     isTrackingLive,
+    vehicleType,
   }: {
     driver: any;
     liveLocation: any;
     isTrackingLive: boolean;
+    vehicleType: string;
   }) => {
     const location = liveLocation || {
       latitude: driver?.latestLatitude ?? 0,
@@ -129,13 +174,16 @@ const DriverMarker = memo(
       heading: driver?.heading ?? 0,
     };
 
+    const markerImage = getVehicleMarkerImage(vehicleType);
+    const vehicleLabel = getVehicleTypeLabel(vehicleType);
+
     return (
       <Marker
         coordinate={{
           latitude: location.latitude,
           longitude: location.longitude,
         }}
-        title="Driver"
+        title={`${vehicleLabel} Driver`}
         description={`${driver?.driverCode ?? 'Driver'} • ${isTrackingLive ? '🟢 Live' : '📍 Initial'}`}
         anchor={{ x: 0.5, y: 0.5 }}
         rotation={location.heading ?? 0}
@@ -147,7 +195,7 @@ const DriverMarker = memo(
           </View>
         )}
         <Image
-          source={DRIVER_MARKER_IMAGE}
+          source={markerImage}
           style={{ width: 40, height: 40, resizeMode: 'contain' }}
         />
       </Marker>
@@ -185,132 +233,11 @@ const BookingScreen: React.FC = () => {
   const isMounted = useRef(true);
 
   // ============================================================
-  //  ✅ POLYLINE ANIMATION - Using Animated.View wrapper
+  //  ✅ ROUTE COORDINATES STATE
   //  ============================================================
-  const routeOpacity1 = useRef(new Animated.Value(1)).current;
-  const routeOpacity2 = useRef(new Animated.Value(0)).current;
-
-  const routeForward = useRef<RouteCoordinate[]>([]);
-  const routeReverse = useRef<RouteCoordinate[]>([]);
-  const animationTimer = useRef<number | null>(null);
-  const isAnimating = useRef<boolean>(false);
-
-  const [routeVersion, setRouteVersion] = useState(0);
-
-  // ============================================================
-  //  ✅ POLYLINE ANIMATION LOGIC
-  //  ============================================================
-  const startPolylineAnimation = useCallback(() => {
-    if (
-      routeForward.current.length < 2 ||
-      isAnimating.current ||
-      !isMounted.current
-    ) {
-      return;
-    }
-
-    isAnimating.current = true;
-
-    routeOpacity1.setValue(1);
-    routeOpacity2.setValue(0);
-
-    Animated.parallel([
-      Animated.timing(routeOpacity1, {
-        toValue: 0,
-        duration: 15000,
-        useNativeDriver: true,
-        easing: Easing.linear,
-      }),
-      Animated.timing(routeOpacity2, {
-        toValue: 1,
-        duration: 15000,
-        useNativeDriver: true,
-        easing: Easing.linear,
-      }),
-    ]).start(({ finished }) => {
-      if (finished && isMounted.current && isAnimating.current) {
-        Animated.parallel([
-          Animated.timing(routeOpacity1, {
-            toValue: 1,
-            duration: 15000,
-            useNativeDriver: true,
-            easing: Easing.linear,
-          }),
-          Animated.timing(routeOpacity2, {
-            toValue: 0,
-            duration: 15000,
-            useNativeDriver: true,
-            easing: Easing.linear,
-          }),
-        ]).start(({ finished: reverseFinished }) => {
-          if (reverseFinished && isMounted.current && isAnimating.current) {
-            if (animationTimer.current) {
-              clearTimeout(animationTimer.current);
-            }
-            animationTimer.current = setTimeout(() => {
-              startPolylineAnimation();
-            }, 500);
-          }
-        });
-      }
-    });
-  }, [routeOpacity1, routeOpacity2]);
-
-  const stopPolylineAnimation = useCallback(() => {
-    isAnimating.current = false;
-    routeOpacity1.stopAnimation();
-    routeOpacity2.stopAnimation();
-    if (animationTimer.current) {
-      clearTimeout(animationTimer.current);
-      animationTimer.current = null;
-    }
-  }, [routeOpacity1, routeOpacity2]);
-
-  const updateRoute = useCallback(
-    (coords: RouteCoordinate[]) => {
-      if (coords.length < 2) {
-        routeForward.current = [];
-        routeReverse.current = [];
-        setRouteVersion(v => v + 1);
-        return;
-      }
-
-      stopPolylineAnimation();
-      routeForward.current = coords;
-      routeReverse.current = [...coords].reverse();
-      routeOpacity1.setValue(1);
-      routeOpacity2.setValue(0);
-      isAnimating.current = false;
-      setRouteVersion(v => v + 1);
-
-      if (animationTimer.current) {
-        clearTimeout(animationTimer.current);
-      }
-      animationTimer.current = setTimeout(() => {
-        if (isMounted.current) {
-          startPolylineAnimation();
-        }
-      }, 1000);
-    },
-    [
-      stopPolylineAnimation,
-      startPolylineAnimation,
-      routeOpacity1,
-      routeOpacity2,
-    ],
+  const [routeCoordinates, setRouteCoordinates] = useState<RouteCoordinate[]>(
+    [],
   );
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-      stopPolylineAnimation();
-      if (animationTimer.current) {
-        clearTimeout(animationTimer.current);
-        animationTimer.current = null;
-      }
-    };
-  }, [stopPolylineAnimation]);
 
   // ============================================================
   //  ✅ PROPS RECEIVE - MEMOIZED
@@ -371,8 +298,11 @@ const BookingScreen: React.FC = () => {
   const lastLocationUpdate = useRef<number>(0);
   const MIN_LOCATION_UPDATE_INTERVAL = 2000;
 
+  // ✅ Selected driver's vehicle type
+  const [selectedVehicleType, setSelectedVehicleType] = useState<string>('Car');
+
   // ============================================================
-  //  ✅ REVERSE GEOCODE - FIXED WITH TYPE ASSERTION
+  //  ✅ REVERSE GEOCODE
   //  ============================================================
   const reverseGeocodeFn = useCallback(
     async (latitude: number, longitude: number): Promise<string> => {
@@ -401,6 +331,48 @@ const BookingScreen: React.FC = () => {
   );
 
   // ============================================================
+  //  ✅ UPDATE ROUTE FUNCTION
+  //  ============================================================
+  const updateRoute = useCallback((coords: RouteCoordinate[]) => {
+    if (coords.length < 2) {
+      setRouteCoordinates([]);
+      return;
+    }
+    setRouteCoordinates(coords);
+  }, []);
+
+  // ============================================================
+  //  ✅ AUTO-FETCH RIDE OPTIONS ON MOUNT
+  //  ============================================================
+  useEffect(() => {
+    console.log('🔵 [BookingScreen] Checking pickup & drop:', { pickup, drop });
+    if (pickup && drop) {
+      console.log(
+        '✅ [BookingScreen] Both available, fetching ride options...',
+      );
+      const timer = setTimeout(() => {
+        getRideOptions();
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      console.log('⚠️ [BookingScreen] Pickup or Drop missing');
+    }
+  }, [pickup, drop]);
+
+  // ✅ When selected ride type changes, update vehicle type
+  useEffect(() => {
+    if (selectedRideTypeGroup) {
+      const firstDriver = getFirstDriver(selectedRideTypeGroup);
+      if (firstDriver) {
+        const vehicleType =
+          firstDriver.vehicleType || firstDriver.vehicle || 'Car';
+        setSelectedVehicleType(vehicleType);
+        console.log('🚗 Selected vehicle type:', vehicleType);
+      }
+    }
+  }, [selectedRideTypeGroup]);
+
+  // ============================================================
   //  ✅ NAVIGATION FUNCTIONS
   //  ============================================================
   const openLocationInput = useCallback(() => {
@@ -418,7 +390,7 @@ const BookingScreen: React.FC = () => {
   }, [navigation, pickupText, dropText, pickup, drop]);
 
   // ============================================================
-  //  ✅ MAP FUNCTIONS - TYPE SAFE
+  //  ✅ MAP FUNCTIONS
   //  ============================================================
   const onMapPress = useCallback(
     (event: any) => {
@@ -536,10 +508,15 @@ const BookingScreen: React.FC = () => {
   //  ✅ RIDE OPTIONS
   //  ============================================================
   const getRideOptions = useCallback(async () => {
-    if (!pickup || !drop) return;
+    if (!pickup || !drop) {
+      console.log('⚠️ getRideOptions: pickup or drop missing');
+      return;
+    }
+    console.log('🔵 getRideOptions called with:', { pickup, drop });
     setIsGettingOptions(true);
     try {
       const response = await rideBooking.getRideOptions(pickup, drop);
+      console.log('🔵 getRideOptions response:', response);
       if (response.success && response.data) {
         const groups = response.data.options as unknown as RideTypeGroup[];
         setRideTypeGroups(groups);
@@ -551,10 +528,13 @@ const BookingScreen: React.FC = () => {
           }
         }
 
-        if (groups.length > 0) setSelectedRideTypeGroup(groups[0]);
+        if (groups.length > 0) {
+          setSelectedRideTypeGroup(groups[0]);
+          // Vehicle type will be set by the useEffect above
+        }
 
         const allCoords = [
-          ...routeForward.current,
+          ...routeCoordinates,
           pickup
             ? { latitude: pickup.latitude, longitude: pickup.longitude }
             : null,
@@ -578,7 +558,7 @@ const BookingScreen: React.FC = () => {
     } finally {
       setIsGettingOptions(false);
     }
-  }, [pickup, drop, updateRoute]);
+  }, [pickup, drop, updateRoute, routeCoordinates]);
 
   // ============================================================
   //  ✅ BOOKING FUNCTIONS
@@ -848,6 +828,14 @@ const BookingScreen: React.FC = () => {
     ? getFirstDriver(selectedRideTypeGroup)
     : null;
 
+  // ✅ Get driver's vehicle type from selected ride
+  const getDriverVehicleType = () => {
+    if (driver) {
+      return driver.vehicleType || driver.vehicle || 'Car';
+    }
+    return selectedVehicleType || 'Car';
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
@@ -877,37 +865,23 @@ const BookingScreen: React.FC = () => {
             console.log('Map ready');
           }}
         >
-          {/* ✅ FIXED: Animated.View wrapper for Polyline opacity */}
-          {routeForward.current.length > 0 && (
-            <>
-              <Animated.View style={{ opacity: routeOpacity1 }}>
-                <Polyline
-                  coordinates={routeForward.current}
-                  strokeColor={COLORS.green}
-                  strokeWidth={5}
-                  lineCap="round"
-                  lineJoin="round"
-                  tappable={false}
-                />
-              </Animated.View>
-              <Animated.View style={{ opacity: routeOpacity2 }}>
-                <Polyline
-                  coordinates={routeReverse.current}
-                  strokeColor={COLORS.green}
-                  strokeWidth={5}
-                  lineCap="round"
-                  lineJoin="round"
-                  tappable={false}
-                />
-              </Animated.View>
-            </>
+          {/* ✅ SIMPLE POLYLINE - NO FADE ANIMATION */}
+          {routeCoordinates.length > 0 && (
+            <AnimatedRoute
+              coordinates={routeCoordinates}
+              strokeWidth={5}
+              color={COLORS.green}
+              visible={true}
+            />
           )}
 
+          {/* ✅ DRIVER MARKER WITH VEHICLE TYPE IMAGE */}
           {driver && (
             <DriverMarker
               driver={driver}
               liveLocation={liveDriverLocation}
               isTrackingLive={isTrackingLive}
+              vehicleType={getDriverVehicleType()}
             />
           )}
 
@@ -961,7 +935,12 @@ const BookingScreen: React.FC = () => {
                 style={styles.viewAllButton}
                 onPress={() => {
                   if (rideTypeGroups.length > 0) setShowRideModal(true);
-                  else getRideOptions();
+                  else {
+                    console.log(
+                      '🔵 Refresh button pressed, calling getRideOptions',
+                    );
+                    getRideOptions();
+                  }
                 }}
                 disabled={isGettingOptions}
                 scaleTo={0.94}
@@ -1072,6 +1051,14 @@ const BookingScreen: React.FC = () => {
         onTabChange={setActiveClassTab}
         onSelectGroup={group => {
           setSelectedRideTypeGroup(group);
+          // ✅ Update vehicle type when user selects a ride
+          const firstDriver = getFirstDriver(group);
+          if (firstDriver) {
+            const vehicleType =
+              firstDriver.vehicleType || firstDriver.vehicle || 'Car';
+            setSelectedVehicleType(vehicleType);
+            console.log('🚗 Ride selected, vehicle type:', vehicleType);
+          }
           if (group.pickupToDropPolyline) {
             const decoded = decodePolyline(group.pickupToDropPolyline);
             if (decoded.length >= 2) {
