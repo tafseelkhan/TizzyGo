@@ -37,7 +37,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleSearchPress = () => {
-    navigation.navigate('Search');
+    navigation.navigate('FWSRideOptions');
   };
 
   const handleBookPress = (vehicle: CarItem) => {

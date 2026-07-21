@@ -15,7 +15,10 @@ import OrderSuccessScreen from '../screens/inventory/OrderSuccessScreen';
 import BuyNowScreen from '../screens/shop/BuyNow';
 
 // Cabs Imports
-import CustomerHome from '../screens/cabs/home/customerHome';
+import CustomerHomeScreen from '../screens/cabs/home/customerHome';
+import FwsRidesOptionServicesScreen from '../screens/cabs/services/FwsRidesOptionServices';
+import FWSLocalRideScreen from '../screens/cabs/FWSLocalRide/FWSLocalRide';
+import LocationInputScreen from '../screens/cabs/centralize/LocationInputScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -33,6 +36,40 @@ export type RootStackParamList = {
 
   // Cabs Screens
   CustomerCab: undefined;
+  FWSRideOptions: undefined;
+  FWSLocalRide: {
+    pickup?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    drop?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    pickupText?: string;
+    dropText?: string;
+  };
+  LocationInput: {
+    pickupText?: string;
+    dropText?: string;
+    pickup?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    drop?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+  };
+  Tracking: { bookingId: string };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -61,7 +98,13 @@ export default function AppNavigator() {
         <Stack.Screen name="BuyNow" component={BuyNowScreen} />
 
         {/* Cabs Screens - Add more when needed */}
-        <Stack.Screen name="CustomerCab" component={CustomerHome} />
+        <Stack.Screen name="CustomerCab" component={CustomerHomeScreen} />
+        <Stack.Screen
+          name="FWSRideOptions"
+          component={FwsRidesOptionServicesScreen}
+        />
+        <Stack.Screen name="FWSLocalRide" component={FWSLocalRideScreen} />
+        <Stack.Screen name="LocationInput" component={LocationInputScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,0 +1,630 @@
+// screens/cabs/centralize/LocationInputScreen.tsx
+
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  Alert,
+  FlatList,
+  Keyboard,
+  StatusBar,
+  ActivityIndicator,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import axios from 'axios';
+import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
+import { Suggestion } from '../../../types/FWSLocalRideTypes';
+import { GOOGLE_API_KEY } from '../../../../api/constants/mapConfig';
+import { SuggestionItem } from '../FWSLocalRide/SuggestionItem';
+import { AnimatedPressable } from '../FWSLocalRide/AnimatedPressable';
+
+// ✅ IMPORT LOCATION HELPER
+import {
+  requestLocationPermission,
+  fetchCurrentLocation,
+} from '../../../utils/cabs/locationHelper';
+
+interface LocationInputScreenProps {
+  navigation: any;
+  route: any;
+}
+
+const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const insets = useSafeAreaInsets();
+
+  // Get initial values from navigation params
+  const initialPickupText = route.params?.pickupText || '';
+  const initialDropText = route.params?.dropText || '';
+  const initialPickup = route.params?.pickup || null;
+  const initialDrop = route.params?.drop || null;
+
+  // Refs
+  const pickupInputRef = useRef<TextInput>(null);
+  const dropInputRef = useRef<TextInput>(null);
+
+  // States
+  const [pickupText, setPickupText] = useState<string>(initialPickupText);
+  const [dropText, setDropText] = useState<string>(initialDropText);
+  const [pickup, setPickup] = useState<any>(initialPickup);
+  const [drop, setDrop] = useState<any>(initialDrop);
+  const [focusedField, setFocusedField] = useState<'pickup' | 'drop' | null>(
+    null,
+  );
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [searchType, setSearchType] = useState<'pickup' | 'drop'>('pickup');
+
+  // ✅ Location fetch states
+  const [fetchingLocation, setFetchingLocation] = useState<boolean>(true);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  // ✅ Reverse geocode function
+  const reverseGeocode = async (
+    latitude: number,
+    longitude: number,
+  ): Promise<string> => {
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`,
+      );
+      if (response.data.results && response.data.results.length > 0) {
+        return response.data.results[0].formatted_address;
+      }
+      return '';
+    } catch (error) {
+      console.log('Reverse geocode error:', error);
+      return '';
+    }
+  };
+
+  // ✅ Fetch current location on mount
+  useEffect(() => {
+    initializeLocation();
+  }, []);
+
+  const initializeLocation = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      setFetchingLocation(false);
+      Alert.alert('Permission Denied', 'Please enable location permission.');
+      return;
+    }
+    getCurrentUserLocation();
+  };
+
+  const getCurrentUserLocation = () => {
+    setFetchingLocation(true);
+
+    fetchCurrentLocation()
+      .then(location => {
+        const { latitude, longitude } = location;
+        console.log('✅ Location fetched:', latitude, longitude);
+
+        reverseGeocode(latitude, longitude)
+          .then((address: string) => {
+            const pickupLocation = {
+              latitude,
+              longitude,
+              address: address || 'Current Location',
+              googlePlaceId: '',
+            };
+            setPickup(pickupLocation);
+            setPickupText(address || 'Current Location');
+            setFetchingLocation(false);
+          })
+          .catch(() => {
+            const pickupLocation = {
+              latitude,
+              longitude,
+              address: 'Current Location',
+              googlePlaceId: '',
+            };
+            setPickup(pickupLocation);
+            setPickupText('Current Location');
+            setFetchingLocation(false);
+          });
+      })
+      .catch((error: Error) => {
+        console.log('❌ Error getting location:', error);
+        setFetchingLocation(false);
+        Alert.alert(
+          'Location Error',
+          'Unable to get your location. Please try again.',
+        );
+      });
+  };
+
+  // Search locations
+  const searchLocations = async (text: string) => {
+    if (!text || text.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GOOGLE_API_KEY}&components=country:in`,
+      );
+      if (response.data.predictions) {
+        const formattedSuggestions: Suggestion[] =
+          response.data.predictions.map((pred: any) => ({
+            placeId: pred.place_id,
+            description: pred.description,
+            mainText: pred.structured_formatting?.main_text || '',
+            secondaryText: pred.structured_formatting?.secondary_text || '',
+            latitude: 0,
+            longitude: 0,
+          }));
+        setSuggestions(formattedSuggestions);
+        setShowSuggestions(true);
+      }
+    } catch (error) {
+      console.log('Search error:', error);
+    }
+  };
+
+  // Select suggestion
+  const selectSuggestion = async (suggestion: Suggestion) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&key=${GOOGLE_API_KEY}`,
+      );
+      const place = response.data.result;
+      const location = place.geometry?.location;
+      if (location) {
+        const lat = location.lat;
+        const lng = location.lng;
+        const address = place.formatted_address || suggestion.description;
+        const locationData = {
+          latitude: lat,
+          longitude: lng,
+          address: address,
+          googlePlaceId: suggestion.placeId,
+        };
+        if (searchType === 'pickup') {
+          setPickup(locationData);
+          setPickupText(address);
+          Keyboard.dismiss();
+          pickupInputRef.current?.blur();
+        } else {
+          setDrop(locationData);
+          setDropText(address);
+          Keyboard.dismiss();
+          dropInputRef.current?.blur();
+        }
+      }
+    } catch (error) {
+      console.log('Place details error:', error);
+    }
+  };
+
+  // ✅ SEARCH BUTTON - Navigate to BookingScreen
+  const handleSearch = () => {
+    if (!pickup || !drop) {
+      Alert.alert('Error', 'Please select both pickup and drop locations.');
+      return;
+    }
+
+    setIsSearching(true);
+
+    // Navigate to BookingScreen with location data
+    navigation.navigate('FWSLocalRide', {
+      pickup,
+      drop,
+      pickupText,
+      dropText,
+    });
+
+    setIsSearching(false);
+  };
+
+  // Swap locations
+  const swapLocations = () => {
+    if (pickup && drop) {
+      const tempPickup = pickup;
+      const tempPickupText = pickupText;
+      setPickup(drop);
+      setPickupText(dropText);
+      setDrop(tempPickup);
+      setDropText(tempPickupText);
+    }
+  };
+
+  // Clear functions
+  const clearPickup = () => {
+    setPickupText('');
+    setPickup(null);
+  };
+
+  const clearDrop = () => {
+    setDropText('');
+    setDrop(null);
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="arrow-back" size={24} color={COLORS.ink} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Where to?</Text>
+        <View style={styles.headerRight} />
+      </View>
+
+      {/* Location Inputs */}
+      <View style={styles.inputContainer}>
+        {fetchingLocation ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.green} />
+            <Text style={styles.loadingText}>Finding your location…</Text>
+            <Text style={styles.loadingSubText}>
+              Please make sure GPS is enabled
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => {
+                setFetchingLocation(true);
+                setTimeout(() => getCurrentUserLocation(), 500);
+              }}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Pickup */}
+            <TouchableOpacity
+              style={[
+                styles.locationRow,
+                focusedField === 'pickup' && styles.locationRowFocused,
+              ]}
+              onPress={() => {
+                setSearchType('pickup');
+                pickupInputRef.current?.focus();
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.railWrap}>
+                <View style={styles.dotPickup} />
+                <View style={styles.railLine} />
+              </View>
+              <TextInput
+                ref={pickupInputRef}
+                style={styles.locationInput}
+                placeholder="Pickup location"
+                placeholderTextColor={COLORS.textMuted}
+                value={pickupText}
+                onChangeText={text => {
+                  setPickupText(text);
+                  searchLocations(text);
+                  if (text.length === 0) {
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                  }
+                }}
+                onFocus={() => {
+                  setSearchType('pickup');
+                  setFocusedField('pickup');
+                  if (pickupText.length > 0) searchLocations(pickupText);
+                }}
+                onBlur={() => setFocusedField(null)}
+              />
+              {pickupText.length > 0 && (
+                <TouchableOpacity
+                  onPress={clearPickup}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name="close" size={16} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+
+            {/* Swap Button */}
+            <AnimatedPressable
+              style={styles.swapButton}
+              onPress={swapLocations}
+              scaleTo={0.85}
+            >
+              <Icon name="swap-vert" size={18} color={COLORS.ink} />
+            </AnimatedPressable>
+
+            {/* Drop */}
+            <TouchableOpacity
+              style={[
+                styles.locationRow,
+                styles.locationRowLast,
+                focusedField === 'drop' && styles.locationRowFocused,
+              ]}
+              onPress={() => {
+                setSearchType('drop');
+                dropInputRef.current?.focus();
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.railWrap}>
+                <View style={styles.dotDrop} />
+              </View>
+              <TextInput
+                ref={dropInputRef}
+                style={styles.locationInput}
+                placeholder="Where to?"
+                placeholderTextColor={COLORS.textMuted}
+                value={dropText}
+                onChangeText={text => {
+                  setDropText(text);
+                  searchLocations(text);
+                  if (text.length === 0) {
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                  }
+                }}
+                onFocus={() => {
+                  setSearchType('drop');
+                  setFocusedField('drop');
+                  if (dropText.length > 0) searchLocations(dropText);
+                }}
+                onBlur={() => setFocusedField(null)}
+              />
+              {dropText.length > 0 && (
+                <TouchableOpacity
+                  onPress={clearDrop}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name="close" size={16} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+
+            {/* Suggestions */}
+            {showSuggestions && suggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsHeaderText}>SUGGESTIONS</Text>
+                </View>
+                <FlatList
+                  data={suggestions}
+                  renderItem={({ item, index }) => (
+                    <SuggestionItem
+                      item={item}
+                      index={index}
+                      total={suggestions.length}
+                      onSelect={selectSuggestion}
+                    />
+                  )}
+                  keyExtractor={item => item.placeId}
+                  keyboardShouldPersistTaps="always"
+                  style={styles.suggestionsList}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
+                />
+              </View>
+            )}
+
+            {/* ✅ SEARCH BUTTON */}
+            <AnimatedPressable
+              style={[
+                styles.searchButton,
+                (!pickup || !drop) && styles.searchButtonDisabled,
+              ]}
+              onPress={handleSearch}
+              disabled={!pickup || !drop || isSearching}
+              scaleTo={0.95}
+            >
+              {isSearching ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.searchButtonText}>Search Rides</Text>
+                  <Icon name="arrow-forward" size={20} color={COLORS.white} />
+                </>
+              )}
+            </AnimatedPressable>
+          </>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.hairline,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: COLORS.ink,
+  },
+  headerRight: {
+    width: 40,
+  },
+  inputContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.canvas,
+    borderRadius: 16,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  loadingSubText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: COLORS.green,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: COLORS.bg,
+  },
+  locationRowFocused: {
+    borderColor: COLORS.green,
+    shadowColor: COLORS.green,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  locationRowLast: {
+    marginBottom: 0,
+  },
+  railWrap: {
+    width: 12,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  railLine: {
+    width: 2,
+    height: 16,
+    backgroundColor: COLORS.borderStrong,
+    marginTop: 4,
+    borderRadius: 1,
+  },
+  dotPickup: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: COLORS.green,
+  },
+  dotDrop: {
+    width: 9,
+    height: 9,
+    borderRadius: 2,
+    backgroundColor: COLORS.ink,
+  },
+  locationInput: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: '500',
+    color: COLORS.ink,
+    padding: 0,
+  },
+  swapButton: {
+    alignSelf: 'center',
+    backgroundColor: COLORS.surfaceSunken,
+    borderRadius: 11,
+    padding: 7,
+    marginVertical: 4,
+    zIndex: 5,
+  },
+  suggestionsContainer: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 16,
+    marginTop: 12,
+    maxHeight: 300,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 999,
+    zIndex: 999,
+    overflow: 'hidden',
+  },
+  suggestionsHeader: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  suggestionsHeaderText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    letterSpacing: 1,
+  },
+  suggestionsList: {
+    paddingBottom: 4,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.green,
+    paddingVertical: 16,
+    borderRadius: 14,
+    marginTop: 20,
+    gap: 8,
+    shadowColor: COLORS.green,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  searchButtonDisabled: {
+    backgroundColor: COLORS.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  searchButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.white,
+    letterSpacing: 0.5,
+  },
+});
+
+export default LocationInputScreen;

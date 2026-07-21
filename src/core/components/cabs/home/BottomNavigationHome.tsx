@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Octicons from 'react-native-vector-icons/Octicons';
+import Fontisto from 'react-native-vector-icons/Fontisto';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import LottieView from 'lottie-react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
@@ -22,31 +23,63 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Speed Dial Actions
+// Speed Dial Actions with Navigation
 const DEFAULT_ACTIONS = [
   {
     id: 1,
     icon: 'storefront' as const,
     label: 'Shop',
-    action: () => console.log('Shop pressed'),
+    action: (navigation: any) => {
+      console.log('🔍 Navigating to Shop');
+      if (navigation) {
+        navigation.navigate('CustomerShop');
+      }
+    },
   },
   {
     id: 2,
     icon: 'two-wheeler' as const,
     label: 'Cab',
-    action: () => console.log('Cab pressed'),
+    action: (navigation: any) => {
+      console.log('🔍 Navigating to Cab');
+      if (navigation) {
+        navigation.navigate('CustomerCab');
+      }
+    },
   },
   {
     id: 3,
     icon: 'directions-car' as const,
     label: 'Rent',
-    action: () => console.log('Rent pressed'),
+    action: (navigation: any) => {
+      console.log('🔍 Navigating to Rent');
+      if (navigation) {
+        // Try parent navigation first
+        const parent = navigation.getParent?.();
+        if (parent) {
+          parent.navigate('BottomNavigator', { screen: 'Rentes' });
+        } else {
+          navigation.navigate('Rentes');
+        }
+      }
+    },
   },
   {
     id: 4,
     icon: 'local-shipping' as const,
     label: 'Ship',
-    action: () => console.log('Ship pressed'),
+    action: (navigation: any) => {
+      console.log('🔍 Navigating to Ship');
+      if (navigation) {
+        // Try parent navigation first
+        const parent = navigation.getParent?.();
+        if (parent) {
+          parent.navigate('BottomNavigator', { screen: 'Shippings' });
+        } else {
+          navigation.navigate('Shippings');
+        }
+      }
+    },
   },
 ];
 
@@ -146,9 +179,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
     setSpeedDialOpen(!speedDialOpen);
   };
 
-  const handleSpeedDialAction = (action: () => void) => {
+  const handleSpeedDialAction = (action: (nav: any) => void) => {
     triggerSuccessHaptic();
-    action();
+    action(navigation);
     toggleSpeedDial();
   };
 
@@ -184,42 +217,52 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   return (
     <View style={styles.bottomNavContainer}>
       <View style={styles.bottomNavBar}>
-        {/* Home Button - Home Icon (Tizzy ki jagah) */}
+        {/* Home Button */}
         <TouchableOpacity
           style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
           onPress={() => {
             triggerLightHaptic();
             if (onTabPress) onTabPress('home');
             if (onHomePress) onHomePress();
-            if (navigation) navigation.navigate('CustomerCab');
+            if (navigation) {
+              navigation.navigate('CustomerCab');
+            }
           }}
         >
           <Octicons name="home" size={24} color="#000" />
         </TouchableOpacity>
 
-        {/* Search Button */}
+        {/* FWSRideOptions Button - Navigate to FWSRideOptions */}
         <TouchableOpacity
           style={[
             styles.navItem,
-            activeTab === 'search' && styles.navItemActive,
+            activeTab === 'FWSRideOptions' && styles.navItemActive,
           ]}
           onPress={() => {
             triggerLightHaptic();
-            if (onTabPress) onTabPress('search');
+            if (onTabPress) onTabPress('FWSRideOptions');
             if (onSearchPress) onSearchPress();
+            if (navigation) {
+              // Try to navigate to FWSRideOptions
+              console.log('🔍 Navigating to FWSRideOptions');
+              navigation.navigate('FWSRideOptions');
+            }
           }}
         >
-          <Ionicons name="search-outline" size={24} color="#000" />
+          <Fontisto name="nav-icon-grid-a" size={24} color="#000" />
         </TouchableOpacity>
 
-        {/* Chat Button - Nex Logo */}
+        {/* Chat Button */}
         <TouchableOpacity
           style={[styles.navItem, activeTab === 'chat' && styles.navItemActive]}
           onPress={() => {
             triggerLightHaptic();
             if (onTabPress) onTabPress('chat');
             if (onChatPress) onChatPress();
-            if (navigation) navigation.navigate('Chat');
+            if (navigation) {
+              console.log('🔍 Navigating to Chat');
+              navigation.navigate('Chat');
+            }
           }}
         >
           <Image
@@ -267,7 +310,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             ))}
           </Animated.View>
 
-          {/* Plus Button - Green BG when open, else white */}
+          {/* Plus Button */}
           <TouchableOpacity
             style={[
               styles.fabButton,
@@ -283,7 +326,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Profile Button with Lottie Animation */}
+        {/* Profile Button */}
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -293,7 +336,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             triggerMediumHaptic();
             if (onTabPress) onTabPress('profile');
             if (onProfilePress) onProfilePress();
-            if (navigation) navigation.navigate('Profile');
+            if (navigation) {
+              console.log('🔍 Navigating to Profile');
+              navigation.navigate('Profile');
+            }
           }}
         >
           {renderProfileIcon()}
@@ -351,7 +397,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1001,
   },
-  // ✅ Plus Button Styles - Green when open, White when closed
   fabButton: {
     width: 45,
     height: 45,
@@ -371,7 +416,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   fabButtonOpen: {
-    backgroundColor: '#2ECC71', // ✅ Green BG when open
+    backgroundColor: '#2ECC71',
     borderWidth: 0,
   },
   speedDial: {

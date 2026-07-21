@@ -5,101 +5,113 @@
 
 export const API_ENDPOINTS = {
   // Authentication endpoints
-  VERIFY_USER_ROUTE: '/api/auth/check',
-  SIGNUP: '/api/auth/signup',
-  VERIFY_SIGNUP: '/api/auth/verify-signup',
-  LOGIN: '/api/auth/login',
-  VERIFY_LOGIN: '/api/auth/verify-login',
-  RESEND_OTP: '/api/auth/resend-otp',
+  VERIFY_USER_ROUTE: '/api/v0/auth/check',
+  SIGNUP: '/api/v0/auth/signup',
+  VERIFY_SIGNUP: '/api/v0/auth/verify-signup',
+  LOGIN: '/api/v0/auth/login',
+  VERIFY_LOGIN: '/api/v0/auth/verify-login',
+  RESEND_OTP: '/api/v0/auth/resend-otp',
 
   // Profile endpoints
-  GET_PROFILE: '/api/profile/me',
-  UPDATE_PROFILE: '/api/profile/update',
-  DELETE_PROFILE_IMAGE: '/api/profile/delete-image',
+  GET_PROFILE: '/api/v0/profile/me',
+  UPDATE_PROFILE: '/api/v0/profile/update',
+  DELETE_PROFILE_IMAGE: '/api/v0/profile/delete-image',
 
   // Orders endpoints
-  MY_ORDERS: '/api/orders/yourorder/my',
-  ORDER_DETAILS: '/api/orders/delivery',
-  LIVE_TRACKING: '/api/orders/tracking/live',
+  MY_ORDERS: '/api/v0/orders/yourorder/my',
+  ORDER_DETAILS: '/api/v0/orders/delivery',
+  LIVE_TRACKING: '/api/v0/orders/tracking/live',
 
   // Cart endpoints
-  PRODUCT_VARIANTS: '/api/products',
-  ADD_TO_CART: '/api/cart/add',
-  UPDATE_CART: '/api/cart/update',
-  REMOVE_FROM_CART: '/api/cart/remove',
-  CHECK_CART: '/api/cart/check',
+  PRODUCT_VARIANTS: '/api/v0/products',
+  ADD_TO_CART: '/api/v0/cart/add',
+  UPDATE_CART: '/api/v0/cart/update',
+  REMOVE_FROM_CART: '/api/v0/cart/remove',
+  CHECK_CART: '/api/v0/cart/check',
 
   // Buy Now endpoints
   BUYNOW_PRODUCT_VARIANTS: (productId: string) =>
-    `/api/products/${productId}/variants`,
-  CLEAR_BUY_NOW: '/api/shop/buy-now/clear',
-  BUY_NOW: '/api/shop/buy-now',
+    `/api/v0/products/${productId}/variants`,
+  CLEAR_BUY_NOW: '/api/v0/shop/buy-now/clear',
+  BUY_NOW: '/api/v0/shop/buy-now',
 
   // Product endpoints
-  GET_PRODUCT: '/api/seller/forms/categories',
+  GET_PRODUCT: '/api/v0/seller/forms/categories',
 
   // Rating & Review endpoints
-  RATING_STATS: '/api/rating-review/rating/stats',
-  PRODUCT_REVIEWS: '/api/rating-review/rating/reviews',
+  RATING_STATS: '/api/v0/rating-review/rating/stats',
+  PRODUCT_REVIEWS: '/api/v0/rating-review/rating/reviews',
 
   // Share endpoints
-  CREATE_SHARE: '/api/shares/create',
+  CREATE_SHARE: '/api/v0/shares/create',
 
   // Comments endpoints
-  FETCH_COMMENTERS: '/api/comments/comments/unique-user-count',
-  FETCH_COMMENTS: '/api/comments/post',
-  ADD_COMMENT: '/api/comments/add',
-  ADD_REPLY: '/api/comments/reply',
-  TOGGLE_COMMENT_LIKE: '/api/comments/like',
-  TOGGLE_REPLY_LIKE: '/api/comments/like-reply',
-  DELETE_COMMENT: '/api/comments/delete',
-  DELETE_REPLY: '/api/comments/delete-reply',
+  FETCH_COMMENTERS: '/api/v0/comments/comments/unique-user-count',
+  FETCH_COMMENTS: '/api/v0/comments/post',
+  ADD_COMMENT: '/api/v0/comments/add',
+  ADD_REPLY: '/api/v0/comments/reply',
+  TOGGLE_COMMENT_LIKE: '/api/v0/comments/like',
+  TOGGLE_REPLY_LIKE: '/api/v0/comments/like-reply',
+  DELETE_COMMENT: '/api/v0/comments/delete',
+  DELETE_REPLY: '/api/v0/comments/delete-reply',
 
   // Users endpoints
-  USERS_BATCH: '/api/profile/users/batch',
+  USERS_BATCH: '/api/v0/profile/users/batch',
 
   // Likes endpoints
-  FETCH_LIKE_STATUS: '/api/likes',
-  TOGGLE_LIKE: '/api/likes',
+  FETCH_LIKE_STATUS: '/api/v0/likes',
+  TOGGLE_LIKE: '/api/v0/likes',
 
   // Rating & Review endpoints
-  RATING_GLOBAL_STATS: '/api/ratings/stats',
-  REVIEWS: '/api/ratings/reviews',
-  REVIEW: '/api/ratings/review',
-  USER_RATING: '/api/ratings/user-rating',
+  RATING_GLOBAL_STATS: '/api/v0/ratings/stats',
+  REVIEWS: '/api/v0/ratings/reviews',
+  REVIEW: '/api/v0/ratings/review',
+  USER_RATING: '/api/v0/ratings/user-rating',
 
   // Payment endpoints
-  CREATE_PAYMENT_INTENT: '/api/payment/create-payment-intent',
-  PROCESS_PAYMENT: '/api/payment/process-payment',
-  CONFIRM_COD: '/api/payment/confirm-cod',
+  CREATE_PAYMENT_INTENT: '/api/v0/payment/create-payment-intent',
+  PROCESS_PAYMENT: '/api/v0/payment/process-payment',
+  CONFIRM_COD: '/api/v0/payment/confirm-cod',
 
   // Checkout endpoints
-  CALCULATE_CHECKOUT: '/api/buyer/buy',
+  CALCULATE_CHECKOUT: '/api/v0/buyer/buy',
 
   // Search endpoints
-  SEARCH_PRODUCTS: '/api/search/products',
-  RECENT_SEARCHES: '/api/search/recent',
-  POPULAR_SEARCHES: '/api/search/popular',
-  REMOVE_RECENT_SEARCH: '/api/search/recent',
-  CLEAR_RECENT_SEARCHES: '/api/search/recent/all',
+  SEARCH_PRODUCTS: '/api/v0/search/products',
+  RECENT_SEARCHES: '/api/v0/search/recent',
+  POPULAR_SEARCHES: '/api/v0/search/popular',
+  REMOVE_RECENT_SEARCH: '/api/v0/search/recent',
+  CLEAR_RECENT_SEARCHES: '/api/v0/search/recent/all',
 
   // Stories endpoints
-  FETCH_STORIES: '/api/stories',
-  MARK_STORY_VIEWED: '/api/story/viewed',
-  FETCH_VIEWED_STORIES: '/api/story/viewed',
+  FETCH_STORIES: '/api/v0/stories',
+  MARK_STORY_VIEWED: '/api/v0/story/viewed',
+  FETCH_VIEWED_STORIES: '/api/v0/story/viewed',
 
   // Product Rating endpoints
-  GET_RATING_STATS: '/api/rating-review/rating/stats',
-  GET_REVIEWS: '/api/rating-review/rating/reviews',
-  GET_USER_REVIEW: '/api/rating-review/rating/user',
-  CREATE_REVIEW: '/api/rating-review/rating',
-  UPDATE_REVIEW: '/api/rating-review/rating',
-  DELETE_REVIEW: '/api/rating-review/rating',
+  GET_RATING_STATS: '/api/v0/rating-review/rating/stats',
+  GET_REVIEWS: '/api/v0/rating-review/rating/reviews',
+  GET_USER_REVIEW: '/api/v0/rating-review/rating/user',
+  CREATE_REVIEW: '/api/v0/rating-review/rating',
+  UPDATE_REVIEW: '/api/v0/rating-review/rating',
+  DELETE_REVIEW: '/api/v0/rating-review/rating',
 
   // Location endpoints
-  POST_LOCATION_ADDRESS: '/api/user/address/location',
-  POST_GPS_TRACKING_ENABLED: '/api/user/address/gps-tracking',
-  GET_FULL_LOCATION: '/api/user/address/get-location',
+  POST_LOCATION_ADDRESS: '/api/v0/user/address/location',
+  POST_GPS_TRACKING_ENABLED: '/api/v0/user/address/gps-tracking',
+  GET_FULL_LOCATION: '/api/v0/user/address/get-location',
+
+  // ================================
+  // RIDE ENDPOINTS (NEW)KW
+  // ================================
+  RIDE_OPTIONS: '/api/v0/ride/options',
+  RIDE_BOOK: '/api/v0/ride/book',
+  RIDE_SEARCH_STATUS: '/api/v0/ride/search-status',
+  RIDE_RETRY: '/api/v0/ride/retry',
+  RIDE_CANCEL: '/api/v0/ride/cancel',
+  RIDE_BOOKING: '/api/v0/ride/booking',
+  RIDE_CUSTOMER_BOOKINGS: '/api/v0/ride/bookings/customer',
+  RIDE_DRIVER_BOOKINGS: '/api/v0/ride/bookings/driver',
 };
 
 /**
