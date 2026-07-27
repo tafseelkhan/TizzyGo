@@ -13,14 +13,14 @@ import {
   Modal,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
-import { useProduct } from '../../../hooks/useProducts'; // Your existing product hook
+import { useTheme } from '../../../../contexts/theme/ThemeContext';
+import { useProduct } from '../../../../hooks/useProducts'; // Your existing product hook
 import {
   fetchRatingStats,
   fetchReviews,
   RatingStats,
   Review,
-} from '../../../../api/features/private/getRatingReviewPrivateSlice';
+} from '../../../../../api/features/private/getRatingReviewPrivateSlice';
 
 // React Native Vector Icons
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';

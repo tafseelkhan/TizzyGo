@@ -14,7 +14,7 @@ import {
   useRoute,
   NavigationProp,
 } from '@react-navigation/native';
-import LikeComponent from '../global/LikeGlobal';
+import LikeComponent from '../../global/LikeGlobal';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -103,7 +103,7 @@ const RelatedProducts: React.FC<Props> = ({ userId }) => {
         setError(null);
 
         // Slot = 1
-        const url = `http://10.206.8.121:5000/api/public/related/${id}?slot=1`;
+        const url = `http://172.21.55.121:5000/api/public/related/${id}?slot=1`;
         console.log('Fetching related products from URL:', url);
         const response = await fetch(url);
 

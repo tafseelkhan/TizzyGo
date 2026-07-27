@@ -1,5 +1,5 @@
-// hooks/useProductGrid.ts
-import { useState, useEffect, useCallback, useMemo } from 'react';
+// hooks/useProductGrid.ts - FINAL FIXED VERSION
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Product } from '../utils/home/productGridUtils';
 import { ProductGridService } from '../services/buyers/home/productGridService';
 import {
@@ -17,7 +17,6 @@ interface UseProductGridProps {
 }
 
 interface UseProductGridReturn {
-  // State
   currentPage: number;
   refreshing: boolean;
   localProducts: Product[];
@@ -27,18 +26,12 @@ interface UseProductGridReturn {
   totalPages: number;
   startIndex: number;
   endIndex: number;
-
-  // Section Data
   horizontalProducts: Product[];
   premiumPicks: Product[];
   fastestSellingProduct: Product | null;
-
-  // Handlers
   handleRefresh: () => Promise<void>;
   handlePageChange: (page: number) => void;
   generatePageNumbers: () => (number | string)[];
-
-  // Loading states
   isLoading: boolean;
   isRefreshing: boolean;
 }
@@ -51,42 +44,88 @@ export const useProductGrid = ({
 }: UseProductGridProps): UseProductGridReturn => {
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const [localProducts, setLocalProducts] = useState<Product[]>(products);
 
-  // Update local products when parent products change
+  // ✅ Initialize with empty array
+  const [localProducts, setLocalProducts] = useState<Product[]>([]);
+
+  const prevProductsRef = useRef<Product[]>([]);
+  const isInitialMount = useRef(true);
+  const isUpdatingRef = useRef(false);
+
+  // ✅ ONLY update when product IDs actually change
   useEffect(() => {
-    setLocalProducts(products);
-    setCurrentPage(1);
+    if (isUpdatingRef.current) return;
+
+    // ✅ Get current product IDs
+    const currentIds = products
+      .map(p => p.productId || p.fullProduct?._id)
+      .filter(Boolean);
+    const prevIds = prevProductsRef.current
+      .map(p => p.productId || p.fullProduct?._id)
+      .filter(Boolean);
+
+    // ✅ Compare IDs, NOT entire objects
+    const hasChanged =
+      currentIds.length !== prevIds.length ||
+      currentIds.some((id, index) => id !== prevIds[index]);
+
+    if (hasChanged && currentIds.length > 0) {
+      console.log('🔄 Products changed (by ID), updating localProducts');
+      isUpdatingRef.current = true;
+      setLocalProducts(products);
+      setCurrentPage(1);
+      prevProductsRef.current = products;
+      isUpdatingRef.current = false;
+    } else if (products.length === 0 && prevProductsRef.current.length > 0) {
+      // ✅ Handle empty products case
+      console.log('🔄 Products became empty');
+      setLocalProducts([]);
+      prevProductsRef.current = [];
+    }
   }, [products]);
 
-  // Handle refresh trigger from parent
+  // ✅ Handle refresh trigger from parent
   useEffect(() => {
-    if (refreshTrigger) {
+    if (refreshTrigger && !isInitialMount.current) {
       handleRefresh();
     }
+    isInitialMount.current = false;
   }, [refreshTrigger]);
 
-  // Pagination
+  // ✅ Memoize paginated data
   const itemsPerPage = 20;
-  const paginatedData = getPaginatedProducts(
-    localProducts,
-    currentPage,
-    itemsPerPage,
-  );
+  const paginatedData = useMemo(() => {
+    return getPaginatedProducts(localProducts, currentPage, itemsPerPage);
+  }, [localProducts, currentPage]);
+
   const { currentProducts, startIndex, endIndex, totalPages } = paginatedData;
 
-  // Split into columns for grid layout
-  const { column1, column2 } = splitIntoColumns(currentProducts);
+  // ✅ Memoize columns with stable keys
+  const { column1, column2 } = useMemo(() => {
+    const result = splitIntoColumns(currentProducts);
+    return {
+      column1: result.column1.map(p => ({
+        ...p,
+        _stableKey:
+          p.productId || p.fullProduct?._id || Math.random().toString(),
+      })),
+      column2: result.column2.map(p => ({
+        ...p,
+        _stableKey:
+          p.productId || p.fullProduct?._id || Math.random().toString(),
+      })),
+    };
+  }, [currentProducts]);
 
-  // Section data
-  const horizontalProducts = useMemo(
-    () => getRandomProducts(localProducts, 10),
-    [localProducts],
-  );
-  const premiumPicks = useMemo(
-    () => getRandomProducts(localProducts, 4),
-    [localProducts],
-  );
+  // ✅ Memoize section data
+  const horizontalProducts = useMemo(() => {
+    return getRandomProducts(localProducts, 10);
+  }, [localProducts]);
+
+  const premiumPicks = useMemo(() => {
+    return getRandomProducts(localProducts, 4);
+  }, [localProducts]);
+
   const fastestSellingProduct = useMemo(() => {
     if (localProducts.length === 0) return null;
     return ProductGridService.getFastestSellingProduct(localProducts);
@@ -110,7 +149,6 @@ export const useProductGrid = ({
   }, [currentPage, totalPages]);
 
   return {
-    // State
     currentPage,
     refreshing,
     localProducts,
@@ -120,18 +158,12 @@ export const useProductGrid = ({
     totalPages,
     startIndex,
     endIndex,
-
-    // Section Data
     horizontalProducts,
     premiumPicks,
     fastestSellingProduct,
-
-    // Handlers
     handleRefresh,
     handlePageChange,
     generatePageNumbers: getPageNumbers,
-
-    // Loading states
     isLoading: externalLoading,
     isRefreshing: refreshing,
   };

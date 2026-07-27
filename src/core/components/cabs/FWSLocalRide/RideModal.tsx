@@ -1,3 +1,5 @@
+// screens/cabs/FWSLocalRide/RideModal.tsx
+
 import React from 'react';
 import {
   View,

@@ -1,5 +1,4 @@
-// components/BuyNow.tsx - FINAL VERSION with variantId
-
+// BuyNow.tsx - FINAL FIXED VERSION
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   TouchableOpacity,
@@ -50,11 +49,14 @@ import {
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+const ORANGE = '#FF8438';
+const BLACK = '#1E1E1E';
+
 export const getThemeColors = (isDark: boolean): ThemeColors => {
   return {
-    primary: '#10B981',
-    primaryLight: '#34D399',
-    primaryDark: '#059669',
+    primary: BLACK,
+    primaryLight: '#4A4A4A',
+    primaryDark: '#000000',
     success: '#10B981',
     danger: '#EF4444',
     dark: isDark ? '#F1F5F9' : '#1A1A2E',
@@ -62,7 +64,7 @@ export const getThemeColors = (isDark: boolean): ThemeColors => {
     gray: isDark ? '#94A3B8' : '#6C757D',
     white: isDark ? '#0F172A' : '#FFFFFF',
     black: isDark ? '#F1F5F9' : '#000000',
-    cardHover: isDark ? '#1E293B' : '#ECFDF5',
+    cardHover: isDark ? '#1E293B' : '#F5F5F5',
     modalBg: isDark ? '#1E293B' : '#FFFFFF',
     modalBorder: isDark ? '#334155' : '#f3f4f6',
     textPrimary: isDark ? '#F1F5F9' : '#1A1A2E',
@@ -70,10 +72,10 @@ export const getThemeColors = (isDark: boolean): ThemeColors => {
     cardBg: isDark ? '#1E293B' : '#FFFFFF',
     borderColor: isDark ? '#334155' : '#E5E7EB',
     shadowColor: isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)',
-    infoBg: isDark ? '#1E293B' : '#ECFDF5',
-    infoBorder: isDark ? '#334155' : '#D1FAE5',
-    videoBg: isDark ? '#1E293B' : '#ECFDF5',
-    badgeBg: '#10B981',
+    infoBg: isDark ? '#1E293B' : '#F5F5F5',
+    infoBorder: isDark ? '#334155' : '#E0E0E0',
+    videoBg: isDark ? '#1E293B' : '#F5F5F5',
+    badgeBg: BLACK,
     stockBg: isDark ? '#451A03' : '#FEF3C7',
     stockText: '#D97706',
     inStockBg: isDark ? '#064E3B' : '#D1FAE5',
@@ -196,14 +198,16 @@ const BuyNow: React.FC<BuyNowProps> = ({
     return variants && Array.isArray(variants) && variants.length > 0;
   }, [variants]);
 
+  // ✅ ONLY use productAvailable prop - no internal check
   const handleProceedToCheckout = useCallback(async () => {
     if (!product || !productId) {
       Alert.alert('Error', 'Product data missing!');
       return;
     }
 
+    // ✅ Sirf productAvailable use karo
     if (!productAvailable) {
-      Alert.alert('Error', 'Product not available!');
+      Alert.alert('Out of Stock', 'This product is currently out of stock!');
       return;
     }
 
@@ -220,7 +224,6 @@ const BuyNow: React.FC<BuyNowProps> = ({
 
       setShowVariantModal(false);
 
-      // ✅ FIX: Sirf variantId pass karo
       navigation.navigate('BuyNow', {
         productId: productId,
         variantId: selectedVariant?.variantId || null,
@@ -238,8 +241,9 @@ const BuyNow: React.FC<BuyNowProps> = ({
       return;
     }
 
+    // ✅ Sirf productAvailable use karo
     if (!productAvailable) {
-      Alert.alert('Error', 'Product not available!');
+      Alert.alert('Out of Stock', 'This product is currently out of stock!');
       return;
     }
 
@@ -670,8 +674,8 @@ const BuyNow: React.FC<BuyNowProps> = ({
               {isSelected
                 ? '✓ Selected'
                 : inStock
-                ? 'Tap to select'
-                : 'Out of Stock'}
+                  ? 'Tap to select'
+                  : 'Out of Stock'}
             </Text>
           </View>
         </View>
@@ -681,6 +685,10 @@ const BuyNow: React.FC<BuyNowProps> = ({
 
   const variantsCount =
     variants && Array.isArray(variants) ? variants.length : 0;
+
+  // ✅ Sirf productAvailable se check karo
+  const isBuyNowDisabled =
+    loading || productLoading || !productAvailable || !product;
 
   return (
     <>
@@ -774,16 +782,20 @@ const BuyNow: React.FC<BuyNowProps> = ({
           >
             <TouchableOpacity
               onPress={handleProceedToCheckout}
-              disabled={loading || (hasVariants() && !isVariantSelected())}
+              disabled={
+                loading ||
+                (hasVariants() && !isVariantSelected()) ||
+                !productAvailable
+              }
               style={[
                 styles.confirmButton,
                 {
                   backgroundColor:
-                    hasVariants() && !isVariantSelected()
+                    (hasVariants() && !isVariantSelected()) || !productAvailable
                       ? '#9CA3AF'
                       : themeColors.primary,
                   shadowColor:
-                    hasVariants() && !isVariantSelected()
+                    (hasVariants() && !isVariantSelected()) || !productAvailable
                       ? '#9CA3AF'
                       : themeColors.primary,
                 },
@@ -796,13 +808,16 @@ const BuyNow: React.FC<BuyNowProps> = ({
                 <>
                   <FontAwesome5 name="shopping-bag" size={20} color="#fff" />
                   <Text style={styles.confirmButtonText}>
-                    {hasVariants() && !isVariantSelected()
-                      ? 'SELECT AN OPTION'
-                      : 'CONFIRM & BUY NOW'}
+                    {!productAvailable
+                      ? 'OUT OF STOCK'
+                      : hasVariants() && !isVariantSelected()
+                        ? 'SELECT AN OPTION'
+                        : 'CONFIRM & BUY NOW'}
                   </Text>
-                  {(!hasVariants() || isVariantSelected()) && (
-                    <FontAwesome5 name="arrow-right" size={14} color="#fff" />
-                  )}
+                  {(!hasVariants() || isVariantSelected()) &&
+                    productAvailable && (
+                      <FontAwesome5 name="arrow-right" size={14} color="#fff" />
+                    )}
                 </>
               )}
             </TouchableOpacity>
@@ -810,32 +825,25 @@ const BuyNow: React.FC<BuyNowProps> = ({
         </SafeAreaView>
       </Modal>
 
+      {/* Black pill – left side of bottom bar */}
       <TouchableOpacity
         onPress={handleBuyNowClick}
-        disabled={loading || productLoading || !productAvailable || !product}
+        disabled={isBuyNowDisabled}
         style={[
           styles.buyNowButton,
           {
-            backgroundColor:
-              !productAvailable || loading || productLoading || !product
-                ? '#9CA3AF'
-                : themeColors.primary,
-            shadowColor:
-              !productAvailable || loading || productLoading || !product
-                ? '#9CA3AF'
-                : themeColors.primary,
+            backgroundColor: isBuyNowDisabled ? '#9CA3AF' : BLACK,
+            shadowColor: isBuyNowDisabled ? '#9CA3AF' : '#000',
           },
         ]}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         {loading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <>
-            <FontAwesome5 name="bolt" size={18} color="#fff" />
-            <Text style={styles.buttonText}>BUY NOW</Text>
-            <FontAwesome5 name="arrow-right" size={14} color="#fff" />
-          </>
+          <Text style={styles.buttonText}>
+            {!productAvailable ? 'Out of Stock' : 'Buy Now'}
+          </Text>
         )}
       </TouchableOpacity>
     </>
@@ -880,7 +888,7 @@ const styles = StyleSheet.create({
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#10B981',
+    backgroundColor: ORANGE,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -924,7 +932,7 @@ const styles = StyleSheet.create({
   },
   variantCardSelected: {
     borderWidth: 2.5,
-    borderColor: '#10B981',
+    borderColor: BLACK,
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
@@ -944,6 +952,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+    backgroundColor: BLACK,
   },
   outOfStockOverlay: {
     position: 'absolute',
@@ -989,7 +998,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: BLACK,
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1056,7 +1065,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   statusAvailable: { backgroundColor: '#F3F4F6' },
-  statusSelected: { backgroundColor: '#10B981' },
+  statusSelected: { backgroundColor: BLACK },
   statusText: { fontSize: 12, fontWeight: '600' },
   statusTextSelected: { color: '#fff' },
   loadingContainer: {
@@ -1117,19 +1126,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
+    height: 52,
     borderRadius: 50,
-    gap: 12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    width: '100%',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
   },
   buttonText: {
     fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     color: '#fff',
   },
 });

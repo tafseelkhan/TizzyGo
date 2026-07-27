@@ -48,7 +48,7 @@ import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://10.206.8.121:5000';
+const API_BASE_URL = 'http://172.21.55.121:5000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -83,7 +83,7 @@ const getUserIdFromToken = async (): Promise<string | null> => {
 // Fetch user color from API
 const fetchUserColor = async (token: string): Promise<string | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/fav/color`, {
+    const response = await fetch(`${API_BASE_URL}/api/v0/fav/color`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -671,7 +671,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.206.8.121:5000/api/seller/forms/categories',
+        'http://172.21.55.121:5000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -720,7 +720,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.206.8.121:5000/api/seller/forms/categories',
+        'http://172.21.55.121:5000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
       if (data.products && Array.isArray(data.products)) {

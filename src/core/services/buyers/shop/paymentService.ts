@@ -1,7 +1,7 @@
-// src/services/paymentService.ts - FULLY FIXED
+// src/services/paymentService.ts - FINAL FIXED VERSION
 import * as paymentApi from '../../../../api/features/private/paymentPrivateSlice';
 import { getToken } from '../../../../api/connections/token/tokenSlice';
-import { generateIdempotencyKey } from "../../../../core/utils/buyers/shop/throttle";
+import { generateIdempotencyKey } from '../../../../core/utils/buyers/shop/throttle';
 
 export interface PaymentSessionData {
   vendorCodeUID: string;
@@ -15,6 +15,7 @@ export interface PaymentSessionData {
   mandateId?: string;
   frequency?: string;
   nextPaymentDate?: string;
+  orderId?: string;
 }
 
 export interface PaymentResult {
@@ -35,7 +36,6 @@ class PaymentService {
     console.log('📅 Timestamp:', new Date().toISOString());
   }
 
-  // ✅ MAIN FIX: Initialize with token properly
   async initialize(): Promise<boolean> {
     console.log('========================================');
     console.log('🔄 [PaymentService] initialize() STARTED');
@@ -44,19 +44,16 @@ class PaymentService {
     console.log('  - hasToken before:', !!this.authToken);
     console.log('  - initializationAttempts:', this.initializationAttempts);
 
-    // If already initialized, return true
     if (this.isInitialized && this.authToken) {
       console.log('✅ [PaymentService] Already initialized, returning true');
       return true;
     }
 
-    // If already initializing, wait for it
     if (this.initPromise) {
       console.log('⏳ [PaymentService] Already initializing, waiting...');
       return await this.initPromise;
     }
 
-    // Start initialization
     this.initPromise = this._doInitialize();
     const result = await this.initPromise;
     this.initPromise = null;
@@ -70,7 +67,6 @@ class PaymentService {
     );
 
     try {
-      // Get token from storage
       console.log('📱 [PaymentService] Getting auth token from getToken()...');
       const token = await getToken();
 
@@ -88,7 +84,6 @@ class PaymentService {
         return false;
       }
 
-      // Set token and mark initialized
       this.authToken = token;
       this.isInitialized = true;
 
@@ -108,12 +103,10 @@ class PaymentService {
     }
   }
 
-  // ✅ Check if service is ready
   isReady(): boolean {
     return this.isInitialized && !!this.authToken;
   }
 
-  // ✅ Get current status
   getStatus(): { initialized: boolean; hasToken: boolean } {
     return {
       initialized: this.isInitialized,
@@ -121,6 +114,7 @@ class PaymentService {
     };
   }
 
+  // ✅ CREATE CHECKOUT SESSION - WITH paymentIntentId
   async createCheckoutSession(
     address: any,
     paymentMethod: 'online' | 'cod',
@@ -128,6 +122,9 @@ class PaymentService {
     success: boolean;
     checkoutSessionId?: string;
     paymentSheetData?: PaymentSessionData;
+    orderId?: string;
+    finalAmount?: number;
+    paymentIntentId?: string; // ✅ ADDED
     error?: string;
   }> {
     console.log('========================================');
@@ -136,14 +133,12 @@ class PaymentService {
     console.log('📅 Timestamp:', new Date().toISOString());
     console.log('💳 Payment Method:', paymentMethod);
 
-    // 🔥 GENERATE IDEMPOTENCY KEY HERE
     const idempotencyKey = generateIdempotencyKey();
     console.log('🔑 [Idempotency Key]:', idempotencyKey);
 
     console.log('  - isInitialized:', this.isInitialized);
     console.log('  - hasToken:', !!this.authToken);
 
-    // ✅ IMPORTANT: Ensure initialized before proceeding
     if (!this.isReady()) {
       console.log('⚠️ [PaymentService] Service not ready, initializing now...');
       const initialized = await this.initialize();
@@ -167,13 +162,15 @@ class PaymentService {
       const response = await paymentApi.createPaymentIntentAPI(
         address,
         paymentMethod,
-        idempotencyKey, // <--- 🔥 YAHAN SE KEY BHEJ RAHE HAIN
+        idempotencyKey,
       );
 
       console.log('📥 [PaymentService] API Response received');
       console.log('  - success:', response.success);
       console.log('  - hasCheckoutSessionId:', !!response.checkoutSessionId);
-      console.log('  - vendorCodeUID:', response.vendorCodeUID);
+      console.log('  - orderId:', response.orderId);
+      console.log('  - finalAmount:', response.finalAmount);
+      console.log('  - paymentIntentId:', response.paymentIntentId); // ✅ LOG THIS
 
       if (response.success) {
         console.log('✅ [PaymentService] API call successful');
@@ -184,23 +181,28 @@ class PaymentService {
           console.log('📦 Creating payment sheet data...');
           paymentSheetData = {
             vendorCodeUID: response.vendorCodeUID,
-            amount: response.finalAmount,
+            amount: response.finalAmount || 0,
             appName: response.appName || 'TizzyGo',
             payer: response.payer,
             currency: 'INR',
-            checkoutSessionId: response.checkoutSessionId,
+            checkoutSessionId: response.checkoutSessionId || '',
             paymentType: response.paymentType || 'normal',
             qrCodeId: response.qrCodeId,
             mandateId: response.mandateId,
             frequency: response.frequency,
             nextPaymentDate: response.nextPaymentDate,
+            orderId: response.orderId,
           };
         }
 
+        // ✅ RETURN paymentIntentId
         return {
           success: true,
           checkoutSessionId: response.checkoutSessionId,
           paymentSheetData,
+          orderId: response.orderId,
+          finalAmount: response.finalAmount,
+          paymentIntentId: response.paymentIntentId, // ✅ YAHI - Razorpay order ID
         };
       }
 
@@ -221,6 +223,37 @@ class PaymentService {
     }
   }
 
+  // ✅ GET ORDER DETAILS
+  async getOrderDetails(
+    checkoutSessionId: string,
+  ): Promise<{ orderId: string } | null> {
+    console.log('🔍 [PaymentService] getOrderDetails CALLED');
+    console.log('📋 Checkout Session ID:', checkoutSessionId);
+
+    if (!this.isReady()) {
+      console.error('❌ Service not ready');
+      return null;
+    }
+
+    try {
+      const response = await paymentApi.getSessionStatusAPI(checkoutSessionId);
+      console.log('📥 Response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.order) {
+        const orderId = response.order.orderId;
+        console.log('✅ Order ID fetched:', orderId);
+        return { orderId };
+      }
+
+      console.log('⚠️ No order found for session:', checkoutSessionId);
+      return null;
+    } catch (error: any) {
+      console.error('❌ Failed to fetch order details:', error.message);
+      return null;
+    }
+  }
+
+  // ✅ PROCESS ONLINE PAYMENT
   async processOnlinePayment(
     checkoutSessionId: string,
     paymentSheetData: PaymentSessionData,
@@ -240,18 +273,26 @@ class PaymentService {
         paymentResult.data?.transactionId ||
         paymentResult?.transactionId ||
         paymentResult.data?.id ||
-        paymentResult?.id;
+        paymentResult?.id ||
+        paymentResult?.razorpay_payment_id;
 
       const paymentMethodResult =
         paymentResult.data?.method || paymentResult?.paymentMethod || 'online';
 
       console.log('📤 Calling processPaymentAPI...');
+      console.log('  - checkoutSessionId:', checkoutSessionId);
+      console.log('  - transactionId:', transactionId);
+      console.log('  - paymentMethodResult:', paymentMethodResult);
+      console.log('  - paymentType:', paymentSheetData.paymentType);
+
       const response = await paymentApi.processPaymentAPI(
         checkoutSessionId,
         transactionId,
         paymentMethodResult,
         paymentSheetData.paymentType,
       );
+
+      console.log('📥 Response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
         console.log('✅ Payment processed successfully');
@@ -275,6 +316,7 @@ class PaymentService {
     }
   }
 
+  // ✅ CONFIRM COD ORDER
   async confirmCODOrder(checkoutSessionId: string): Promise<PaymentResult> {
     console.log('========================================');
     console.log('📦 [PaymentService] confirmCODOrder CALLED');
@@ -287,6 +329,8 @@ class PaymentService {
     try {
       console.log('📤 Calling confirmCODAPI...');
       const response = await paymentApi.confirmCODAPI(checkoutSessionId);
+
+      console.log('📥 Response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
         console.log('✅ COD order confirmed');

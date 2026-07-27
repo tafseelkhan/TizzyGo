@@ -37,9 +37,12 @@ import {
   createSelectedVariant,
   getThemeColors,
 } from '../../../utils/buyers/store/cartUtils';
-import { CartService } from '../../../services/buyers/store/addToCartService'; // Import service
+import { CartService } from '../../../services/buyers/store/addToCartService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// ✅ ORANGE color - ProductDetailsScreen ke hisaab se
+const ORANGE = '#FF8438';
 
 const AddToCart: React.FC<AddToCartProps> = ({
   productId,
@@ -59,6 +62,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const themeColors = getThemeColors(isDark);
+
+  // ✅ Override primary color with ORANGE
+  const colors = { ...themeColors, primary: ORANGE };
 
   const [cartState, setCartState] = useState<CartState>({
     isInCart: initialIsInCart,
@@ -99,15 +105,13 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   }, [showVariantModal, isModalInitialized]);
 
-  // Load variants using service
   useEffect(() => {
     const loadVariants = async () => {
       if ((!propVariants || propVariants.length === 0) && productId) {
         setVariantsLoading(true);
         try {
-          const fetchedVariants = await CartService.fetchProductVariants(
-            productId,
-          );
+          const fetchedVariants =
+            await CartService.fetchProductVariants(productId);
           if (isMountedRef.current) setVariants(fetchedVariants || []);
         } catch (error) {
           console.error('Error loading variants:', error);
@@ -121,7 +125,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     loadVariants();
   }, [productId, propVariants]);
 
-  // Fetch cart status using service
   useEffect(() => {
     const checkCartStatus = async () => {
       const cartStatus = await CartService.checkCartStatus(productId);
@@ -140,7 +143,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     if (variants && variants.length > 0) checkCartStatus();
   }, [productId, variants.length]);
 
-  // Handle variant selection
   const handleVariantSelect = useCallback(
     (variantIndex: number) => {
       triggerVibration();
@@ -166,17 +168,14 @@ const AddToCart: React.FC<AddToCartProps> = ({
     CartService.validateVariantSelection(variants, selectedVariantIndex);
   const hasVariants = (): boolean => variants && variants.length > 0;
 
-  // Render variant media thumbnails
   const renderVariantMedia = (variant: ProductVariant, index: number) => {
     const media = normalizeMedia(variant.images || [], variant.video);
 
     if (media.length === 0) {
       return (
-        <View
-          style={[styles.emptyMedia, { backgroundColor: themeColors.light }]}
-        >
-          <Icon name="image-not-supported" size={28} color={themeColors.gray} />
-          <Text style={[styles.emptyMediaText, { color: themeColors.gray }]}>
+        <View style={[styles.emptyMedia, { backgroundColor: colors.light }]}>
+          <Icon name="image-not-supported" size={28} color={colors.gray} />
+          <Text style={[styles.emptyMediaText, { color: colors.gray }]}>
             No media
           </Text>
         </View>
@@ -199,15 +198,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
                   style={[
                     styles.variantVideoThumb,
                     {
-                      backgroundColor: themeColors.videoBg,
-                      borderColor: themeColors.primary,
+                      backgroundColor: colors.videoBg,
+                      borderColor: colors.primary,
                     },
                   ]}
                 >
                   <Ionicons
                     name="play-circle"
                     size={36}
-                    color={themeColors.primary}
+                    color={colors.primary}
                   />
                   <View style={styles.videoOverlayBadge}>
                     <Text style={styles.videoBadgeSmallText}>VIDEO</Text>
@@ -227,7 +226,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     );
   };
 
-  // Render product header in modal
   const renderProductHeader = () => {
     const productImages = productData?.images || [];
     const productVideo = productData?.video;
@@ -240,11 +238,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
           <View style={styles.productMediaContainer}>
             {firstMedia.type === 'video' ? (
               <View style={styles.productVideoContainer}>
-                <Ionicons
-                  name="play-circle"
-                  size={64}
-                  color={themeColors.primary}
-                />
+                <Ionicons name="play-circle" size={64} color={colors.primary} />
                 <View style={styles.videoBadgeLarge}>
                   <Ionicons name="videocam" size={16} color="#fff" />
                   <Text style={styles.videoBadgeLargeText}>VIDEO</Text>
@@ -263,7 +257,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
         <View style={styles.productInfo}>
           <View style={styles.titleRow}>
             <Text
-              style={[styles.productTitle, { color: themeColors.textPrimary }]}
+              style={[styles.productTitle, { color: colors.textPrimary }]}
               numberOfLines={2}
             >
               {productData?.title || 'Product'}
@@ -273,11 +267,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
                 <MaterialCommunityIcons
                   name="verified"
                   size={18}
-                  color={themeColors.primary}
+                  color={colors.primary}
                 />
-                <Text
-                  style={[styles.verifiedText, { color: themeColors.primary }]}
-                >
+                <Text style={[styles.verifiedText, { color: colors.primary }]}>
                   Verified
                 </Text>
               </View>
@@ -286,10 +278,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
 
           {productData?.brand && (
             <View style={styles.brandRow}>
-              <Icon name="business" size={16} color={themeColors.gray} />
-              <Text
-                style={[styles.brandText, { color: themeColors.textSecondary }]}
-              >
+              <Icon name="business" size={16} color={colors.gray} />
+              <Text style={[styles.brandText, { color: colors.textSecondary }]}>
                 {productData.brand}
               </Text>
             </View>
@@ -299,7 +289,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
             <Text
               style={[
                 styles.productDescription,
-                { color: themeColors.textSecondary },
+                { color: colors.textSecondary },
               ]}
               numberOfLines={3}
             >
@@ -311,7 +301,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     );
   };
 
-  // Add to cart handler using service
   const handleAddToCart = async () => {
     if (!productAvailable) {
       setShowAnim('failed');
@@ -399,7 +388,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     });
   };
 
-  // Handle quantity change using service
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1 || newQuantity > maxQuantity) return;
     setCartState(prev => ({ ...prev, isLoading: true }));
@@ -421,7 +409,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     }
   };
 
-  // Handle remove from cart using service
   const handleRemoveFromCart = async () => {
     setCartState(prev => ({ ...prev, isLoading: true }));
     const success = await CartService.removeFromCart(productId);
@@ -455,7 +442,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     return 'Add to Cart';
   };
 
-  // Render Variant Info Section
   const renderVariantInfo = (variant: ProductVariant) => {
     const { inStock, availableQuantity } =
       CartService.getVariantStockStatus(variant);
@@ -469,19 +455,17 @@ const AddToCart: React.FC<AddToCartProps> = ({
             <MaterialCommunityIcons
               name={inStock ? 'check-circle' : 'alert-circle'}
               size={16}
-              color={inStock ? themeColors.success : themeColors.danger}
+              color={inStock ? colors.success : colors.danger}
             />
           </View>
-          <Text
-            style={[styles.infoLabel, { color: themeColors.textSecondary }]}
-          >
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
             Stock Status:
           </Text>
           <Text
             style={[
               styles.infoValue,
               {
-                color: inStock ? themeColors.success : themeColors.danger,
+                color: inStock ? colors.success : colors.danger,
                 fontWeight: '600',
               },
             ]}
@@ -496,18 +480,16 @@ const AddToCart: React.FC<AddToCartProps> = ({
               <MaterialCommunityIcons
                 name="package-variant"
                 size={16}
-                color={themeColors.primary}
+                color={colors.primary}
               />
             </View>
-            <Text
-              style={[styles.infoLabel, { color: themeColors.textSecondary }]}
-            >
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
               Quantity Available:
             </Text>
             <Text
               style={[
                 styles.infoValue,
-                { color: themeColors.textPrimary, fontWeight: '600' },
+                { color: colors.textPrimary, fontWeight: '600' },
               ]}
             >
               {availableQuantity} units
@@ -520,18 +502,16 @@ const AddToCart: React.FC<AddToCartProps> = ({
             <MaterialCommunityIcons
               name="barcode"
               size={16}
-              color={themeColors.primary}
+              color={colors.primary}
             />
           </View>
-          <Text
-            style={[styles.infoLabel, { color: themeColors.textSecondary }]}
-          >
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
             SKU:
           </Text>
           <Text
             style={[
               styles.infoValue,
-              { color: themeColors.textPrimary, fontSize: 11, flex: 1 },
+              { color: colors.textPrimary, fontSize: 11, flex: 1 },
             ]}
             numberOfLines={1}
           >
@@ -545,18 +525,16 @@ const AddToCart: React.FC<AddToCartProps> = ({
               <MaterialCommunityIcons
                 name="link-variant"
                 size={16}
-                color={themeColors.primary}
+                color={colors.primary}
               />
             </View>
-            <Text
-              style={[styles.infoLabel, { color: themeColors.textSecondary }]}
-            >
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
               Combo Key:
             </Text>
             <Text
               style={[
                 styles.infoValue,
-                { color: themeColors.textPrimary, fontSize: 10, flex: 1 },
+                { color: colors.textPrimary, fontSize: 10, flex: 1 },
               ]}
               numberOfLines={2}
             >
@@ -568,7 +546,6 @@ const AddToCart: React.FC<AddToCartProps> = ({
     );
   };
 
-  // Render Variant Modal
   const renderVariantModal = () => (
     <Modal
       visible={showVariantModal}
@@ -577,28 +554,25 @@ const AddToCart: React.FC<AddToCartProps> = ({
       onRequestClose={handleModalClose}
     >
       <SafeAreaView
-        style={[
-          styles.fullScreenModal,
-          { backgroundColor: themeColors.modalBg },
-        ]}
+        style={[styles.fullScreenModal, { backgroundColor: colors.modalBg }]}
       >
         <View
           style={[
             styles.modalHeader,
             {
-              borderBottomColor: themeColors.modalBorder,
-              backgroundColor: themeColors.modalBg,
+              borderBottomColor: colors.modalBorder,
+              backgroundColor: colors.modalBg,
             },
           ]}
         >
-          <Text style={[styles.modalTitle, { color: themeColors.textPrimary }]}>
+          <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
             Choose your option
           </Text>
           <TouchableOpacity
             onPress={handleModalClose}
-            style={[styles.closeButton, { backgroundColor: themeColors.light }]}
+            style={[styles.closeButton, { backgroundColor: colors.light }]}
           >
-            <Icon name="close" size={24} color={themeColors.dark} />
+            <Icon name="close" size={24} color={colors.dark} />
           </TouchableOpacity>
         </View>
 
@@ -610,18 +584,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
 
           {variantsLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={themeColors.primary} />
-              <Text style={[styles.loadingText, { color: themeColors.gray }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.gray }]}>
                 Loading options...
               </Text>
             </View>
           ) : (
             <>
               <Text
-                style={[
-                  styles.variantCount,
-                  { color: themeColors.textPrimary },
-                ]}
+                style={[styles.variantCount, { color: colors.textPrimary }]}
               >
                 {variants?.length || 0} variant
                 {(variants?.length || 0) !== 1 ? 's' : ''} available
@@ -646,8 +617,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       style={[
                         styles.variantCard,
                         {
-                          backgroundColor: themeColors.cardBg,
-                          borderColor: themeColors.borderColor,
+                          backgroundColor: colors.cardBg,
+                          borderColor: colors.borderColor,
                           opacity: !inStock ? 0.6 : 1,
                         },
                         isSelected && styles.variantCardSelected,
@@ -660,7 +631,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         <View
                           style={[
                             styles.selectedBadge,
-                            { backgroundColor: themeColors.primary },
+                            { backgroundColor: colors.primary },
                           ]}
                         >
                           <Icon name="check" size={16} color="#fff" />
@@ -677,13 +648,13 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       <View
                         style={[
                           styles.variantDetails,
-                          { backgroundColor: themeColors.cardBg },
+                          { backgroundColor: colors.cardBg },
                         ]}
                       >
                         <Text
                           style={[
                             styles.variantName,
-                            { color: themeColors.textPrimary },
+                            { color: colors.textPrimary },
                           ]}
                         >
                           Option {index + 1}
@@ -700,7 +671,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                                 <Text
                                   style={[
                                     styles.fieldName,
-                                    { color: themeColors.textSecondary },
+                                    { color: colors.textSecondary },
                                   ]}
                                 >
                                   {field.name}:
@@ -708,7 +679,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                                 <Text
                                   style={[
                                     styles.fieldValue,
-                                    { color: themeColors.textPrimary },
+                                    { color: colors.textPrimary },
                                   ]}
                                 >
                                   {field.value}
@@ -722,7 +693,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                             <Text
                               style={[
                                 styles.finalPrice,
-                                { color: themeColors.primary },
+                                { color: colors.primary },
                               ]}
                             >
                               {formatPrice(finalPrice)}
@@ -732,7 +703,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                                 <Text
                                   style={[
                                     styles.originalPrice,
-                                    { color: themeColors.gray },
+                                    { color: colors.gray },
                                   ]}
                                 >
                                   {formatPrice(mrp)}
@@ -749,7 +720,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                             <Text
                               style={[
                                 styles.savedText,
-                                { color: themeColors.success },
+                                { color: colors.success },
                               ]}
                             >
                               You save {formatPrice(variant.savedAmount)}
@@ -760,7 +731,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         <View
                           style={[
                             styles.itemDivider,
-                            { backgroundColor: themeColors.borderColor },
+                            { backgroundColor: colors.borderColor },
                           ]}
                         />
 
@@ -783,8 +754,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
                             {isSelected
                               ? '✓ Selected'
                               : inStock
-                              ? 'Tap to select'
-                              : 'Out of Stock'}
+                                ? 'Tap to select'
+                                : 'Out of Stock'}
                           </Text>
                         </View>
                       </View>
@@ -793,11 +764,11 @@ const AddToCart: React.FC<AddToCartProps> = ({
                 })
               ) : (
                 <View style={styles.emptyStateContainer}>
-                  <Icon name="inventory" size={48} color={themeColors.gray} />
+                  <Icon name="inventory" size={48} color={colors.gray} />
                   <Text
                     style={[
                       styles.emptyStateText,
-                      { color: themeColors.gray, marginTop: 12 },
+                      { color: colors.gray, marginTop: 12 },
                     ]}
                   >
                     No variants available
@@ -812,8 +783,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
           style={[
             styles.modalFooter,
             {
-              backgroundColor: themeColors.modalBg,
-              borderTopColor: themeColors.modalBorder,
+              backgroundColor: colors.modalBg,
+              borderTopColor: colors.modalBorder,
               paddingBottom: insets.bottom + 16,
             },
           ]}
@@ -829,11 +800,9 @@ const AddToCart: React.FC<AddToCartProps> = ({
               styles.confirmButton,
               {
                 backgroundColor: isVariantSelected()
-                  ? themeColors.primary
+                  ? colors.primary
                   : '#9CA3AF',
-                shadowColor: isVariantSelected()
-                  ? themeColors.primary
-                  : '#9CA3AF',
+                shadowColor: isVariantSelected() ? colors.primary : '#9CA3AF',
               },
               !isVariantSelected() && styles.disabledButton,
             ]}
@@ -876,7 +845,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
             disabled={cartState.isAdding || productLoading || !productAvailable}
             style={[
               styles.compactAddButton,
-              { backgroundColor: themeColors.primary },
+              { backgroundColor: ORANGE },
               (!productAvailable || cartState.isAdding) &&
                 styles.disabledButton,
             ]}
@@ -894,24 +863,20 @@ const AddToCart: React.FC<AddToCartProps> = ({
               style={[
                 styles.compactQuantityButton,
                 {
-                  backgroundColor: themeColors.light,
-                  borderColor: themeColors.borderColor,
+                  backgroundColor: colors.light,
+                  borderColor: colors.borderColor,
                 },
               ]}
             >
               <Text
                 style={[
                   styles.compactQuantityText,
-                  { color: themeColors.textPrimary },
+                  { color: colors.textPrimary },
                 ]}
               >
                 {cartState.quantity}
               </Text>
-              <Icon
-                name="keyboard-arrow-down"
-                size={16}
-                color={themeColors.gray}
-              />
+              <Icon name="keyboard-arrow-down" size={16} color={colors.gray} />
             </TouchableOpacity>
 
             <Modal
@@ -944,28 +909,28 @@ const AddToCart: React.FC<AddToCartProps> = ({
                     style={[
                       styles.modalQuantityContainer,
                       { transform: [{ scale: scaleAnim }] },
-                      { backgroundColor: themeColors.modalBg },
+                      { backgroundColor: colors.modalBg },
                     ]}
                   >
                     <View style={styles.modalHeader}>
                       <Text
                         style={[
                           styles.modalTitle,
-                          { color: themeColors.textPrimary },
+                          { color: colors.textPrimary },
                         ]}
                       >
                         Quantity
                       </Text>
                       <TouchableOpacity onPress={hideQuantityController}>
-                        <Icon name="close" size={24} color={themeColors.gray} />
+                        <Icon name="close" size={24} color={colors.gray} />
                       </TouchableOpacity>
                     </View>
                     <View
                       style={[
                         styles.modalControls,
                         {
-                          backgroundColor: themeColors.light,
-                          borderColor: themeColors.borderColor,
+                          backgroundColor: colors.light,
+                          borderColor: colors.borderColor,
                         },
                       ]}
                     >
@@ -979,8 +944,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         style={[
                           styles.modalQuantityButton,
                           {
-                            backgroundColor: themeColors.white,
-                            borderColor: themeColors.borderColor,
+                            backgroundColor: colors.white,
+                            borderColor: colors.borderColor,
                           },
                           (cartState.quantity <= 1 || cartState.isLoading) &&
                             styles.disabledButton,
@@ -989,20 +954,20 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         <Icon
                           name="remove"
                           size={24}
-                          color={themeColors.textSecondary}
+                          color={colors.textSecondary}
                         />
                       </TouchableOpacity>
                       <View style={styles.modalQuantityDisplay}>
                         {cartState.isLoading ? (
                           <ActivityIndicator
                             size="small"
-                            color={themeColors.textSecondary}
+                            color={colors.textSecondary}
                           />
                         ) : (
                           <Text
                             style={[
                               styles.modalQuantityText,
-                              { color: themeColors.textPrimary },
+                              { color: colors.textPrimary },
                             ]}
                           >
                             {cartState.quantity}
@@ -1020,8 +985,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         style={[
                           styles.modalQuantityButton,
                           {
-                            backgroundColor: themeColors.white,
-                            borderColor: themeColors.borderColor,
+                            backgroundColor: colors.white,
+                            borderColor: colors.borderColor,
                           },
                           (cartState.quantity >= maxQuantity ||
                             cartState.isLoading) &&
@@ -1031,7 +996,7 @@ const AddToCart: React.FC<AddToCartProps> = ({
                         <Icon
                           name="add"
                           size={24}
-                          color={themeColors.textSecondary}
+                          color={colors.textSecondary}
                         />
                       </TouchableOpacity>
                     </View>
@@ -1086,14 +1051,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
         </View>
       </Modal>
       {!cartState.isInCart ? (
+        // ✅ ORANGE Add to Cart Button
         <TouchableOpacity
           onPress={handleAddToCart}
           disabled={cartState.isAdding || productLoading || !productAvailable}
           style={[
             styles.buyNowButton,
             {
-              backgroundColor: themeColors.primary,
-              shadowColor: themeColors.primary,
+              backgroundColor: ORANGE,
+              shadowColor: ORANGE,
             },
             (!productAvailable || cartState.isAdding) && styles.disabledButton,
           ]}
@@ -1110,27 +1076,24 @@ const AddToCart: React.FC<AddToCartProps> = ({
           )}
         </TouchableOpacity>
       ) : (
+        // ✅ Quantity Controller - Design same rahega
         <View style={styles.fullContainer}>
           <TouchableOpacity
             onPress={showQuantityController}
             style={[
               styles.showControlsButton,
               {
-                backgroundColor: themeColors.light,
-                borderColor: themeColors.borderColor,
+                backgroundColor: colors.light,
+                borderColor: colors.borderColor,
               },
             ]}
           >
             <View>
-              <Text style={[styles.quantityText, { color: themeColors.gray }]}>
+              <Text style={[styles.quantityText, { color: colors.gray }]}>
                 Qty: {cartState.quantity}
               </Text>
             </View>
-            <Icon
-              name="keyboard-arrow-down"
-              size={16}
-              color={themeColors.gray}
-            />
+            <Icon name="keyboard-arrow-down" size={16} color={colors.gray} />
           </TouchableOpacity>
 
           <Modal
@@ -1163,15 +1126,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
                   style={[
                     styles.modalQuantityContainer,
                     { transform: [{ scale: scaleAnim }] },
-                    { backgroundColor: themeColors.modalBg },
+                    { backgroundColor: colors.modalBg },
                   ]}
                 >
                   <View
                     style={[
                       styles.modalControls,
                       {
-                        backgroundColor: themeColors.light,
-                        borderColor: themeColors.borderColor,
+                        backgroundColor: colors.light,
+                        borderColor: colors.borderColor,
                       },
                     ]}
                   >
@@ -1183,8 +1146,8 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       style={[
                         styles.modalQuantityButton,
                         {
-                          backgroundColor: themeColors.white,
-                          borderColor: themeColors.borderColor,
+                          backgroundColor: colors.white,
+                          borderColor: colors.borderColor,
                         },
                         (cartState.quantity <= 1 || cartState.isLoading) &&
                           styles.disabledButton,
@@ -1193,20 +1156,20 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       <Icon
                         name="remove"
                         size={24}
-                        color={themeColors.textSecondary}
+                        color={colors.textSecondary}
                       />
                     </TouchableOpacity>
                     <View style={styles.modalQuantityDisplay}>
                       {cartState.isLoading ? (
                         <ActivityIndicator
                           size="small"
-                          color={themeColors.textSecondary}
+                          color={colors.textSecondary}
                         />
                       ) : (
                         <Text
                           style={[
                             styles.modalQuantityText,
-                            { color: themeColors.textPrimary },
+                            { color: colors.textPrimary },
                           ]}
                         >
                           {cartState.quantity}
@@ -1223,19 +1186,15 @@ const AddToCart: React.FC<AddToCartProps> = ({
                       style={[
                         styles.modalQuantityButton,
                         {
-                          backgroundColor: themeColors.white,
-                          borderColor: themeColors.borderColor,
+                          backgroundColor: colors.white,
+                          borderColor: colors.borderColor,
                         },
                         (cartState.quantity >= maxQuantity ||
                           cartState.isLoading) &&
                           styles.disabledButton,
                       ]}
                     >
-                      <Icon
-                        name="add"
-                        size={24}
-                        color={themeColors.textSecondary}
-                      />
+                      <Icon name="add" size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                   <TouchableOpacity
@@ -1265,7 +1224,7 @@ const styles = StyleSheet.create({
   fullContainer: { width: '100%' },
   compactContainer: { position: 'relative' },
   compactAddButton: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: ORANGE,
     paddingHorizontal: 22,
     paddingVertical: 6,
     borderRadius: 50,
@@ -1292,6 +1251,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   compactQuantityText: { fontSize: 12, fontWeight: '600' },
+
+  // ✅ ORANGE Add to Cart Button
   buyNowButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1431,7 +1392,7 @@ const styles = StyleSheet.create({
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B',
+    backgroundColor: ORANGE,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -1474,9 +1435,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+  // ✅ ORANGE variant selection
   variantCardSelected: {
     borderWidth: 2,
-    borderColor: '#F59E0B',
+    borderColor: ORANGE,
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
@@ -1491,6 +1453,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
+    backgroundColor: ORANGE,
   },
   outOfStockOverlay: {
     position: 'absolute',
@@ -1536,7 +1499,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: '#F59E0B',
+    backgroundColor: ORANGE,
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1568,7 +1531,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  finalPrice: { fontSize: 18, fontWeight: '700', color: '#F59E0B' },
+  // ✅ ORANGE price
+  finalPrice: { fontSize: 18, fontWeight: '700', color: ORANGE },
   originalPrice: { fontSize: 13, textDecorationLine: 'line-through' },
   discountBadge: {
     backgroundColor: '#EF4444',
@@ -1597,7 +1561,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   statusAvailable: { backgroundColor: '#F3F4F6' },
-  statusSelected: { backgroundColor: '#F59E0B' },
+  // ✅ ORANGE selected status
+  statusSelected: { backgroundColor: ORANGE },
   statusText: { fontSize: 12, fontWeight: '600' },
   statusTextSelected: { color: '#fff' },
   loadingContainer: {
@@ -1612,6 +1577,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
   },
+  // ✅ ORANGE confirm button
   confirmButton: {
     flexDirection: 'row',
     alignItems: 'center',

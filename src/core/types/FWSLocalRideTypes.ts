@@ -41,6 +41,7 @@ export interface DriverResponse {
 
 export interface RideTypeGroup {
   rideType: string;
+  quoteId?: string; // ✅ ADD THIS
   estimatedFare: number;
   description: string;
   pickupToDropPolyline: string;

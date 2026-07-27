@@ -15,9 +15,9 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUser } from '../../../contexts/auth/UserContext';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
-import { useProduct } from '../../../hooks/useProducts';
+import { useUser } from '../../../../contexts/auth/UserContext';
+import { useTheme } from '../../../../contexts/theme/ThemeContext';
+import { useProduct } from '../../../../hooks/useProducts';
 import {
   filterValidVariants,
   getSelectedVariant,
@@ -32,13 +32,13 @@ import {
   getDescriptionText,
   Product,
   Variant,
-} from '../../../utils/buyers/store/productDetailUtils';
-import { getStockStatus } from '../../../services/buyers/store/stockService';
+} from '../../../../utils/buyers/store/productDetailUtils';
+import { getStockStatus } from '../../../../services/buyers/store/stockService';
 import {
   handleGoBack,
   handleCategoryPress,
   handleMorePress,
-} from '../../../services/buyers/store/navigationService';
+} from '../../../../services/buyers/store/navigationService';
 import ProductImages from './ProductImages';
 import ProductVideo from './ProductVideos';
 import ProductInfo from './ProductInfo';
@@ -46,7 +46,7 @@ import RelatedProducts from './RelatedProducts';
 import RelatedSecond from './RelatedSecond';
 import RelatedThird from './RelatedThird';
 import Toast from 'react-native-toast-message';
-import BottomNavigation from './BottomNavigation';
+import BottomNavigation from '../BottomNavigation';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 type RootStackParamList = {

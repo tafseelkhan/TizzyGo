@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from '../../../api/connections/token/tokenSlice';
 import { decode as atob } from 'base-64';
 
 interface User {
@@ -33,15 +40,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loadUserFromToken = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await getToken();
       if (token) {
         try {
           const decoded = decodeJWT(token);
           if (decoded) {
-            setUser({ 
-              _id: decoded.userId, 
-              name: decoded.name, 
-              email: decoded.email 
+            setUser({
+              _id: decoded.userId,
+              name: decoded.name,
+              email: decoded.email,
             });
           } else {
             setUser(null);
@@ -65,8 +72,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const jsonPayload = decodeURIComponent(
         atob(base64)
           .split('')
-          .map((char: string) => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
+          .map(
+            (char: string) =>
+              '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2),
+          )
+          .join(''),
       );
       return JSON.parse(jsonPayload);
     } catch (error) {

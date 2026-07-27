@@ -1,5 +1,11 @@
-// components/ProductGrid.tsx - FINAL CLEAN VERSION
-import React, { useCallback } from 'react';
+// components/ProductGrid.tsx - FINAL WORKING VERSION
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useState,
+} from 'react';
 import {
   View,
   Text,
@@ -26,10 +32,8 @@ import {
 } from '../../../utils/home/productGridUtils';
 import ProductCard from './ProductCardHome';
 
-// Lottie animation
 const nofoundAnimation = require('../../../components/animations/lotties/no-products.json');
 
-// Types
 type RootStackParamList = {
   ProductDetail: { productId: string };
   [key: string]: any;
@@ -45,12 +49,9 @@ type ProductGridProps = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ============ SUB-COMPONENTS ============
+// ============ SUB-COMPONENTS with React.memo ============
 
-const HorizontalProductCard: React.FC<{
-  product: any;
-  onPress: (product: any) => void;
-}> = ({ product, onPress }) => {
+const HorizontalProductCard = React.memo(({ product, onPress }: any) => {
   const { isDark } = useTheme();
   const imageUrl = getProductImage(product);
 
@@ -86,12 +87,11 @@ const HorizontalProductCard: React.FC<{
       </Text>
     </TouchableOpacity>
   );
-};
+});
 
-const PremiumPickCard: React.FC<{
-  product: any;
-  onPress: (product: any) => void;
-}> = ({ product, onPress }) => {
+HorizontalProductCard.displayName = 'HorizontalProductCard';
+
+const PremiumPickCard = React.memo(({ product, onPress }: any) => {
   const { isDark } = useTheme();
   const imageUrl = getProductImage(product);
   const scaleAnim = React.useState(new Animated.Value(1))[0];
@@ -211,12 +211,11 @@ const PremiumPickCard: React.FC<{
       </TouchableOpacity>
     </Animated.View>
   );
-};
+});
 
-const TrendingBundleCard: React.FC<{
-  products: any[];
-  onPress: (product: any) => void;
-}> = ({ products, onPress }) => {
+PremiumPickCard.displayName = 'PremiumPickCard';
+
+const TrendingBundleCard = React.memo(({ products, onPress }: any) => {
   const { isDark } = useTheme();
   const bundleData = ProductGridService.getBundleData(products);
   const {
@@ -349,7 +348,9 @@ const TrendingBundleCard: React.FC<{
       </View>
     </View>
   );
-};
+});
+
+TrendingBundleCard.displayName = 'TrendingBundleCard';
 
 // ============ MAIN COMPONENT ============
 
@@ -363,6 +364,17 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isDark } = useTheme();
+  const isMountedRef = useRef(true);
+
+  // ✅ Track initial render to prevent re-renders
+  const [isInitialRender, setIsInitialRender] = useState(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const {
     currentPage,
@@ -387,8 +399,16 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     refreshTrigger,
   });
 
+  // ✅ Mark initial render complete
+  useEffect(() => {
+    if (isInitialRender && !gridLoading && products.length > 0) {
+      setIsInitialRender(false);
+    }
+  }, [gridLoading, products]);
+
   const handleProductPress = useCallback(
     (product: any) => {
+      if (!isMountedRef.current) return;
       const productId = ProductGridService.getValidProductId(product);
       if (!productId) {
         console.error('No product ID found!', product);
@@ -400,8 +420,46 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     [navigation],
   );
 
-  // Loading Skeleton
-  if (gridLoading && products.length === 0) {
+  const memoizedProducts = useMemo(() => products, [products]);
+
+  const getStableKey = useCallback((product: any) => {
+    return (
+      product._stableKey ||
+      product.fullProduct?._id ||
+      product.productId ||
+      Math.random().toString()
+    );
+  }, []);
+
+  // ✅ Render columns with stable keys - only when not loading
+  const renderColumn1 = useMemo(() => {
+    if (gridLoading || column1.length === 0) return null;
+    return column1.map(product => (
+      <View key={getStableKey(product)} style={styles.productCardWrapper}>
+        <ProductCard
+          product={product}
+          userId={userId}
+          showSocialButtons={true}
+        />
+      </View>
+    ));
+  }, [column1, userId, getStableKey, gridLoading]);
+
+  const renderColumn2 = useMemo(() => {
+    if (gridLoading || column2.length === 0) return null;
+    return column2.map(product => (
+      <View key={getStableKey(product)} style={styles.productCardWrapper}>
+        <ProductCard
+          product={product}
+          userId={userId}
+          showSocialButtons={true}
+        />
+      </View>
+    ));
+  }, [column2, userId, getStableKey, gridLoading]);
+
+  // ✅ Loading Skeleton
+  if (gridLoading && memoizedProducts.length === 0) {
     return (
       <View
         style={[
@@ -450,8 +508,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     );
   }
 
-  // No Products State
-  if (products.length === 0 && !isLoading) {
+  // ✅ No Products State
+  if (memoizedProducts.length === 0 && !isLoading) {
     return (
       <View
         style={[
@@ -480,6 +538,57 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     );
   }
 
+  // ✅ If initial render and loading, show skeleton
+  if (isInitialRender && gridLoading) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: isDark ? '#0F172A' : '#f8fafc' },
+        ]}
+      >
+        <View style={styles.gridContainer}>
+          {[...Array(2)].map((_, colIndex) => (
+            <View key={`col-${colIndex}`} style={styles.column}>
+              {[...Array(5)].map((_, i) => (
+                <View
+                  key={`skeleton-${colIndex}-${i}`}
+                  style={[
+                    styles.skeletonCard,
+                    { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.skeletonImage,
+                      { backgroundColor: isDark ? '#334155' : '#E5E7EB' },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.skeletonTextLine,
+                      { backgroundColor: isDark ? '#334155' : '#E5E7EB' },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.skeletonTextLine,
+                      {
+                        width: '60%',
+                        backgroundColor: isDark ? '#334155' : '#E5E7EB',
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  // ✅ MAIN RENDER
   return (
     <View
       style={[
@@ -568,9 +677,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({
         )}
 
         {/* Trending Bundle Section */}
-        {products.length >= 4 && (
+        {memoizedProducts.length >= 4 && (
           <TrendingBundleCard
-            products={products}
+            products={memoizedProducts}
             onPress={handleProductPress}
           />
         )}
@@ -647,7 +756,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                   <Text style={styles.highlight}>
                     {startIndex + 1}-{endIndex}
                   </Text>{' '}
-                  of <Text style={styles.highlight}>{products.length}</Text>
+                  of{' '}
+                  <Text style={styles.highlight}>
+                    {memoizedProducts.length}
+                  </Text>
                 </Text>
               </View>
             </View>
@@ -658,36 +770,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           </LinearGradient>
         </View>
 
-        {/* Main Product Grid */}
+        {/* ✅ Main Product Grid */}
         <View style={styles.gridContainer}>
-          <View style={styles.column}>
-            {column1.map(product => (
-              <View
-                key={product.fullProduct?._id || `col1-${product.productId}`}
-                style={styles.productCardWrapper}
-              >
-                <ProductCard
-                  product={product}
-                  userId={userId}
-                  showSocialButtons={true}
-                />
-              </View>
-            ))}
-          </View>
-          <View style={styles.column}>
-            {column2.map(product => (
-              <View
-                key={product.fullProduct?._id || `col2-${product.productId}`}
-                style={styles.productCardWrapper}
-              >
-                <ProductCard
-                  product={product}
-                  userId={userId}
-                  showSocialButtons={true}
-                />
-              </View>
-            ))}
-          </View>
+          <View style={styles.column}>{renderColumn1}</View>
+          <View style={styles.column}>{renderColumn2}</View>
         </View>
 
         {/* Pagination */}
@@ -772,7 +858,11 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   );
 };
 
-// Styles remain the same as original...
+ProductGrid.displayName = 'ProductGrid';
+
+export default React.memo(ProductGrid);
+
+// ============ STYLES ============
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#00000000' },
   scrollView: { flex: 1 },
@@ -1187,5 +1277,3 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 });
-
-export default ProductGrid;

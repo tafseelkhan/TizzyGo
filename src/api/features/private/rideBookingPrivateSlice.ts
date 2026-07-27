@@ -255,6 +255,8 @@ class RideBooking {
    * const booking = await rideApi.createBooking(selectedOption.quoteId, 'COC');
    * // booking.data.bookingId = "BOK123456"
    */
+  // rideApi.ts - REPLACE createBooking method with this:
+
   createBooking = async (
     quoteId: string,
     paymentMethod: 'COC' | 'ONLINE' = 'COC',

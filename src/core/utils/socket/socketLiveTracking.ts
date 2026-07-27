@@ -82,7 +82,7 @@ class SocketLiveTracking {
         throw new Error('Failed to extract userId from token');
       }
 
-      let baseUrl = API_BASE_URL || 'http://10.206.8.121:5000';
+      let baseUrl = API_BASE_URL || 'http://172.21.55.121:5000';
       if (baseUrl.endsWith('/')) {
         baseUrl = baseUrl.slice(0, -1);
       }

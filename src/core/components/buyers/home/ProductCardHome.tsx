@@ -1,5 +1,5 @@
-// components/ProductCard.tsx - FINAL CLEAN VERSION
-import React, { useRef, useState } from 'react';
+// components/ProductCard.tsx - FINAL OPTIMIZED VERSION
+import React, { useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -36,196 +36,228 @@ type ProductCardProps = {
   showSocialButtons?: boolean;
 };
 
-const ProductCard: React.FC<ProductCardProps> = ({
-  product,
-  userId,
-  showSocialButtons = true,
-}) => {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { isDark } = useTheme();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+// ✅ ProductCard with React.memo and custom comparator
+const ProductCard: React.FC<ProductCardProps> = React.memo(
+  ({ product, userId, showSocialButtons = true }) => {
+    const navigation =
+      useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const { isDark } = useTheme();
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
-  if (!isValidProduct(product)) {
-    return null;
-  }
+    // ✅ Memoize product validation
+    const isValid = useMemo(() => isValidProduct(product), [product]);
 
-  const fullProduct = product.fullProduct;
-  const productId = product.productId || fullProduct._id;
-  const media = getProductMedia(product);
-  const displayData = getProductDisplayData(fullProduct);
+    if (!isValid) {
+      return null;
+    }
 
-  const handleImageClick = () => {
-    navigation.navigate('ProductDetail', { id: productId });
-  };
+    const fullProduct = product.fullProduct;
+    const productId = product.productId || fullProduct._id;
 
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start();
-  };
+    // ✅ Memoize computed values
+    const media = useMemo(() => getProductMedia(product), [product]);
+    const displayData = useMemo(
+      () => getProductDisplayData(fullProduct),
+      [fullProduct],
+    );
 
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
-  };
+    // ✅ Stable navigation handler
+    const handleImageClick = useCallback(() => {
+      navigation.navigate('ProductDetail', { id: productId });
+    }, [navigation, productId]);
 
-  const hasDiscount =
-    displayData.discount > 0 &&
-    displayData.originalPrice > displayData.sellingPrice;
+    const handlePressIn = useCallback(() => {
+      Animated.spring(scaleAnim, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start();
+    }, [scaleAnim]);
 
-  return (
-    <Animated.View
-      style={[
-        styles.card,
-        {
-          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-          transform: [{ scale: scaleAnim }],
-        },
-      ]}
-    >
-      {/* Image Section */}
-      <TouchableOpacity
+    const handlePressOut = useCallback(() => {
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
+    }, [scaleAnim]);
+
+    const hasDiscount = useMemo(() => {
+      return (
+        displayData.discount > 0 &&
+        displayData.originalPrice > displayData.sellingPrice
+      );
+    }, [
+      displayData.discount,
+      displayData.originalPrice,
+      displayData.sellingPrice,
+    ]);
+
+    return (
+      <Animated.View
         style={[
-          styles.mediaContainer,
-          { backgroundColor: isDark ? '#0F172A' : '#f9fafb' },
+          styles.card,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            transform: [{ scale: scaleAnim }],
+          },
         ]}
-        onPress={handleImageClick}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={0.9}
       >
-        <CustomMediaViewer media={media} currentIndex={currentMediaIndex} />
-        {media.length > 1 && (
-          <View style={styles.dotsContainer}>
-            {media.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  index === currentMediaIndex
-                    ? styles.activeDot
-                    : styles.inactiveDot,
-                ]}
-              />
-            ))}
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {/* Content Section */}
-      <View style={styles.contentContainer}>
-        {/* Brand and Category */}
-        <View style={styles.brandRow}>
-          {displayData.brand && (
-            <Text
-              style={[
-                styles.brandText,
-                { color: isDark ? '#7DD3FC' : '#3b82f6' },
-              ]}
-            >
-              {displayData.brand}
-            </Text>
-          )}
-          <Text
-            style={[
-              styles.categoryText,
-              { color: isDark ? '#94A3B8' : '#6b7280' },
-            ]}
-          >
-            {displayData.subcategory || 'Product'}
-          </Text>
-        </View>
-
-        {/* Product Title */}
-        <Text
-          style={[styles.titleText, { color: isDark ? '#F1F5F9' : '#1f2937' }]}
-          numberOfLines={2}
+        {/* Image Section */}
+        <TouchableOpacity
+          style={[
+            styles.mediaContainer,
+            { backgroundColor: isDark ? '#0F172A' : '#f9fafb' },
+          ]}
+          onPress={handleImageClick}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={0.9}
         >
-          {displayData.title}
-        </Text>
+          <CustomMediaViewer media={media} currentIndex={currentMediaIndex} />
+          {media.length > 1 && (
+            <View style={styles.dotsContainer}>
+              {media.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.dot,
+                    index === currentMediaIndex
+                      ? styles.activeDot
+                      : styles.inactiveDot,
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+        </TouchableOpacity>
 
-        {/* Pricing Section */}
-        <View style={styles.pricingSection}>
-          <View style={styles.priceRow}>
-            {hasDiscount && (
-              <View
-                style={[
-                  styles.discountWithArrow,
-                  { backgroundColor: isDark ? '#dc2626' : '#ffffffff' },
-                ]}
-              >
-                <Icon name="arrow-down" size={12} color="#ffffff" />
-                <Text style={[styles.discountPercent, { color: '#ffffff' }]}>
-                  {displayData.discount}%
-                </Text>
-              </View>
-            )}
-            <Text
-              style={[
-                styles.sellingPrice,
-                { color: isDark ? '#FFFFFF' : '#000000' },
-              ]}
-            >
-              {formatPrice(displayData.sellingPrice)}
-            </Text>
-            {hasDiscount && (
+        {/* Content Section */}
+        <View style={styles.contentContainer}>
+          {/* Brand and Category */}
+          <View style={styles.brandRow}>
+            {displayData.brand && (
               <Text
                 style={[
-                  styles.originalPrice,
-                  { color: isDark ? '#94A3B8' : '#9ca3af' },
+                  styles.brandText,
+                  { color: isDark ? '#7DD3FC' : '#3b82f6' },
                 ]}
               >
-                {formatPrice(displayData.originalPrice)}
+                {displayData.brand}
               </Text>
             )}
+            <Text
+              style={[
+                styles.categoryText,
+                { color: isDark ? '#94A3B8' : '#6b7280' },
+              ]}
+            >
+              {displayData.subcategory || 'Product'}
+            </Text>
           </View>
 
-          <View style={styles.ratingContainer}>
-            <RatingDisplay
-              productId={productId}
-              averageRating={displayData.averageRating}
-            />
-          </View>
-        </View>
-
-        {/* Description */}
-        {displayData.description && (
+          {/* Product Title */}
           <Text
             style={[
-              styles.descriptionText,
-              { color: isDark ? '#94A3B8' : '#6b7280' },
+              styles.titleText,
+              { color: isDark ? '#F1F5F9' : '#1f2937' },
             ]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
-            {displayData.description}
+            {displayData.title}
           </Text>
-        )}
 
-        {/* Action Bar */}
-        {showSocialButtons && (
-          <View
-            style={[
-              styles.actionBar,
-              { borderTopColor: isDark ? '#334155' : '#f3f4f6' },
-            ]}
-          >
-            <View style={styles.actionButtons}>
-              <LikeComponent productId={productId} />
-              <CommentComponent productId={productId} />
-              <ShareWithStats
+          {/* Pricing Section */}
+          <View style={styles.pricingSection}>
+            <View style={styles.priceRow}>
+              {hasDiscount && (
+                <View
+                  style={[
+                    styles.discountWithArrow,
+                    { backgroundColor: isDark ? '#dc2626' : '#ffffffff' },
+                  ]}
+                >
+                  <Icon name="arrow-down" size={12} color="#ffffff" />
+                  <Text style={[styles.discountPercent, { color: '#ffffff' }]}>
+                    {displayData.discount}%
+                  </Text>
+                </View>
+              )}
+              <Text
+                style={[
+                  styles.sellingPrice,
+                  { color: isDark ? '#FFFFFF' : '#000000' },
+                ]}
+              >
+                {formatPrice(displayData.sellingPrice)}
+              </Text>
+              {hasDiscount && (
+                <Text
+                  style={[
+                    styles.originalPrice,
+                    { color: isDark ? '#94A3B8' : '#9ca3af' },
+                  ]}
+                >
+                  {formatPrice(displayData.originalPrice)}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.ratingContainer}>
+              <RatingDisplay
                 productId={productId}
-                productTitle={displayData.title}
-                category={displayData.subcategory || 'product'}
+                averageRating={displayData.averageRating}
               />
             </View>
           </View>
-        )}
-      </View>
-    </Animated.View>
-  );
-};
+
+          {/* Description */}
+          {displayData.description && (
+            <Text
+              style={[
+                styles.descriptionText,
+                { color: isDark ? '#94A3B8' : '#6b7280' },
+              ]}
+              numberOfLines={1}
+            >
+              {displayData.description}
+            </Text>
+          )}
+
+          {/* Action Bar */}
+          {showSocialButtons && (
+            <View
+              style={[
+                styles.actionBar,
+                { borderTopColor: isDark ? '#334155' : '#f3f4f6' },
+              ]}
+            >
+              <View style={styles.actionButtons}>
+                <LikeComponent productId={productId} />
+                {/* ✅ CommentComponent with stable productId */}
+                <CommentComponent productId={productId} />
+                <ShareWithStats
+                  productId={productId}
+                  productTitle={displayData.title}
+                  category={displayData.subcategory || 'product'}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    );
+  },
+  // ✅ Custom comparator - only re-render if productId changes
+  (prevProps, nextProps) => {
+    return (
+      prevProps.product?.productId === nextProps.product?.productId &&
+      prevProps.userId === nextProps.userId &&
+      prevProps.showSocialButtons === nextProps.showSocialButtons
+    );
+  },
+);
+
+ProductCard.displayName = 'ProductCard';
+
+// ✅ Export with React.memo
+export default ProductCard;
 
 const styles = StyleSheet.create({
   card: {
@@ -325,5 +357,3 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
 });
-
-export default ProductCard;

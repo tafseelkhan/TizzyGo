@@ -18,7 +18,8 @@ import BuyNowScreen from '../screens/shop/BuyNow';
 import CustomerHomeScreen from '../screens/cabs/home/customerHome';
 import FwsRidesOptionServicesScreen from '../screens/cabs/services/FwsRidesOptionServices';
 import FWSLocalRideScreen from '../screens/cabs/FWSLocalRide/FWSLocalRide';
-import LocationInputScreen from '../screens/cabs/centralize/LocationInputScreen';
+import LocationInputScreen from '../screens/cabs/common/LocationInputScreen';
+import RideSearchScreen from '../screens/cabs/common/RideSearchScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -70,6 +71,23 @@ export type RootStackParamList = {
     };
   };
   Tracking: { bookingId: string };
+  RideSearch: {
+    bookingId: string;
+    pickup: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    drop: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    fare: number;
+    rideType: string;
+    customerId: string; // ✅ Add this
+    polyline: string;
+  };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -105,6 +123,7 @@ export default function AppNavigator() {
         />
         <Stack.Screen name="FWSLocalRide" component={FWSLocalRideScreen} />
         <Stack.Screen name="LocationInput" component={LocationInputScreen} />
+        <Stack.Screen name="RideSearch" component={RideSearchScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

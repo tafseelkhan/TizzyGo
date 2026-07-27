@@ -118,6 +118,18 @@ export default function TizzyGo() {
             />
           </Animated.View>
 
+          <Animated.Text
+            style={[
+              styles.tizzygotagline,
+              {
+                color: isPressed ? primaryColor : subtitleColor,
+                transform: [{ scale: isPressed ? 1.02 : 1 }],
+              },
+            ]}
+          >
+            TizzyGo
+          </Animated.Text>
+
           <Animated.View
             style={[styles.lottieContainer, { opacity: lottieAnim }]}
           >
@@ -179,6 +191,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   lottie: { width: '100%', height: '100%' },
+  tizzygotagline: {
+    fontSize: 30,
+    fontFamily: 'Poppins-Light',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
   tagline: {
     fontSize: 14,
     fontWeight: '500',

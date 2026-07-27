@@ -1,10 +1,14 @@
-// src/hooks/usePayment.ts - FULLY FIXED
-import { useState, useEffect, useCallback, useRef } from 'react';
+// src/hooks/usePayment.ts - FINAL WORKING VERSION
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { useZeptPay } from '@flixora/zeptpay-payment-react-native';
+import RazorpayCheckout from 'react-native-razorpay';
+import { Config } from 'react-native-config';
 import paymentService from '../services/buyers/shop/paymentService';
-import * as paymentUtils from '../utils/buyers/shop/paymentUtils';
 
+// Razorpay constants
+const RAZORPAY_KEY_ID = Config.RAZORPAY_KEY_ID || '';
+
+// ============= TYPES =============
 interface UsePaymentProps {
   product: any;
   calculatedData: any;
@@ -13,6 +17,72 @@ interface UsePaymentProps {
   onPaymentMethodChange?: (method: 'online' | 'cod') => void;
 }
 
+interface PaymentSessionData {
+  vendorCodeUID: string;
+  amount: number;
+  appName: string;
+  payer: any;
+  currency: string;
+  checkoutSessionId: string;
+  paymentType: string;
+  qrCodeId?: string;
+  mandateId?: string;
+  frequency?: string;
+  nextPaymentDate?: string;
+  orderId?: string;
+}
+
+interface PaymentSheetData {
+  gateway: string;
+  grandTotal: number;
+  orderId?: string;
+  checkoutSessionId?: string;
+  paymentIntentId?: string;
+  vendorCodeUID?: string;
+  amount?: number;
+  appName?: string;
+  payer?: any;
+  currency?: string;
+  paymentType?: string;
+  [key: string]: any;
+}
+
+interface CreateSessionResult {
+  success: boolean;
+  checkoutSessionId?: string;
+  paymentSheetData?: any;
+  orderId?: string;
+  finalAmount?: number;
+  paymentIntentId?: string;
+  error?: string;
+  order?: { orderId: string; status: string };
+}
+
+interface RazorpaySuccessResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayErrorResponse {
+  code: string;
+  description?: string;
+  error?: {
+    description?: string;
+    reason?: string;
+    code?: string;
+    metadata?: any;
+  };
+}
+
+interface PaymentResult {
+  success: boolean;
+  transaction?: any;
+  orderId?: string;
+  error?: string;
+}
+
+// ============= HOOK =============
 export const usePayment = ({
   product,
   calculatedData,
@@ -20,271 +90,378 @@ export const usePayment = ({
   onOrderConfirmed,
   onPaymentMethodChange,
 }: UsePaymentProps) => {
-  console.log('========================================');
-  console.log('🎯 [usePayment] HOOK INITIALIZED');
-  console.log('========================================');
+  console.log('🎯 [usePayment] HOOK INITIALIZED - Razorpay Only');
 
-  // ZeptPay hooks
-  const zeptPayHook = useZeptPay();
-  const openZeptPayPaymentSheet = (zeptPayHook as any).openZeptPayPaymentSheet;
-  const isVerified = (zeptPayHook as any).isVerified || false;
-  const health = (zeptPayHook as any).health || {
-    status: 'unknown',
-    mode: 'test',
-  };
-  const verifyProvider = (zeptPayHook as any).verifyProvider;
-  const confirmPayment = (zeptPayHook as any).confirmPayment;
-  const failPayment = (zeptPayHook as any).failPayment;
-  const setPaymentLoading = (zeptPayHook as any).setPaymentLoading;
-
-  // State
-  const [loading, setLoading] = useState(false);
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [paymentProcessing, setPaymentProcessing] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>(
     'online',
   );
   const [checkoutSessionId, setCheckoutSessionId] = useState<string>('');
-  const [checkoutSessionCreated, setCheckoutSessionCreated] = useState(false);
-  const [paymentSheetData, setPaymentSheetData] = useState<any>(null);
-  const [isServiceReady, setIsServiceReady] = useState(false);
+  const [checkoutSessionCreated, setCheckoutSessionCreated] =
+    useState<boolean>(false);
+  const [paymentSheetData, setPaymentSheetData] =
+    useState<PaymentSheetData | null>(null);
+  const [isServiceReady, setIsServiceReady] = useState<boolean>(false);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
+  const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
 
-  // Refs to prevent duplicate calls
-  const initializedRef = useRef(false);
-  const creatingSessionRef = useRef(false);
+  const initializedRef = useRef<boolean>(false);
+  const creatingSessionRef = useRef<boolean>(false);
+  const autoCreateAttempted = useRef<boolean>(false);
 
-  // ✅ FIX 1: Initialize payment service properly with await
+  const gateway = 'razorpay';
+  const gatewayDisplayName = 'Razorpay';
+  const health = { status: 'ready', mode: 'production' };
+
+  // ============= INITIALIZATION =============
   useEffect(() => {
-    const initService = async () => {
-      if (initializedRef.current) {
-        console.log('⏭️ Already initialized, skipping');
-        return;
-      }
-
+    const initService = async (): Promise<void> => {
+      if (initializedRef.current) return;
       initializedRef.current = true;
       setLoading(true);
 
-      console.log('🔄 Initializing payment service...');
-      const success = await paymentService.initialize();
-
-      setIsServiceReady(success);
-      setLoading(false);
-
-      console.log(`✅ Initialization ${success ? 'SUCCESS' : 'FAILED'}`);
-      console.log('Service status:', paymentService.getStatus());
+      try {
+        const success = await paymentService.initialize();
+        setIsServiceReady(success);
+        setIsVerified(success);
+        console.log(
+          `✅ Razorpay initialization ${success ? 'SUCCESS' : 'FAILED'}`,
+        );
+      } catch (error) {
+        console.error('❌ Init error:', error);
+        setIsServiceReady(false);
+        setIsVerified(false);
+      } finally {
+        setLoading(false);
+      }
     };
-
     initService();
   }, []);
 
-  // ✅ FIX 2: Create checkout session only when service is ready
-  useEffect(() => {
-    const createSession = async () => {
-      // Don't create if already created or currently creating
-      if (checkoutSessionCreated || creatingSessionRef.current) {
-        return;
-      }
-
-      // Wait for service to be ready
-      if (!isServiceReady) {
-        console.log('⏳ Service not ready yet, waiting...');
-        return;
-      }
-
-      // Check if we have all required data
-      if (!product || !calculatedData || !checkoutData?.shippingAddress) {
-        console.log('⏳ Missing required data:', {
-          product: !!product,
-          calculatedData: !!calculatedData,
-          address: !!checkoutData?.shippingAddress,
-        });
-        return;
-      }
-
-      // Create session
-      creatingSessionRef.current = true;
-      await createCheckoutSession();
-      creatingSessionRef.current = false;
-    };
-
-    createSession();
-  }, [
-    product,
-    calculatedData,
-    checkoutData?.shippingAddress,
-    paymentMethod,
-    isServiceReady,
-    checkoutSessionCreated,
-  ]);
-
-  // ZeptPay health check
-  useEffect(() => {
-    if (paymentMethod === 'online' && verifyProvider && isServiceReady) {
-      if (!isVerified && health?.status !== 'verifying') {
-        console.log('🔄 Verifying ZeptPay provider...');
-        verifyProvider();
-      }
+  // ============= CONVERT TO RAZORPAY ORDER ID =============
+  const convertToRazorpayOrderId = (id: string | undefined): string => {
+    if (!id) return '';
+    // Already in correct format
+    if (id.startsWith('order_')) return id;
+    // Convert ORD- to order_
+    if (id.startsWith('ORD-')) {
+      return 'order_' + id.substring(4);
     }
-  }, [
-    paymentMethod,
-    isVerified,
-    health?.status,
-    verifyProvider,
-    isServiceReady,
-  ]);
+    // Default: add order_ prefix
+    return 'order_' + id;
+  };
 
-  const createCheckoutSession = async () => {
-    console.log('========================================');
-    console.log('🚀 createCheckoutSession CALLED');
-    console.log('========================================');
+  // ============= CREATE CHECKOUT SESSION =============
+  const createCheckoutSession = useCallback(async (): Promise<boolean> => {
+    console.log('🚀 createCheckoutSession CALLED - Razorpay');
+
+    if (creatingSessionRef.current || isCreatingSession) {
+      console.log('⏳ Session creation already in progress');
+      return false;
+    }
+
+    if (!product || !calculatedData || !checkoutData?.shippingAddress) {
+      console.error('❌ Missing required data');
+      setSessionError('Missing required data');
+      return false;
+    }
+
+    if (!isServiceReady) {
+      console.error('❌ Payment service not ready');
+      setSessionError('Payment service is initializing...');
+      return false;
+    }
 
     try {
+      creatingSessionRef.current = true;
+      setIsCreatingSession(true);
+      setSessionError(null);
       setCheckoutSessionCreated(false);
       setPaymentSheetData(null);
+      setRazorpayOrderId(null);
 
       console.log('📤 Calling paymentService.createCheckoutSession...');
 
-      const result = await paymentService.createCheckoutSession(
+      const result = (await paymentService.createCheckoutSession(
         checkoutData.shippingAddress,
         paymentMethod,
-      );
+      )) as CreateSessionResult;
 
-      console.log('📥 Result:', {
-        success: result.success,
-        hasSessionId: !!result.checkoutSessionId,
-        error: result.error,
-      });
+      console.log('📥 Full Result:', JSON.stringify(result, null, 2));
 
       if (result.success) {
-        console.log('✅ Checkout session created successfully');
-        setCheckoutSessionId(result.checkoutSessionId!);
-        setCheckoutSessionCreated(true);
+        const sessionId = result.checkoutSessionId || '';
+        const finalAmount =
+          result.finalAmount || calculatedData?.grandTotal || 0;
+        const orderId = result.orderId || result.paymentSheetData?.orderId;
 
-        if (result.paymentSheetData) {
-          console.log('📦 Setting payment sheet data');
-          setPaymentSheetData(result.paymentSheetData);
-        }
+        // ✅ Get paymentIntentId from backend (Razorpay order ID)
+        const paymentIntentId =
+          result.paymentIntentId ||
+          result.paymentSheetData?.paymentIntentId ||
+          result.paymentSheetData?.razorpayOrderId;
+
+        // ✅ Convert to proper Razorpay format
+        const razorpayOrderIdValue = convertToRazorpayOrderId(
+          paymentIntentId || orderId || sessionId,
+        );
+
+        console.log('✅ Checkout session created successfully');
+        console.log('📋 Session ID:', sessionId);
+        console.log('💰 Final Amount:', finalAmount);
+        console.log('📋 Internal Order ID:', orderId);
+        console.log('📋 Payment Intent ID from backend:', paymentIntentId);
+        console.log('📋 Final Razorpay Order ID:', razorpayOrderIdValue);
+
+        setCheckoutSessionId(sessionId);
+        setCheckoutSessionCreated(true);
+        setRazorpayOrderId(razorpayOrderIdValue);
+
+        const sheetData: PaymentSheetData = {
+          ...result.paymentSheetData,
+          gateway: 'razorpay',
+          grandTotal: finalAmount,
+          orderId: orderId,
+          paymentIntentId: razorpayOrderIdValue,
+          checkoutSessionId: sessionId,
+          vendorCodeUID: result.paymentSheetData?.vendorCodeUID || '',
+          amount: result.paymentSheetData?.amount || finalAmount,
+          appName: result.paymentSheetData?.appName || 'TizzyGo',
+          payer:
+            result.paymentSheetData?.payer ||
+            checkoutData?.shippingAddress ||
+            {},
+          currency: result.paymentSheetData?.currency || 'INR',
+          paymentType: result.paymentSheetData?.paymentType || 'normal',
+        };
+
+        setPaymentSheetData(sheetData);
+        setSessionError(null);
+        return true;
       } else {
         console.error('❌ Failed:', result.error);
+        setSessionError(result.error || 'Failed to create checkout session');
         Alert.alert(
-          'Error',
-          result.error || 'Failed to create checkout session',
+          'Payment Setup Failed',
+          result.error || 'Could not initialize payment.',
         );
+        return false;
       }
     } catch (error: any) {
       console.error('❌ Exception:', error.message);
-      Alert.alert('Error', 'Failed to initialize payment');
+      setSessionError(error.message || 'Unknown error occurred');
+      Alert.alert('Error', error.message || 'Failed to initialize payment.');
+      return false;
+    } finally {
+      creatingSessionRef.current = false;
+      setIsCreatingSession(false);
     }
-  };
+  }, [product, calculatedData, checkoutData, paymentMethod, isServiceReady]);
 
-  const handlePaymentMethodChange = (method: 'online' | 'cod') => {
-    if (paymentMethod === method) return;
+  // ============= AUTO-CREATE SESSION =============
+  useEffect(() => {
+    const shouldAutoCreate =
+      isServiceReady &&
+      product &&
+      calculatedData &&
+      checkoutData?.shippingAddress &&
+      !checkoutSessionCreated &&
+      !autoCreateAttempted.current &&
+      !creatingSessionRef.current;
 
-    console.log(
-      `🔄 Changing payment method from ${paymentMethod} to ${method}`,
-    );
-    setPaymentMethod(method);
-    onPaymentMethodChange?.(method);
+    if (shouldAutoCreate) {
+      autoCreateAttempted.current = true;
+      console.log('🔄 Auto-creating checkout session...');
+      createCheckoutSession();
+    }
+  }, [
+    isServiceReady,
+    product,
+    calculatedData,
+    checkoutData?.shippingAddress,
+    checkoutSessionCreated,
+  ]);
 
-    // Reset session so new one can be created
-    setCheckoutSessionCreated(false);
-    setCheckoutSessionId('');
-    setPaymentSheetData(null);
-    creatingSessionRef.current = false;
-  };
+  // ============= HANDLE PAYMENT METHOD CHANGE =============
+  const handlePaymentMethodChange = useCallback(
+    (method: 'online' | 'cod'): void => {
+      if (paymentMethod === method) return;
+      console.log(
+        `🔄 Changing payment method from ${paymentMethod} to ${method}`,
+      );
+      setPaymentMethod(method);
+      onPaymentMethodChange?.(method);
 
-  const handleOnlinePayment = async () => {
-    console.log('💳 handleOnlinePayment CALLED');
+      setCheckoutSessionCreated(false);
+      setCheckoutSessionId('');
+      setPaymentSheetData(null);
+      setRazorpayOrderId(null);
+      setSessionError(null);
+      creatingSessionRef.current = false;
+      autoCreateAttempted.current = false;
+    },
+    [paymentMethod, onPaymentMethodChange],
+  );
+
+  // ============= PARSE RAZORPAY ERROR =============
+  const parseRazorpayError = useCallback((error: any): string => {
+    if (error.code === 'PAYMENT_CANCELLED')
+      return 'You have cancelled the payment.';
+    if (error.code === 'NETWORK_ERROR')
+      return 'Please check your internet connection.';
+    if (error.description) {
+      try {
+        const parsed = JSON.parse(error.description) as RazorpayErrorResponse;
+        if (parsed.error) {
+          return (
+            parsed.error.description || parsed.error.reason || 'Payment failed'
+          );
+        }
+        return error.description;
+      } catch {
+        return error.description;
+      }
+    }
+    return error.message || 'Failed to process payment. Please try again.';
+  }, []);
+
+  // ============= RAZORPAY PAYMENT HANDLER =============
+  const handleRazorpayPayment = useCallback(async (): Promise<void> => {
+    console.log('💳 handleRazorpayPayment CALLED');
+    console.log('📋 razorpayOrderId:', razorpayOrderId);
+    console.log('📋 paymentSheetData:', paymentSheetData);
 
     if (!checkoutSessionCreated || !paymentSheetData) {
-      Alert.alert('Error', 'Payment session not ready. Please wait.');
+      console.log('⚠️ Session not ready, attempting to create...');
+      setLoading(true);
+      const created = await createCheckoutSession();
+      setLoading(false);
+      if (!created || !checkoutSessionCreated || !paymentSheetData) {
+        Alert.alert(
+          'Payment Setup Failed',
+          'Could not initialize payment session.',
+        );
+        return;
+      }
+    }
+
+    if (!RAZORPAY_KEY_ID) {
+      Alert.alert('Error', 'Razorpay key is missing. Please contact support.');
       return;
     }
 
-    if (!openZeptPayPaymentSheet) {
-      Alert.alert('Error', 'Payment system not properly initialized.');
+    // ✅ Use razorpayOrderId from state (already converted)
+    const orderIdForRazorpay: string =
+      razorpayOrderId || paymentSheetData?.paymentIntentId || checkoutSessionId;
+
+    // ✅ Ensure correct format one more time
+    const finalOrderId = convertToRazorpayOrderId(orderIdForRazorpay);
+
+    console.log('📋 Final Order ID for Razorpay:', finalOrderId);
+
+    if (!finalOrderId) {
+      Alert.alert('Error', 'Order ID is missing. Please try again.');
+      console.error('❌ Order ID is missing!');
       return;
     }
 
-    if (!isVerified) {
-      Alert.alert(
-        'Payment Unavailable',
-        'Payment system is initializing. Please try again.',
-        [{ text: 'Retry', onPress: () => verifyProvider?.() }],
-      );
-      return;
-    }
+    const grandTotal = paymentSheetData.grandTotal || 0;
 
     try {
       setPaymentProcessing(true);
+      const amount = Math.round(grandTotal * 100);
 
-      const result = await openZeptPayPaymentSheet({
-        vendorCodeUID: paymentSheetData.vendorCodeUID,
-        amount: paymentSheetData.amount,
-        appName: paymentSheetData.appName,
-        currency: paymentSheetData.currency,
-        payer: paymentSheetData.payer,
-        checkoutSessionId: paymentSheetData.checkoutSessionId,
-        customerId: paymentSheetData.payer.userId,
-      });
+      const razorpayOptions = {
+        key: RAZORPAY_KEY_ID,
+        amount,
+        currency: 'INR',
+        name: 'AirCloud',
+        description: `Payment for ${product?.title || 'Order'}`,
+        order_id: finalOrderId,
+        prefill: {
+          name: checkoutData?.shippingAddress?.name || 'Customer',
+          email: checkoutData?.shippingAddress?.email || '',
+          contact: checkoutData?.shippingAddress?.phone || '',
+        },
+        theme: { color: '#635BFF' },
+        notes: {
+          checkoutSessionId: checkoutSessionId,
+          productId: product?.productId || product?.id,
+          productTitle: product?.title || '',
+        },
+      };
 
-      const { isSuccessful, isCancelled, isError } =
-        paymentUtils.parsePaymentResult(result);
+      console.log('📤 Opening Razorpay Checkout...');
+      console.log('🔑 Key:', RAZORPAY_KEY_ID);
+      console.log('💰 Amount:', amount);
+      console.log('📋 Order ID:', finalOrderId);
 
-      if (isSuccessful) {
-        console.log('✅ Payment successful');
-        if (setPaymentLoading) setPaymentLoading(true);
-
-        const paymentResult = await paymentService.processOnlinePayment(
-          checkoutSessionId,
-          paymentSheetData,
-          result,
+      const razorpayResponse = (await new Promise((resolve, reject) => {
+        RazorpayCheckout.open(
+          razorpayOptions,
+          (data: any) => {
+            console.log('✅ Razorpay success:', data);
+            resolve(data as RazorpaySuccessResponse);
+          },
+          (error: any) => {
+            console.error('❌ Razorpay error:', error);
+            reject(error);
+          },
         );
+      })) as RazorpaySuccessResponse;
 
-        if (paymentResult.success) {
-          const { transaction, orderId } = paymentResult;
-          const success = paymentUtils.handleTransactionStatus(
-            transaction,
-            confirmPayment,
-            failPayment,
-            paymentSheetData,
-            orderId!,
-          );
+      console.log('📤 Processing payment with backend...');
 
-          if (success) {
-            setTimeout(() => onOrderConfirmed?.(transaction), 3000);
-          }
-        } else {
-          if (failPayment)
-            failPayment(paymentResult.error || 'Order confirmation failed');
-          Alert.alert(
-            'Payment Failed',
-            paymentResult.error || 'Order confirmation failed',
-          );
-        }
+      const paymentSessionData: PaymentSessionData = {
+        vendorCodeUID: paymentSheetData?.vendorCodeUID || '',
+        amount: paymentSheetData?.amount || grandTotal,
+        appName: paymentSheetData?.appName || 'TizzyGo',
+        payer: paymentSheetData?.payer || checkoutData?.shippingAddress || {},
+        currency: paymentSheetData?.currency || 'INR',
+        checkoutSessionId: checkoutSessionId,
+        paymentType: paymentSheetData?.paymentType || 'normal',
+        orderId: paymentSheetData?.orderId || finalOrderId,
+      };
 
-        if (setPaymentLoading) setPaymentLoading(false);
-      } else if (isCancelled) {
-        console.log('Payment cancelled');
-      } else if (isError) {
+      const paymentResult = (await paymentService.processOnlinePayment(
+        checkoutSessionId,
+        paymentSessionData,
+        razorpayResponse,
+      )) as PaymentResult;
+
+      if (paymentResult.success) {
+        console.log('✅ Razorpay payment successful');
+        setTimeout(() => onOrderConfirmed?.(paymentResult.transaction), 2000);
+      } else {
         Alert.alert(
           'Payment Failed',
-          result.error || 'Payment could not be completed',
+          paymentResult.error || 'Order confirmation failed',
         );
       }
     } catch (error: any) {
-      console.error('Payment Error:', error);
-      Alert.alert(
-        'Payment Error',
-        error.message || 'Failed to process payment',
-      );
+      console.error('❌ Razorpay Payment Error:', error);
+      Alert.alert('Payment Error', parseRazorpayError(error));
     } finally {
       setPaymentProcessing(false);
     }
-  };
+  }, [
+    checkoutSessionCreated,
+    paymentSheetData,
+    checkoutSessionId,
+    product,
+    checkoutData,
+    createCheckoutSession,
+    onOrderConfirmed,
+    parseRazorpayError,
+    razorpayOrderId,
+  ]);
 
-  const handleCODConfirmation = async () => {
+  // ============= COD HANDLER =============
+  const handleCODConfirmation = useCallback(async (): Promise<void> => {
     console.log('📦 handleCODConfirmation CALLED');
-
     if (!checkoutSessionCreated) {
       Alert.alert('Error', 'Order session not ready. Please wait.');
       return;
@@ -292,13 +469,14 @@ export const usePayment = ({
 
     try {
       setLoading(true);
-      const result = await paymentService.confirmCODOrder(checkoutSessionId);
-
+      const result = (await paymentService.confirmCODOrder(
+        checkoutSessionId,
+      )) as PaymentResult;
       if (result.success) {
         console.log('✅ COD order confirmed');
         Alert.alert(
           'Order Confirmed! 🎉',
-          'Your COD order has been confirmed.',
+          'Your COD order has been confirmed. Please keep cash ready for delivery.',
           [
             {
               text: 'View Order',
@@ -310,13 +488,15 @@ export const usePayment = ({
         Alert.alert('Error', result.error || 'Failed to confirm COD order');
       }
     } catch (error: any) {
+      console.error('❌ COD confirmation error:', error);
       Alert.alert('Error', error.message || 'Failed to confirm COD order');
     } finally {
       setLoading(false);
     }
-  };
+  }, [checkoutSessionCreated, checkoutSessionId, onOrderConfirmed]);
 
-  const handlePayment = async () => {
+  // ============= MAIN PAYMENT HANDLER =============
+  const handlePayment = useCallback(async (): Promise<void> => {
     console.log('🟢 handlePayment CALLED');
 
     if (!calculatedData) {
@@ -325,30 +505,53 @@ export const usePayment = ({
     }
 
     if (!checkoutSessionCreated) {
-      Alert.alert('Info', 'Setting up payment session...');
+      console.log('⚠️ Session not ready, attempting to create...');
+      setLoading(true);
+      const created = await createCheckoutSession();
+      setLoading(false);
+      if (!created) {
+        Alert.alert('Payment Setup Failed', 'Could not initialize payment.');
+        return;
+      }
+    }
+
+    if (!checkoutSessionCreated) {
+      Alert.alert('Error', 'Payment session could not be created.');
       return;
     }
 
     if (paymentMethod === 'online') {
-      await handleOnlinePayment();
+      await handleRazorpayPayment();
     } else {
       await handleCODConfirmation();
     }
-  };
+  }, [
+    calculatedData,
+    checkoutSessionCreated,
+    paymentMethod,
+    createCheckoutSession,
+    handleRazorpayPayment,
+    handleCODConfirmation,
+  ]);
 
+  // ============= RETURN =============
   return {
-    loading: loading || paymentProcessing,
+    loading,
     paymentProcessing,
     paymentMethod,
     checkoutSessionCreated,
     paymentSheetData,
     isVerified,
     health,
-    openZeptPayPaymentSheet,
-    confirmPayment,
-    failPayment,
+    gateway,
+    gatewayDisplayName,
     handlePaymentMethodChange,
     handlePayment,
     isCodAvailable: product?.cashOnDelivery === true,
+    createCheckoutSession,
+    sessionError,
+    isCreatingSession,
   };
 };
+
+export default usePayment;

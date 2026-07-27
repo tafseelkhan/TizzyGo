@@ -13,7 +13,7 @@ import {
 import Video, { OnLoadData, OnProgressData } from 'react-native-video';
 // ✅ REPLACED: Using react-native-vector-icons instead of @expo/vector-icons
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
+import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 // ✅ Import Video component type
 import type { VideoRef } from 'react-native-video';

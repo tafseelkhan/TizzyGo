@@ -1,5 +1,7 @@
+// screens/cabs/FWSLocalRide/SelectedRideTicket.tsx
+
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
@@ -17,6 +19,70 @@ import {
   formatPrice,
 } from '../../../utils/cabs/FWSLocalRideHelperUtils';
 import { AnimatedPressable } from './AnimatedPressable';
+
+// =====================================================
+// ✅ CAB ICON IMAGES
+// =====================================================
+const CAB_ICONS = {
+  Hatchback: require('../../../../assets/cabs/FWSAirport.png'),
+  Sedan: require('../../../../assets/cabs/FWSCorporate.png'),
+  SUV: require('../../../../assets/cabs/FWSOutstation.png'),
+  MPV: require('../../../../assets/cabs/FWSIntercity.png'),
+  'Luxury Sedan': require('../../../../assets/cabs/FWSScheduled.png'),
+  'Luxury SUV': require('../../../../assets/cabs/FWSRental.png'),
+  Auto: require('../../../../assets/cabs/FWSShared.png'),
+  Bike: require('../../../../assets/cabs/FWSBike.png'),
+  Scooter: require('../../../../assets/cabs/FWSAuto.png'),
+};
+
+const VEHICLE_CATEGORIES = {
+  BIKE: ['Bike', 'Scooter'],
+  AUTO: ['Auto'],
+  CAR: ['Hatchback', 'Sedan', 'SUV', 'MPV', 'Luxury Sedan', 'Luxury SUV'],
+};
+
+const getVehicleCategory = (vehicleType: string): 'BIKE' | 'AUTO' | 'CAR' => {
+  const type = vehicleType?.trim() || '';
+  if (VEHICLE_CATEGORIES.BIKE.includes(type)) return 'BIKE';
+  if (VEHICLE_CATEGORIES.AUTO.includes(type)) return 'AUTO';
+  if (VEHICLE_CATEGORIES.CAR.includes(type)) return 'CAR';
+  return 'CAR';
+};
+
+const getCabIconImage = (vehicleType: string) => {
+  const type = vehicleType?.trim() || '';
+
+  if (CAB_ICONS[type as keyof typeof CAB_ICONS]) {
+    return CAB_ICONS[type as keyof typeof CAB_ICONS];
+  }
+
+  const category = getVehicleCategory(type);
+  switch (category) {
+    case 'BIKE':
+      return CAB_ICONS.Bike;
+    case 'AUTO':
+      return CAB_ICONS.Auto;
+    case 'CAR':
+      return CAB_ICONS.Sedan;
+    default:
+      return CAB_ICONS.Sedan;
+  }
+};
+
+const getVehicleTypeLabel = (vehicleType: string) => {
+  const type = vehicleType?.trim() || '';
+  const category = getVehicleCategory(type);
+  switch (category) {
+    case 'BIKE':
+      return 'Bike';
+    case 'AUTO':
+      return 'Auto';
+    case 'CAR':
+      return type || 'Car';
+    default:
+      return 'Vehicle';
+  }
+};
 
 interface SelectedRideTicketProps {
   group: RideTypeGroup;
@@ -37,6 +103,12 @@ export const SelectedRideTicket: React.FC<SelectedRideTicketProps> = ({
   const closestDistance = getClosestDriverDistance(group);
   const firstDriver = getFirstDriver(group);
 
+  // ✅ Get vehicle type and icon
+  const vehicleType =
+    firstDriver?.vehicleType || firstDriver?.vehicle || 'Sedan';
+  const cabIcon = getCabIconImage(vehicleType);
+  const vehicleLabel = getVehicleTypeLabel(vehicleType);
+
   return (
     <AnimatedPressable
       style={styles.selectedTicket}
@@ -44,16 +116,12 @@ export const SelectedRideTicket: React.FC<SelectedRideTicketProps> = ({
       scaleTo={0.97}
     >
       <View style={styles.selectedTicketMain}>
-        <View style={styles.selectedRideIconWrap}>
-          <MCIcon
-            name={getRideIcon(rideTypeName)}
-            size={24}
-            color={COLORS.white}
-          />
-        </View>
+        {/* ✅ Image instead of Icon */}
+        <Image source={cabIcon} style={styles.selectedRideIcon} />
+
         <View style={{ flex: 1 }}>
           <View style={styles.ticketRowNameLine}>
-            <Text style={styles.selectedRideName}>{rideTypeName}</Text>
+            <Text style={styles.selectedRideName}>{vehicleLabel}</Text>
             <View style={styles.fastestChip}>
               <View style={styles.fastestDot} />
               <Text style={styles.fastestChipText}>Best</Text>
@@ -133,13 +201,10 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: COLORS.bg,
   },
-  selectedRideIconWrap: {
+  selectedRideIcon: {
     width: 48,
     height: 48,
-    borderRadius: 13,
-    backgroundColor: COLORS.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
+    resizeMode: 'contain',
   },
   selectedRideName: {
     fontSize: 16,
@@ -273,3 +338,5 @@ const styles = StyleSheet.create({
     color: COLORS.green,
   },
 });
+
+export default SelectedRideTicket;

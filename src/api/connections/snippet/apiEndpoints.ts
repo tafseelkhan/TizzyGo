@@ -75,6 +75,7 @@ export const API_ENDPOINTS = {
 
   // Checkout endpoints
   CALCULATE_CHECKOUT: '/api/v0/buyer/buy',
+  GET_SESSION_STATUS: '/checkout/session/:checkoutSessionId',
 
   // Search endpoints
   SEARCH_PRODUCTS: '/api/v0/search/products',

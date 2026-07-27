@@ -20,7 +20,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
+import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 

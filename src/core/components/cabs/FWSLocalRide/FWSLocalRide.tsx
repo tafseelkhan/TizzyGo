@@ -1,3 +1,5 @@
+// screens/cabs/FWSLocalRide/BookingScreen.tsx
+
 import React, {
   useState,
   useEffect,
@@ -18,7 +20,7 @@ import {
   Image,
   TouchableOpacity,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
@@ -27,6 +29,7 @@ import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { debounce } from 'lodash';
 
+import { useAuth } from '../../../contexts/auth/UserContext';
 import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
 import { VEHICLE_CLASSES } from '../../../../api/constants/vehicleClasses';
 import { GOOGLE_API_KEY } from '../../../../api/constants/mapConfig';
@@ -58,10 +61,38 @@ import { RootStackParamList } from './RootStackParamList';
 
 const { height, width } = Dimensions.get('window');
 
-// ✅ VEHICLE TYPE IMAGES
-const BIKE_MARKER_IMAGE = require('../../../../assets/map/driver-bike-marker.png');
-const CAR_MARKER_IMAGE = require('../../../../assets/map/driver-car-marker.png');
-const AUTO_MARKER_IMAGE = require('../../../../assets/map/driver-auto-marker.png');
+// =====================================================
+// ✅ MAP MARKER IMAGES (assets/map/) - Driver location ke liye
+// =====================================================
+const MAP_MARKERS = {
+  // Cars - All car types use car marker
+  Hatchback: require('../../../../assets/map/driver-car.png'),
+  Sedan: require('../../../../assets/map/driver-car.png'),
+  SUV: require('../../../../assets/map/driver-car.png'),
+  MPV: require('../../../../assets/map/driver-car.png'),
+  'Luxury Sedan': require('../../../../assets/map/driver-car.png'),
+  'Luxury SUV': require('../../../../assets/map/driver-car.png'),
+  // Auto
+  Auto: require('../../../../assets/map/driver-auto.png'),
+  // Bike
+  Bike: require('../../../../assets/map/driver-bike.png'),
+  Scooter: require('../../../../assets/map/driver-scooter.png'),
+};
+
+// =====================================================
+// ✅ CAB ICON IMAGES (assets/cabs/) - Modal/Bottom Sheet ke liye
+// =====================================================
+const CAB_ICONS = {
+  Hatchback: require('../../../../assets/cabs/FWSAirport.png'),
+  Sedan: require('../../../../assets/cabs/FWSCorporate.png'),
+  SUV: require('../../../../assets/cabs/FWSOutstation.png'),
+  MPV: require('../../../../assets/cabs/FWSIntercity.png'),
+  'Luxury Sedan': require('../../../../assets/cabs/FWSScheduled.png'),
+  'Luxury SUV': require('../../../../assets/cabs/FWSRental.png'),
+  Auto: require('../../../../assets/cabs/FWSShared.png'),
+  Bike: require('../../../../assets/cabs/FWSBike.png'),
+  Scooter: require('../../../../assets/cabs/FWSAuto.png'),
+};
 
 type BookingScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -110,52 +141,94 @@ const LIGHT_MAP_STYLE = [
   },
 ];
 
-// ✅ Get vehicle type image based on vehicleType string
-const getVehicleMarkerImage = (vehicleType: string) => {
-  const type = vehicleType?.toLowerCase() || '';
-  if (type === 'bike' || type === 'motorcycle' || type === 'twowheeler') {
-    return BIKE_MARKER_IMAGE;
-  } else if (
-    type === 'car' ||
-    type === 'fourwheeler' ||
-    type === 'suv' ||
-    type === 'sedan'
-  ) {
-    return CAR_MARKER_IMAGE;
-  } else if (
-    type === 'auto' ||
-    type === 'rickshaw' ||
-    type === 'threewheeler'
-  ) {
-    return AUTO_MARKER_IMAGE;
-  }
-  // Default to car if unknown
-  return CAR_MARKER_IMAGE;
+// =====================================================
+// ✅ VEHICLE CATEGORY MAPPING
+// =====================================================
+const VEHICLE_CATEGORIES = {
+  BIKE: ['Bike', 'Scooter'],
+  AUTO: ['Auto'],
+  CAR: ['Hatchback', 'Sedan', 'SUV', 'MPV', 'Luxury Sedan', 'Luxury SUV'],
 };
 
-// ✅ Get vehicle type label for display
+// =====================================================
+// ✅ HELPERS
+// =====================================================
+const getVehicleCategory = (vehicleType: string): 'BIKE' | 'AUTO' | 'CAR' => {
+  const type = vehicleType?.trim() || '';
+  if (VEHICLE_CATEGORIES.BIKE.includes(type)) return 'BIKE';
+  if (VEHICLE_CATEGORIES.AUTO.includes(type)) return 'AUTO';
+  if (VEHICLE_CATEGORIES.CAR.includes(type)) return 'CAR';
+  return 'CAR';
+};
+
 const getVehicleTypeLabel = (vehicleType: string) => {
-  const type = vehicleType?.toLowerCase() || '';
-  if (type === 'bike' || type === 'motorcycle' || type === 'twowheeler') {
-    return 'Bike';
-  } else if (
-    type === 'car' ||
-    type === 'fourwheeler' ||
-    type === 'suv' ||
-    type === 'sedan'
-  ) {
-    return 'Car';
-  } else if (
-    type === 'auto' ||
-    type === 'rickshaw' ||
-    type === 'threewheeler'
-  ) {
-    return 'Auto';
+  const type = vehicleType?.trim() || '';
+  const category = getVehicleCategory(type);
+  switch (category) {
+    case 'BIKE':
+      return 'Bike';
+    case 'AUTO':
+      return 'Auto';
+    case 'CAR':
+      return type || 'Car';
+    default:
+      return 'Vehicle';
   }
-  return vehicleType || 'Car';
 };
 
-// ✅ OPTIMIZED: Memoized Driver Marker Component with vehicle type
+// ✅ Get map marker image (for map) - EXACT MATCH FIRST
+const getMapMarkerImage = (vehicleType: string) => {
+  const type = vehicleType?.trim() || '';
+  console.log('🗺️ [getMapMarkerImage] Looking for:', type);
+
+  // ✅ First try exact match
+  if (MAP_MARKERS[type as keyof typeof MAP_MARKERS]) {
+    console.log('🗺️ [getMapMarkerImage] Found exact match:', type);
+    return MAP_MARKERS[type as keyof typeof MAP_MARKERS];
+  }
+
+  // ✅ Fallback by category
+  const category = getVehicleCategory(type);
+  console.log('🗺️ [getMapMarkerImage] Category:', category);
+  switch (category) {
+    case 'BIKE':
+      return MAP_MARKERS.Bike;
+    case 'AUTO':
+      return MAP_MARKERS.Auto;
+    case 'CAR':
+    default:
+      return MAP_MARKERS.Sedan;
+  }
+};
+
+// ✅ Get cab icon image (for modal/bottom sheet) - EXACT MATCH FIRST
+const getCabIconImage = (vehicleType: string) => {
+  const type = vehicleType?.trim() || '';
+  console.log('🚗 [getCabIconImage] Looking for:', type);
+
+  // ✅ First try exact match
+  if (CAB_ICONS[type as keyof typeof CAB_ICONS]) {
+    console.log('🚗 [getCabIconImage] Found exact match:', type);
+    return CAB_ICONS[type as keyof typeof CAB_ICONS];
+  }
+
+  // ✅ Fallback by category
+  const category = getVehicleCategory(type);
+  console.log('🚗 [getCabIconImage] Category:', category);
+  switch (category) {
+    case 'BIKE':
+      return CAB_ICONS.Bike;
+    case 'AUTO':
+      return CAB_ICONS.Auto;
+    case 'CAR':
+    default:
+      return CAB_ICONS.Sedan;
+  }
+};
+
+// =====================================================
+// ✅ DRIVER MARKER (Uses MAP_MARKERS)
+// =====================================================
 const DriverMarker = memo(
   ({
     driver,
@@ -174,8 +247,15 @@ const DriverMarker = memo(
       heading: driver?.heading ?? 0,
     };
 
-    const markerImage = getVehicleMarkerImage(vehicleType);
+    const markerImage = getMapMarkerImage(vehicleType);
     const vehicleLabel = getVehicleTypeLabel(vehicleType);
+
+    console.log(
+      '🗺️ [DriverMarker] vehicleType:',
+      vehicleType,
+      'image:',
+      !!markerImage,
+    );
 
     return (
       <Marker
@@ -203,7 +283,9 @@ const DriverMarker = memo(
   },
 );
 
-// ✅ OPTIMIZED: Memoized Drop Marker Component
+// =====================================================
+// ✅ DROP MARKER
+// =====================================================
 const DropMarker = memo(({ drop }: { drop: Location | null }) => {
   if (!drop) return null;
   return (
@@ -223,6 +305,9 @@ const DropMarker = memo(({ drop }: { drop: Location | null }) => {
   );
 });
 
+// =====================================================
+// ✅ MAIN BOOKING SCREEN
+// =====================================================
 const BookingScreen: React.FC = () => {
   const navigation = useNavigation<BookingScreenNavigationProp>();
   const route = useRoute<BookingScreenRouteProp>();
@@ -232,16 +317,11 @@ const BookingScreen: React.FC = () => {
   const bottomSheetAnim = useRef(new Animated.Value(height)).current;
   const isMounted = useRef(true);
 
-  // ============================================================
-  //  ✅ ROUTE COORDINATES STATE
-  //  ============================================================
   const [routeCoordinates, setRouteCoordinates] = useState<RouteCoordinate[]>(
     [],
   );
+  const routeForward = useRef<RouteCoordinate[]>([]);
 
-  // ============================================================
-  //  ✅ PROPS RECEIVE - MEMOIZED
-  //  ============================================================
   const routeParams = useMemo(() => route?.params ?? {}, [route?.params]);
 
   const [pickup, setPickup] = useState<Location | null>(
@@ -265,7 +345,6 @@ const BookingScreen: React.FC = () => {
     [routeParams.pickup],
   );
 
-  // Ride States
   const [rideTypeGroups, setRideTypeGroups] = useState<RideTypeGroup[]>([]);
   const [selectedRideTypeGroup, setSelectedRideTypeGroup] =
     useState<RideTypeGroup | null>(null);
@@ -274,7 +353,6 @@ const BookingScreen: React.FC = () => {
   const [activeClassTab, setActiveClassTab] = useState<string>('economy');
   const [searchStatus, setSearchStatus] = useState<any>(null);
 
-  // UI States
   const [loading, setLoading] = useState<boolean>(false);
   const [showBottomSheet, setShowBottomSheet] = useState<boolean>(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
@@ -286,7 +364,6 @@ const BookingScreen: React.FC = () => {
     null,
   );
 
-  // Socket Tracking
   const [liveDriverLocation, setLiveDriverLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -298,25 +375,33 @@ const BookingScreen: React.FC = () => {
   const lastLocationUpdate = useRef<number>(0);
   const MIN_LOCATION_UPDATE_INTERVAL = 2000;
 
-  // ✅ Selected driver's vehicle type
-  const [selectedVehicleType, setSelectedVehicleType] = useState<string>('Car');
+  const [selectedVehicleType, setSelectedVehicleType] =
+    useState<string>('Sedan');
+  const { user } = useAuth();
 
   // ============================================================
   //  ✅ REVERSE GEOCODE
   //  ============================================================
   const reverseGeocodeFn = useCallback(
-    async (latitude: number, longitude: number): Promise<string> => {
+    async (
+      latitude: number,
+      longitude: number,
+    ): Promise<{ address: string; placeId: string }> => {
       try {
         const response = await axios.get(
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`,
         );
         if (response.data.results && response.data.results.length > 0) {
-          return response.data.results[0].formatted_address;
+          const result = response.data.results[0];
+          return {
+            address: result.formatted_address || 'Selected Location',
+            placeId: result.place_id || '',
+          };
         }
-        return '';
+        return { address: 'Selected Location', placeId: '' };
       } catch (error) {
         console.log('Reverse geocode error:', error);
-        return '';
+        return { address: 'Selected Location', placeId: '' };
       }
     },
     [],
@@ -326,13 +411,10 @@ const BookingScreen: React.FC = () => {
     debounce(reverseGeocodeFn, 300, { leading: false, trailing: true }) as (
       latitude: number,
       longitude: number,
-    ) => Promise<string>,
+    ) => Promise<{ address: string; placeId: string }>,
     [reverseGeocodeFn],
   );
 
-  // ============================================================
-  //  ✅ UPDATE ROUTE FUNCTION
-  //  ============================================================
   const updateRoute = useCallback((coords: RouteCoordinate[]) => {
     if (coords.length < 2) {
       setRouteCoordinates([]);
@@ -342,39 +424,94 @@ const BookingScreen: React.FC = () => {
   }, []);
 
   // ============================================================
-  //  ✅ AUTO-FETCH RIDE OPTIONS ON MOUNT
+  //  ✅ GET RIDE OPTIONS
   //  ============================================================
+  const getRideOptions = useCallback(async () => {
+    if (!pickup || !drop) {
+      console.log('⚠️ getRideOptions: pickup or drop missing');
+      return;
+    }
+    console.log('🔵 getRideOptions called with:', { pickup, drop });
+    setIsGettingOptions(true);
+    try {
+      const response = await rideBooking.getRideOptions(pickup, drop);
+      console.log('🔵 getRideOptions response success:', response.success);
+
+      if (response.success && response.data) {
+        const groups = response.data.options as unknown as RideTypeGroup[];
+        console.log('🔵 Groups received:', groups.length);
+        setRideTypeGroups(groups);
+
+        if (groups.length > 0 && groups[0].pickupToDropPolyline) {
+          const decoded = decodePolyline(groups[0].pickupToDropPolyline);
+          if (decoded.length >= 2) {
+            updateRoute(decoded);
+          }
+        }
+
+        if (groups.length > 0) {
+          setSelectedRideTypeGroup(groups[0]);
+        }
+
+        const allCoords = [
+          ...routeForward.current,
+          pickup
+            ? { latitude: pickup.latitude, longitude: pickup.longitude }
+            : null,
+          drop ? { latitude: drop.latitude, longitude: drop.longitude } : null,
+        ].filter(Boolean) as RouteCoordinate[];
+
+        if (allCoords.length > 0 && mapRef.current) {
+          mapRef.current.fitToCoordinates(allCoords, {
+            edgePadding: { top: 120, right: 60, bottom: 340, left: 60 },
+            animated: true,
+          });
+        }
+        if (groups.length > 0) setShowRideModal(true);
+      } else {
+        console.log('❌ getRideOptions failed:', response.message);
+        Alert.alert('Error', response.message || 'Failed to get ride options');
+        setRideTypeGroups([]);
+      }
+    } catch (error) {
+      console.error('❌ Get ride options error:', error);
+      Alert.alert('Error', 'Failed to get ride options.');
+    } finally {
+      setIsGettingOptions(false);
+    }
+  }, [pickup, drop, updateRoute]);
+
+  useEffect(() => {
+    routeForward.current = routeCoordinates;
+  }, [routeCoordinates]);
+
   useEffect(() => {
     console.log('🔵 [BookingScreen] Checking pickup & drop:', { pickup, drop });
     if (pickup && drop) {
       console.log(
         '✅ [BookingScreen] Both available, fetching ride options...',
       );
-      const timer = setTimeout(() => {
-        getRideOptions();
-      }, 300);
-      return () => clearTimeout(timer);
+      getRideOptions();
     } else {
       console.log('⚠️ [BookingScreen] Pickup or Drop missing');
     }
   }, [pickup, drop]);
 
-  // ✅ When selected ride type changes, update vehicle type
+  // ============================================================
+  //  ✅ UPDATE VEHICLE TYPE ON SELECTION
+  //  ============================================================
   useEffect(() => {
     if (selectedRideTypeGroup) {
       const firstDriver = getFirstDriver(selectedRideTypeGroup);
       if (firstDriver) {
         const vehicleType =
-          firstDriver.vehicleType || firstDriver.vehicle || 'Car';
+          firstDriver.vehicleType || firstDriver.vehicle || 'Sedan';
         setSelectedVehicleType(vehicleType);
         console.log('🚗 Selected vehicle type:', vehicleType);
       }
     }
   }, [selectedRideTypeGroup]);
 
-  // ============================================================
-  //  ✅ NAVIGATION FUNCTIONS
-  //  ============================================================
   const openLocationInput = useCallback(() => {
     try {
       navigation.navigate('LocationInput', {
@@ -395,7 +532,6 @@ const BookingScreen: React.FC = () => {
   const onMapPress = useCallback(
     (event: any) => {
       const coordinate = event?.nativeEvent?.coordinate;
-
       if (
         !coordinate ||
         coordinate.latitude == null ||
@@ -407,16 +543,14 @@ const BookingScreen: React.FC = () => {
       const { latitude, longitude } = coordinate;
 
       reverseGeocode(latitude, longitude)
-        .then((address: string) => {
+        .then(({ address, placeId }) => {
           if (!isMounted.current) return;
-
-          const finalAddress = address || 'Selected Location';
 
           setSelectedLocation({
             latitude,
             longitude,
-            address: finalAddress,
-            googlePlaceId: '',
+            address: address || 'Selected Location',
+            googlePlaceId: placeId || '',
           });
 
           Animated.spring(bottomSheetAnim, {
@@ -454,7 +588,7 @@ const BookingScreen: React.FC = () => {
     async (type: 'pickup' | 'drop') => {
       if (!selectedLocation) return;
 
-      const address = await reverseGeocode(
+      const { address, placeId } = await reverseGeocode(
         selectedLocation.latitude,
         selectedLocation.longitude,
       );
@@ -462,6 +596,7 @@ const BookingScreen: React.FC = () => {
       const locationData: Location = {
         ...selectedLocation,
         address: address || selectedLocation.address || 'Selected Location',
+        googlePlaceId: placeId || selectedLocation.googlePlaceId || '',
       };
 
       if (type === 'pickup') {
@@ -505,97 +640,8 @@ const BookingScreen: React.FC = () => {
   );
 
   // ============================================================
-  //  ✅ RIDE OPTIONS
-  //  ============================================================
-  const getRideOptions = useCallback(async () => {
-    if (!pickup || !drop) {
-      console.log('⚠️ getRideOptions: pickup or drop missing');
-      return;
-    }
-    console.log('🔵 getRideOptions called with:', { pickup, drop });
-    setIsGettingOptions(true);
-    try {
-      const response = await rideBooking.getRideOptions(pickup, drop);
-      console.log('🔵 getRideOptions response:', response);
-      if (response.success && response.data) {
-        const groups = response.data.options as unknown as RideTypeGroup[];
-        setRideTypeGroups(groups);
-
-        if (groups.length > 0 && groups[0].pickupToDropPolyline) {
-          const decoded = decodePolyline(groups[0].pickupToDropPolyline);
-          if (decoded.length >= 2) {
-            updateRoute(decoded);
-          }
-        }
-
-        if (groups.length > 0) {
-          setSelectedRideTypeGroup(groups[0]);
-          // Vehicle type will be set by the useEffect above
-        }
-
-        const allCoords = [
-          ...routeCoordinates,
-          pickup
-            ? { latitude: pickup.latitude, longitude: pickup.longitude }
-            : null,
-          drop ? { latitude: drop.latitude, longitude: drop.longitude } : null,
-        ].filter(Boolean) as RouteCoordinate[];
-
-        if (allCoords.length > 0 && mapRef.current) {
-          mapRef.current.fitToCoordinates(allCoords, {
-            edgePadding: { top: 120, right: 60, bottom: 340, left: 60 },
-            animated: true,
-          });
-        }
-        if (groups.length > 0) setShowRideModal(true);
-      } else {
-        Alert.alert('Error', response.message || 'Failed to get ride options');
-        setRideTypeGroups([]);
-      }
-    } catch (error) {
-      console.error('Get ride options error:', error);
-      Alert.alert('Error', 'Failed to get ride options.');
-    } finally {
-      setIsGettingOptions(false);
-    }
-  }, [pickup, drop, updateRoute, routeCoordinates]);
-
-  // ============================================================
   //  ✅ BOOKING FUNCTIONS
   //  ============================================================
-  const createBooking = useCallback(async () => {
-    if (!pickup || !drop || !selectedRideTypeGroup) {
-      Alert.alert('Error', 'Please select all required fields');
-      return;
-    }
-    setLoading(true);
-    setShowRideModal(false);
-    try {
-      const response = await rideBooking.createBooking(
-        selectedRideTypeGroup.rideType,
-        'ONLINE',
-      );
-      if (response.success && response.data) {
-        setBookingId(response.data.bookingId);
-        Alert.alert(
-          '✅ Booking Created!',
-          `Booking ID: ${response.data.bookingId}\nRide Type: ${selectedRideTypeGroup.rideType}\nFare: ₹${selectedRideTypeGroup.estimatedFare}`,
-        );
-        startPolling(response.data.bookingId);
-        navigation.navigate('Tracking', { bookingId: response.data.bookingId });
-      } else {
-        Alert.alert('Error', response.message || 'Failed to create booking');
-      }
-    } catch (error: any) {
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Failed to create booking.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [pickup, drop, selectedRideTypeGroup, navigation]);
-
   const startPolling = useCallback((id: string) => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -618,6 +664,71 @@ const BookingScreen: React.FC = () => {
       }
     }, 5000);
   }, []);
+
+  const createBooking = useCallback(async () => {
+    if (!pickup || !drop || !selectedRideTypeGroup) {
+      Alert.alert('Error', 'Please select all required fields');
+      return;
+    }
+
+    const quoteId = selectedRideTypeGroup.quoteId;
+    console.log('🔵 Creating booking with quoteId:', quoteId);
+
+    if (!quoteId) {
+      Alert.alert('Error', 'Quote expired. Please refresh ride options.');
+      return;
+    }
+
+    setLoading(true);
+    setShowRideModal(false);
+    try {
+      const response = await rideBooking.createBooking(quoteId, 'ONLINE');
+      if (response.success && response.data) {
+        setBookingId(response.data.bookingId);
+
+        let polyline = '';
+        if (selectedRideTypeGroup.pickupToDropPolyline) {
+          polyline = selectedRideTypeGroup.pickupToDropPolyline;
+          console.log(
+            '🗺️ [BookingScreen] Sending polyline to RideSearch:',
+            polyline.substring(0, 50) + '...',
+          );
+        }
+
+        const firstDriver = getFirstDriver(selectedRideTypeGroup);
+        const vehicleType =
+          firstDriver?.vehicleType || firstDriver?.vehicle || 'Sedan';
+        console.log('🚗 [BookingScreen] Vehicle type:', vehicleType);
+
+        navigation.navigate('RideSearch', {
+          bookingId: response.data.bookingId,
+          pickup: {
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+            address: pickup.address || pickupText,
+          },
+          drop: {
+            latitude: drop.latitude,
+            longitude: drop.longitude,
+            address: drop.address || dropText,
+          },
+          fare: selectedRideTypeGroup.estimatedFare,
+          rideType: selectedRideTypeGroup.rideType,
+          customerId: user?._id || '',
+          polyline: polyline,
+        });
+      } else {
+        Alert.alert('Error', response.message || 'Failed to create booking');
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to create booking.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [pickup, drop, selectedRideTypeGroup, navigation, startPolling, user]);
 
   const cancelBooking = useCallback(async () => {
     if (!bookingId) return;
@@ -739,9 +850,6 @@ const BookingScreen: React.FC = () => {
     liveTracking,
   ]);
 
-  // ============================================================
-  //  ✅ GROUP RIDE TYPES
-  //  ============================================================
   const groupedRideTypes = useMemo(() => {
     const grouped: Record<string, RideTypeGroup[]> = {};
     VEHICLE_CLASSES.forEach(cls => {
@@ -771,9 +879,6 @@ const BookingScreen: React.FC = () => {
     [groupedRideTypes],
   );
 
-  // ============================================================
-  //  ✅ GET DRIVER LOCATION
-  //  ============================================================
   const getDriverLocation = useCallback(() => {
     if (liveDriverLocation) {
       return liveDriverLocation;
@@ -792,9 +897,6 @@ const BookingScreen: React.FC = () => {
     return null;
   }, [liveDriverLocation, selectedRideTypeGroup]);
 
-  // ============================================================
-  //  ✅ MY LOCATION BUTTON
-  //  ============================================================
   const goToMyLocation = useCallback(async () => {
     try {
       const hasPermission = await requestLocationPermission();
@@ -821,19 +923,15 @@ const BookingScreen: React.FC = () => {
     }
   }, []);
 
-  // ============================================================
-  //  ✅ RENDER
-  //  ============================================================
   const driver = selectedRideTypeGroup
     ? getFirstDriver(selectedRideTypeGroup)
     : null;
 
-  // ✅ Get driver's vehicle type from selected ride
   const getDriverVehicleType = () => {
     if (driver) {
-      return driver.vehicleType || driver.vehicle || 'Car';
+      return driver.vehicleType || driver.vehicle || 'Sedan';
     }
-    return selectedVehicleType || 'Car';
+    return selectedVehicleType || 'Sedan';
   };
 
   return (
@@ -865,7 +963,6 @@ const BookingScreen: React.FC = () => {
             console.log('Map ready');
           }}
         >
-          {/* ✅ SIMPLE POLYLINE - NO FADE ANIMATION */}
           {routeCoordinates.length > 0 && (
             <AnimatedRoute
               coordinates={routeCoordinates}
@@ -875,7 +972,6 @@ const BookingScreen: React.FC = () => {
             />
           )}
 
-          {/* ✅ DRIVER MARKER WITH VEHICLE TYPE IMAGE */}
           {driver && (
             <DriverMarker
               driver={driver}
@@ -1051,11 +1147,10 @@ const BookingScreen: React.FC = () => {
         onTabChange={setActiveClassTab}
         onSelectGroup={group => {
           setSelectedRideTypeGroup(group);
-          // ✅ Update vehicle type when user selects a ride
           const firstDriver = getFirstDriver(group);
           if (firstDriver) {
             const vehicleType =
-              firstDriver.vehicleType || firstDriver.vehicle || 'Car';
+              firstDriver.vehicleType || firstDriver.vehicle || 'Sedan';
             setSelectedVehicleType(vehicleType);
             console.log('🚗 Ride selected, vehicle type:', vehicleType);
           }
@@ -1145,18 +1240,9 @@ const BookingScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-    backgroundColor: COLORS.bg,
-  },
-  map: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  mapContainer: { flex: 1, position: 'relative', backgroundColor: COLORS.bg },
+  map: { flex: 1 },
   changeLocationButton: {
     position: 'absolute',
     top: 16,
@@ -1177,11 +1263,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     zIndex: 10,
   },
-  changeLocationText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.ink,
-  },
+  changeLocationText: { fontSize: 12, fontWeight: '600', color: COLORS.ink },
   backButton: {
     position: 'absolute',
     top: 16,
@@ -1385,17 +1467,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  liveText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '700',
-  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
+  liveText: { color: '#FFFFFF', fontSize: 8, fontWeight: '700' },
 });
 
 export default BookingScreen;

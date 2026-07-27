@@ -16,6 +16,7 @@ export const COLORS = {
   textSecondary: '#6C6E7B',
   textMuted: '#A0A2AD',
   white: '#FFFFFF',
+  warning: '#ffcc00',
   danger: '#E5432E',
   dangerMuted: 'rgba(229, 67, 46, 0.08)',
 };

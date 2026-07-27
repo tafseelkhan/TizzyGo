@@ -1,6 +1,5 @@
-// ProductInfo.tsx - FIXED TYPESCRIPT ERRORS
-
-import React, { useState, useEffect, useCallback } from 'react';
+// ProductInfo.tsx - FINAL COMPLETE FIXED VERSION
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,22 +23,22 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // Import your existing services and hooks
-import { useProduct } from '../../../hooks/useProducts';
+import { useProduct } from '../../../../hooks/useProducts';
 import {
   fetchRatingStats,
   fetchReviews,
   RatingStats,
   Review,
-} from '../../../../api/features/private/getRatingReviewPrivateSlice';
+} from '../../../../../api/features/private/getRatingReviewPrivateSlice';
 
 // Import your components
-import LikeComponent from '../global/LikeGlobal';
-import CommentComponent from '../global/CommentGlobal';
-import ShareWithStats from '../global/ShareGlobal';
-import RatingReviewSystem from '../global/RatingGlobal';
-import ProductHighlights from '../../../mappings/Icons';
-import { useUser } from '../../../contexts/auth/UserContext';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
+import LikeComponent from '../../global/LikeGlobal';
+import CommentComponent from '../../global/CommentGlobal';
+import ShareWithStats from '../../global/ShareGlobal';
+import RatingReviewSystem from '../../global/RatingGlobal';
+import ProductHighlights from '../../../../mappings/ProductHighlights';
+import { useUser } from '../../../../contexts/auth/UserContext';
+import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -919,15 +918,27 @@ const SelectedVariantInfo: React.FC<SelectedVariantInfoProps> = ({
   );
 };
 
-// ============= MAIN ProductInfo Component (REFACTORED) =============
+// ============= MAIN ProductInfo Component =============
 
 const ProductInfo: React.FC<any> = props => {
-  const { id: propId } = props;
+  const {
+    id: propId,
+    category,
+    variantName,
+    currentPrice,
+    originalPrice,
+    discount,
+    stock,
+    inStock,
+    isDark: propIsDark,
+  } = props;
 
   const { user } = useUser();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute();
-  const { isDark } = useTheme();
+  const { isDark: themeIsDark } = useTheme();
+
+  const isDark = propIsDark !== undefined ? propIsDark : themeIsDark;
 
   const params = (route.params as { productId?: string }) || {};
   const productId = params.productId || propId || null;
@@ -970,7 +981,7 @@ const ProductInfo: React.FC<any> = props => {
     }
   }, [product, selectedVariant]);
 
-  // ============ FETCH RATING & REVIEWS USING YOUR SERVICE ============
+  // ============ FETCH RATING & REVIEWS ============
   const loadRatingAndReviews = useCallback(async () => {
     if (!productId) return;
     setRatingLoading(true);
@@ -979,8 +990,8 @@ const ProductInfo: React.FC<any> = props => {
         fetchRatingStats(productId),
         fetchReviews(productId, 6),
       ]);
-      setRatingStats(stats);
-      setReviews(reviewsData || []);
+      if (stats) setRatingStats(stats);
+      if (reviewsData) setReviews(reviewsData);
     } catch (error) {
       console.error('Error loading rating/reviews:', error);
     } finally {
@@ -1022,7 +1033,7 @@ const ProductInfo: React.FC<any> = props => {
   const getDisplayInStock = (): boolean => {
     if (selectedVariant) return getVariantInStock(selectedVariant);
     if (product?.inStock !== undefined) return product.inStock;
-    return false;
+    return inStock || false;
   };
 
   const averageRating =
@@ -1068,7 +1079,7 @@ const ProductInfo: React.FC<any> = props => {
     );
   }
 
-  // ============ MAIN RENDER ============
+  // ============ MAIN RENDER with safe fallbacks ============
   return (
     <SafeAreaView style={dynamicStyles.mainContainer}>
       <ScrollView
@@ -1098,9 +1109,9 @@ const ProductInfo: React.FC<any> = props => {
           />
 
           <VariantSelector
-            variantOptions={product.variantOptions}
-            variantValues={product.variantValues}
-            variants={product.variants}
+            variantOptions={product.variantOptions || []}
+            variantValues={product.variantValues || {}}
+            variants={product.variants || []}
             selectedVariant={selectedVariant}
             onVariantSelect={handleVariantSelect}
             isDark={isDark}
@@ -1145,7 +1156,7 @@ const ProductInfo: React.FC<any> = props => {
           <RatingSection
             averageRating={averageRating}
             reviewCount={reviewCount}
-            reviews={reviews}
+            reviews={reviews || []}
             onAvatarClick={handleAvatarGroupClick}
             onRatingClick={handleRatingClick}
             isDark={isDark}
@@ -1161,7 +1172,7 @@ const ProductInfo: React.FC<any> = props => {
 
           <ActionButtons
             productId={product.id || product._id || ''}
-            category={product.category}
+            category={product.category || ''}
             currentUserId={currentUserId}
             productTitle={product.title || ''}
             inStock={displayInStock}
@@ -1228,8 +1239,6 @@ const ProductInfo: React.FC<any> = props => {
 };
 
 // =============== STYLE FUNCTIONS ===============
-// Keep all your existing style functions (StockStatusStyles, ProtectPromiseStyles, etc.)
-// ... (they remain exactly the same as in your original code)
 
 const getDynamicStyles = (isDark: boolean) =>
   StyleSheet.create({
@@ -1343,8 +1352,7 @@ const getDynamicStyles = (isDark: boolean) =>
     modalScroll: { flex: 1, padding: 16 },
   });
 
-// Keep all your existing style functions (StockStatusStyles, ProtectPromiseStyles, InstructionsStyles, TizzyChatStyles, ProductHeaderStyles, PriceDisplayStyles, VariantSelectorStyles, SelectedVariantInfoStyles, RatingSectionStyles, ActionButtonsStyles)
-// They remain exactly the same as in your original code...
+// =============== STYLE FUNCTIONS ===============
 
 const StockStatusStyles = (isDark: boolean) =>
   StyleSheet.create({
@@ -1565,7 +1573,6 @@ const InstructionsStyles = (isDark: boolean) =>
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       padding: 12,
       justifyContent: 'center',
-      left: 65,
       alignItems: 'center',
     },
     instructionIcon: {

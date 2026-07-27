@@ -1,4 +1,4 @@
-// src/screens/PaymentStep.tsx (Refactored - Clean version)
+// src/screens/PaymentStep.tsx - FINAL WITH SAFE AREA
 import React from 'react';
 import {
   View,
@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -18,7 +20,6 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { usePayment } from '../../../hooks/usePayments';
-import * as paymentUtils from '../../../utils/buyers/shop/paymentUtils';
 
 interface PaymentStepProps {
   checkoutData: any;
@@ -31,6 +32,7 @@ interface PaymentStepProps {
 }
 
 const AIRCLOUD_LOGO = require('../../../../assets/images/aircloud.png');
+const RAZORPAY_LOGO = require('../../../../assets/images/razorpay.png');
 
 const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   checkoutData,
@@ -40,8 +42,8 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   onOrderConfirmed,
   onPaymentMethodChange,
 }) => {
-  const navigation = useNavigation<any>();
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const {
     loading,
@@ -50,11 +52,12 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
     checkoutSessionCreated,
     paymentSheetData,
     isVerified,
-    health,
-    openZeptPayPaymentSheet,
     handlePaymentMethodChange,
     handlePayment,
     isCodAvailable,
+    createCheckoutSession,
+    sessionError,
+    isCreatingSession,
   } = usePayment({
     product,
     calculatedData,
@@ -64,169 +67,111 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   });
 
   const buttonScale = React.useRef(new Animated.Value(1)).current;
-  const cardElevation = React.useRef(new Animated.Value(0)).current;
 
-  const totalPayable = paymentUtils.getTotalPayable(calculatedData);
-  const buttonText = paymentUtils.getButtonText(paymentMethod, calculatedData);
-  const isButtonDisabled = paymentUtils.isPaymentButtonDisabled(
-    loading,
-    paymentProcessing,
-    externalLoading,
-    paymentMethod,
-    isVerified,
-    paymentSheetData,
-    openZeptPayPaymentSheet,
-  );
+  const totalPayable = calculatedData?.grandTotal || 0;
+
+  const isButtonDisabled =
+    loading ||
+    paymentProcessing ||
+    externalLoading ||
+    !checkoutSessionCreated ||
+    (paymentMethod === 'online' && !isVerified);
 
   return (
-    <ScrollView
+    <SafeAreaView
       style={[
-        styles.container,
+        styles.safeArea,
         { backgroundColor: isDark ? '#0f172a' : '#ffffff' },
       ]}
-      showsVerticalScrollIndicator={false}
     >
-      {/* Header - Same as before */}
-      <View
-        style={[
-          styles.brandHeader,
-          { backgroundColor: isDark ? '#1e293b' : '#fff' },
-        ]}
-      >
-        <View style={styles.tizzygoHeader}>
-          <Image
-            source={AIRCLOUD_LOGO}
-            style={styles.aircloudLogo}
-            resizeMode="contain"
-          />
-          <View>
-            <Text
-              style={[
-                styles.tizzygoBrandText,
-                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-              ]}
-            >
-              AirCloud
-            </Text>
-            <Text
-              style={[
-                styles.tizzygoTagline,
-                { color: isDark ? '#94a3b8' : '#64748b' },
-              ]}
-            >
-              Superfast Delivery
-            </Text>
-          </View>
-        </View>
-      </View>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={isDark ? '#0f172a' : '#ffffff'}
+      />
 
-      {/* ZeptPay Status Badge */}
-      <View
+      <ScrollView
         style={[
-          styles.secureTransactionBadge,
-          { backgroundColor: isDark ? '#1e293b' : '#f0f7ff' },
+          styles.container,
+          { backgroundColor: isDark ? '#0f172a' : '#ffffff' },
         ]}
-      >
-        <Icon name="verified" size={14} color="#10b981" />
-        <Text
-          style={[
-            styles.secureTransactionText,
-            { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-          ]}
-        >
-          {paymentMethod === 'online'
-            ? `ZeptPay • ${health?.mode?.toUpperCase() || 'TEST'} Mode`
-            : 'COD Payment'}
-        </Text>
-        {paymentMethod === 'online' && (
-          <View
-            style={[
-              styles.trustedBadge,
-              { backgroundColor: isVerified ? '#10b981' : '#94a3b8' },
-            ]}
-          >
-            <FontAwesome name="shield" size={10} color="#fff" />
-            <Text style={styles.trustedBadgeText}>
-              {isVerified
-                ? 'Verified'
-                : health?.status === 'verifying'
-                ? 'Verifying...'
-                : 'Unverified'}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Order Summary */}
-      <Animated.View
-        style={[
-          styles.section,
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
           {
-            backgroundColor: isDark ? '#1e293b' : '#fff',
-            elevation: cardElevation,
+            paddingBottom: insets.bottom + 100,
+            paddingTop: insets.top || 8,
           },
         ]}
       >
-        <View style={styles.sectionHeader}>
-          <Icon
-            name="receipt"
-            size={18}
-            color={isDark ? '#8b5cf6' : '#635BFF'}
-          />
+        {/* Header */}
+        <View
+          style={[
+            styles.brandHeader,
+            { backgroundColor: isDark ? '#1e293b' : '#fff' },
+          ]}
+        >
+          <View style={styles.tizzygoHeader}>
+            <Image
+              source={AIRCLOUD_LOGO}
+              style={styles.aircloudLogo}
+              resizeMode="contain"
+            />
+            <View>
+              <Text
+                style={[
+                  styles.tizzygoBrandText,
+                  { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                ]}
+              >
+                AirCloud
+              </Text>
+              <Text
+                style={[
+                  styles.tizzygoTagline,
+                  { color: isDark ? '#94a3b8' : '#64748b' },
+                ]}
+              >
+                Superfast Delivery
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Gateway Status Badge */}
+        <View
+          style={[
+            styles.secureTransactionBadge,
+            { backgroundColor: isDark ? '#1e293b' : '#f0f7ff' },
+          ]}
+        >
+          <Icon name="verified" size={14} color="#10b981" />
           <Text
             style={[
-              styles.sectionTitle,
+              styles.secureTransactionText,
               { color: isDark ? '#e2e8f0' : '#1a1a1a' },
             ]}
           >
-            Order Summary
+            {paymentMethod === 'online'
+              ? 'Razorpay • LIVE Mode'
+              : 'COD Payment'}
           </Text>
+          {paymentMethod === 'online' && (
+            <View
+              style={[
+                styles.trustedBadge,
+                { backgroundColor: isVerified ? '#10b981' : '#94a3b8' },
+              ]}
+            >
+              <FontAwesome name="shield" size={10} color="#fff" />
+              <Text style={styles.trustedBadgeText}>
+                {isVerified ? 'Ready' : 'Initializing'}
+              </Text>
+            </View>
+          )}
         </View>
-        {product && (
-          <View style={styles.productSummary}>
-            <Text
-              style={[
-                styles.productName,
-                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-              ]}
-            >
-              {product.title}
-            </Text>
-            <Text
-              style={[
-                styles.productQuantity,
-                { color: isDark ? '#94a3b8' : '#666' },
-              ]}
-            >
-              Quantity: {checkoutData.quantity}
-            </Text>
-          </View>
-        )}
-        {calculatedData && (
-          <View style={styles.finalTotalContainer}>
-            <Text
-              style={[
-                styles.finalTotalLabel,
-                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-              ]}
-            >
-              Total Payable:
-            </Text>
-            <Text
-              style={[
-                styles.finalTotalValue,
-                { color: isDark ? '#8b5cf6' : '#635BFF' },
-              ]}
-            >
-              ₹{paymentUtils.formatPrice(totalPayable)}
-            </Text>
-          </View>
-        )}
-      </Animated.View>
 
-      {/* Payment Method Selection - Same UI */}
-      {isCodAvailable && (
-        <Animated.View
+        {/* Order Summary */}
+        <View
           style={[
             styles.section,
             { backgroundColor: isDark ? '#1e293b' : '#fff' },
@@ -234,7 +179,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
         >
           <View style={styles.sectionHeader}>
             <Icon
-              name="payment"
+              name="receipt"
               size={18}
               color={isDark ? '#8b5cf6' : '#635BFF'}
             />
@@ -244,466 +189,527 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                 { color: isDark ? '#e2e8f0' : '#1a1a1a' },
               ]}
             >
-              Select Payment Method
+              Order Summary
             </Text>
           </View>
-          <View style={styles.paymentMethodContainer}>
-            {/* Online Payment Option */}
+          {product && (
+            <View style={styles.productSummary}>
+              <Text
+                style={[
+                  styles.productName,
+                  { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                ]}
+              >
+                {product.title}
+              </Text>
+              <Text
+                style={[
+                  styles.productQuantity,
+                  { color: isDark ? '#94a3b8' : '#666' },
+                ]}
+              >
+                Quantity: {checkoutData.quantity}
+              </Text>
+            </View>
+          )}
+          {calculatedData && (
+            <View style={styles.finalTotalContainer}>
+              <Text
+                style={[
+                  styles.finalTotalLabel,
+                  { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                ]}
+              >
+                Total Payable:
+              </Text>
+              <Text
+                style={[
+                  styles.finalTotalValue,
+                  { color: isDark ? '#8b5cf6' : '#635BFF' },
+                ]}
+              >
+                ₹{totalPayable}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* SESSION ERROR / RETRY SECTION */}
+        {(!checkoutSessionCreated || sessionError) && (
+          <View
+            style={[
+              styles.sessionErrorContainer,
+              { backgroundColor: isDark ? '#1e293b' : '#fff' },
+            ]}
+          >
+            <View style={styles.sessionErrorContent}>
+              <Icon name="error-outline" size={24} color="#DC2626" />
+              <Text style={styles.sessionErrorText}>
+                {sessionError || 'Payment session not ready'}
+              </Text>
+              <TouchableOpacity
+                style={styles.sessionRetryButton}
+                onPress={createCheckoutSession}
+                disabled={isCreatingSession}
+              >
+                {isCreatingSession ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Icon name="refresh" size={16} color="#fff" />
+                    <Text style={styles.sessionRetryText}>Retry</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Payment Method Selection */}
+        {isCodAvailable && (
+          <View
+            style={[
+              styles.section,
+              { backgroundColor: isDark ? '#1e293b' : '#fff' },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <Icon
+                name="payment"
+                size={18}
+                color={isDark ? '#8b5cf6' : '#635BFF'}
+              />
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                ]}
+              >
+                Select Payment Method
+              </Text>
+            </View>
+            <View style={styles.paymentMethodContainer}>
+              {/* Razorpay Online Payment */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodCard,
+                  {
+                    backgroundColor: isDark ? '#334155' : '#f8fafc',
+                    borderColor:
+                      paymentMethod === 'online'
+                        ? isDark
+                          ? '#3B82F6'
+                          : '#2563EB'
+                        : isDark
+                          ? '#475569'
+                          : '#e2e8f0',
+                  },
+                ]}
+                onPress={() => handlePaymentMethodChange('online')}
+              >
+                <View style={styles.paymentMethodHeader}>
+                  <View style={styles.paymentMethodLogo}>
+                    <Image
+                      source={RAZORPAY_LOGO}
+                      style={styles.razorpayLogo}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      style={[
+                        styles.paymentMethodText,
+                        { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                      ]}
+                    >
+                      Pay Online (Razorpay)
+                    </Text>
+                  </View>
+                  {paymentMethod === 'online' && (
+                    <View
+                      style={[
+                        styles.selectedIndicator,
+                        { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.paymentMethodIcons}>
+                  <FontAwesome5 name="cc-visa" size={14} color="#94a3b8" />
+                  <FontAwesome5
+                    name="cc-mastercard"
+                    size={14}
+                    color="#94a3b8"
+                  />
+                  <Icon name="account-balance" size={14} color="#94a3b8" />
+                  <FontAwesome name="google-wallet" size={14} color="#94a3b8" />
+                </View>
+                <View style={styles.razorpayBadgeContainer}>
+                  <View style={styles.razorpayBadge}>
+                    <FontAwesome name="shield" size={10} color="#fff" />
+                    <Text style={styles.razorpayBadgeText}>
+                      SECURE • PCI DSS COMPLIANT
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* COD Option */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodCard,
+                  {
+                    backgroundColor: isDark ? '#334155' : '#f8fafc',
+                    borderColor:
+                      paymentMethod === 'cod'
+                        ? isDark
+                          ? '#8b5cf6'
+                          : '#635BFF'
+                        : isDark
+                          ? '#475569'
+                          : '#e2e8f0',
+                  },
+                ]}
+                onPress={() => handlePaymentMethodChange('cod')}
+              >
+                <View style={styles.paymentMethodHeader}>
+                  <View style={styles.paymentMethodLogo}>
+                    <View
+                      style={[styles.codIcon, { backgroundColor: '#10b981' }]}
+                    >
+                      <Icon name="money" size={14} color="#fff" />
+                    </View>
+                    <Text
+                      style={[
+                        styles.paymentMethodText,
+                        { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                      ]}
+                    >
+                      Cash on Delivery
+                    </Text>
+                  </View>
+                  {paymentMethod === 'cod' && (
+                    <View
+                      style={[
+                        styles.selectedIndicator,
+                        { backgroundColor: isDark ? '#8b5cf6' : '#635BFF' },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.codBadgeContainer}>
+                  <View style={styles.codBadge}>
+                    <MaterialCommunityIcons
+                      name="cash-check"
+                      size={12}
+                      color="#fff"
+                    />
+                    <Text style={styles.codBadgeText}>PAY ON DELIVERY</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Payment Details */}
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: isDark ? '#1e293b' : '#fff' },
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            {paymentMethod === 'online' ? (
+              <Icon
+                name="credit-card"
+                size={18}
+                color={isDark ? '#3B82F6' : '#2563EB'}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name="cash-multiple"
+                size={18}
+                color={isDark ? '#8b5cf6' : '#635BFF'}
+              />
+            )}
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+              ]}
+            >
+              {paymentMethod === 'online'
+                ? 'Payment via Razorpay'
+                : 'COD Confirmation'}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.paymentInfoCard,
+              { backgroundColor: isDark ? '#334155' : '#f8fafc' },
+            ]}
+          >
+            {paymentMethod === 'online' ? (
+              <>
+                <View style={styles.paymentMethodHeader}>
+                  <View style={styles.paymentMethodLogo}>
+                    <Image
+                      source={RAZORPAY_LOGO}
+                      style={styles.razorpayLogoLarge}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      style={[
+                        styles.paymentMethodText,
+                        { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                      ]}
+                    >
+                      Razorpay Secure Payment
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.secureBadge,
+                      { backgroundColor: isVerified ? '#10b981' : '#94a3b8' },
+                    ]}
+                  >
+                    <Icon name="lock" size={10} color="#fff" />
+                    <Text style={styles.secureBadgeText}>
+                      {isVerified ? 'Secure' : 'Connecting...'}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={[
+                    styles.paymentDescription,
+                    { color: isDark ? '#cbd5e1' : '#64748b' },
+                  ]}
+                >
+                  Secure payment via Razorpay. Accepts Credit/Debit Cards, UPI,
+                  Net Banking & Wallets.
+                </Text>
+
+                {paymentSheetData && isVerified && (
+                  <View
+                    style={[
+                      styles.successContainer,
+                      { backgroundColor: isDark ? '#1e293b' : '#f0fdf4' },
+                    ]}
+                  >
+                    <Icon name="check-circle" size={14} color="#10b981" />
+                    <Text
+                      style={[
+                        styles.successText,
+                        { color: isDark ? '#e2e8f0' : '#10b981' },
+                      ]}
+                    >
+                      Ready to pay ₹{paymentSheetData.grandTotal} via Razorpay
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={styles.paymentMethodHeader}>
+                  <View style={styles.paymentMethodLogo}>
+                    <View
+                      style={[
+                        styles.codIconLarge,
+                        { backgroundColor: '#10b981' },
+                      ]}
+                    >
+                      <Icon name="money" size={16} color="#fff" />
+                    </View>
+                    <Text
+                      style={[
+                        styles.paymentMethodText,
+                        { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+                      ]}
+                    >
+                      Cash on Delivery
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.paymentDescription,
+                    { color: isDark ? '#cbd5e1' : '#64748b' },
+                  ]}
+                >
+                  Pay ₹{totalPayable} when your item is delivered.
+                </Text>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Pay Button */}
+        <View
+          style={[
+            styles.payButtonWrapper,
+            {
+              paddingBottom: Math.max(insets.bottom, 16),
+              paddingHorizontal: 16,
+            },
+          ]}
+        >
+          <Animated.View
+            style={{ transform: [{ scale: buttonScale }], width: '100%' }}
+          >
             <TouchableOpacity
               style={[
-                styles.paymentMethodCard,
+                styles.payButton,
                 {
-                  backgroundColor: isDark ? '#334155' : '#f8fafc',
-                  borderColor:
+                  backgroundColor:
                     paymentMethod === 'online'
                       ? isDark
                         ? '#3B82F6'
                         : '#2563EB'
                       : isDark
-                      ? '#475569'
-                      : '#e2e8f0',
-                },
-              ]}
-              onPress={() => handlePaymentMethodChange('online')}
-            >
-              <View style={styles.paymentMethodHeader}>
-                <View style={styles.paymentMethodLogo}>
-                  <View style={styles.zeptpayLogoContainer}>
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: '#60A5FA' },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: '#93C5FD' },
-                      ]}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.paymentMethodText,
-                      { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-                    ]}
-                  >
-                    Pay Online
-                  </Text>
-                </View>
-                {paymentMethod === 'online' && (
-                  <View
-                    style={[
-                      styles.selectedIndicator,
-                      { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
-                    ]}
-                  >
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  </View>
-                )}
-              </View>
-              <View style={styles.paymentMethodIcons}>
-                <FontAwesome5
-                  name="cc-visa"
-                  size={14}
-                  color={isDark ? '#cbd5e1' : '#1a1a1a'}
-                />
-                <FontAwesome5
-                  name="cc-mastercard"
-                  size={14}
-                  color={isDark ? '#cbd5e1' : '#1a1a1a'}
-                />
-                <Icon
-                  name="account-balance"
-                  size={14}
-                  color={isDark ? '#cbd5e1' : '#1a1a1a'}
-                />
-                <FontAwesome
-                  name="google-wallet"
-                  size={14}
-                  color={isDark ? '#cbd5e1' : '#1a1a1a'}
-                />
-              </View>
-            </TouchableOpacity>
-
-            {/* COD Option */}
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                {
-                  backgroundColor: isDark ? '#334155' : '#f8fafc',
-                  borderColor:
-                    paymentMethod === 'cod'
-                      ? isDark
                         ? '#8b5cf6'
-                        : '#635BFF'
-                      : isDark
-                      ? '#475569'
-                      : '#e2e8f0',
+                        : '#635BFF',
                 },
+                isButtonDisabled && styles.disabledButton,
               ]}
-              onPress={() => handlePaymentMethodChange('cod')}
+              onPress={handlePayment}
+              onPressIn={() =>
+                Animated.spring(buttonScale, {
+                  toValue: 0.95,
+                  useNativeDriver: true,
+                }).start()
+              }
+              onPressOut={() =>
+                Animated.spring(buttonScale, {
+                  toValue: 1,
+                  useNativeDriver: true,
+                }).start()
+              }
+              disabled={isButtonDisabled}
             >
-              <View style={styles.paymentMethodHeader}>
-                <View style={styles.paymentMethodLogo}>
-                  <View
-                    style={[styles.codIcon, { backgroundColor: '#10b981' }]}
-                  >
-                    <Icon name="money" size={14} color="#fff" />
-                  </View>
-                  <Text
-                    style={[
-                      styles.paymentMethodText,
-                      { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-                    ]}
-                  >
-                    Cash on Delivery
-                  </Text>
-                </View>
-                {paymentMethod === 'cod' && (
-                  <View
-                    style={[
-                      styles.selectedIndicator,
-                      { backgroundColor: isDark ? '#8b5cf6' : '#635BFF' },
-                    ]}
-                  >
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  </View>
+              <View style={styles.payButtonContent}>
+                {loading || paymentProcessing || externalLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <View style={styles.lockIcon}>
+                      {paymentMethod === 'online' ? (
+                        <Icon name="lock" size={20} color="#fff" />
+                      ) : (
+                        <Icon name="money" size={20} color="#fff" />
+                      )}
+                    </View>
+                    <View style={styles.buttonTextContainer}>
+                      <Text style={styles.payButtonMainText}>
+                        {paymentMethod === 'online'
+                          ? `Pay ₹${totalPayable} via Razorpay`
+                          : `Confirm COD Order`}
+                      </Text>
+                      <Text style={styles.payButtonSubText}>
+                        {paymentMethod === 'online'
+                          ? 'Securely via Razorpay'
+                          : 'Pay on delivery'}
+                      </Text>
+                    </View>
+                  </>
                 )}
               </View>
-              <View style={styles.codBadgeContainer}>
-                <View style={styles.codBadge}>
-                  <MaterialCommunityIcons
-                    name="cash-check"
-                    size={12}
-                    color="#fff"
-                  />
-                  <Text style={styles.codBadgeText}>PAY ON DELIVERY</Text>
-                </View>
-              </View>
             </TouchableOpacity>
-          </View>
-        </Animated.View>
-      )}
+          </Animated.View>
+        </View>
 
-      {/* Payment Details - Same UI */}
-      <Animated.View
-        style={[
-          styles.section,
-          { backgroundColor: isDark ? '#1e293b' : '#fff' },
-        ]}
-      >
-        <View style={styles.sectionHeader}>
-          {paymentMethod === 'online' ? (
+        {/* Address Section */}
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: isDark ? '#1e293b' : '#fff' },
+          ]}
+        >
+          <View style={styles.sectionHeader}>
             <Icon
-              name="credit-card"
-              size={18}
-              color={isDark ? '#3B82F6' : '#2563EB'}
-            />
-          ) : (
-            <MaterialCommunityIcons
-              name="cash-multiple"
+              name="location-on"
               size={18}
               color={isDark ? '#8b5cf6' : '#635BFF'}
             />
-          )}
-          <Text
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+              ]}
+            >
+              Delivery Address
+            </Text>
+          </View>
+          <View
             style={[
-              styles.sectionTitle,
-              { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+              styles.addressContainer,
+              { backgroundColor: isDark ? '#334155' : '#f8fafc' },
             ]}
           >
-            {paymentMethod === 'online'
-              ? 'Payment Details'
-              : 'COD Confirmation'}
-          </Text>
+            <Text
+              style={[
+                styles.addressText,
+                { color: isDark ? '#e2e8f0' : '#1a1a1a' },
+              ]}
+            >
+              {checkoutData.shippingAddress?.address}
+            </Text>
+          </View>
         </View>
 
-        <View
-          style={[
-            styles.paymentInfoCard,
-            { backgroundColor: isDark ? '#334155' : '#f8fafc' },
-          ]}
-        >
-          {paymentMethod === 'online' ? (
-            <>
-              <View style={styles.paymentMethodHeader}>
-                <View style={styles.paymentMethodLogo}>
-                  <View style={styles.zeptpayLogoContainer}>
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: '#60A5FA' },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.zeptpayDot,
-                        { backgroundColor: '#93C5FD' },
-                      ]}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.paymentMethodText,
-                      { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-                    ]}
-                  >
-                    ZeptPay Secure Payment
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.secureBadge,
-                    { backgroundColor: isVerified ? '#10b981' : '#94a3b8' },
-                  ]}
-                >
-                  <Icon name="lock" size={10} color="#fff" />
-                  <Text style={styles.secureBadgeText}>
-                    {isVerified
-                      ? 'Secure'
-                      : health?.status === 'verifying'
-                      ? 'Verifying'
-                      : 'Unverified'}
-                  </Text>
-                </View>
+        {/* Footer */}
+        <View style={[styles.section, styles.verticalBrandFooter]}>
+          <View style={styles.verticalBrandSection}>
+            <View style={styles.tizzygoVerticalBrand}>
+              <Image
+                source={AIRCLOUD_LOGO}
+                style={styles.tizzygoFooterLogo}
+                resizeMode="contain"
+              />
+              <View>
+                <Text style={styles.tizzygoFooterBrandText}>AirCloud</Text>
+                <Text style={styles.tizzygoFooterTagline}>
+                  Superfast Delivery
+                </Text>
               </View>
-
-              <Text
-                style={[
-                  styles.paymentDescription,
-                  { color: isDark ? '#cbd5e1' : '#64748b' },
-                ]}
-              >
-                Secure payment via ZeptPay. Accepts cards, UPI, net banking &
-                wallets.
-              </Text>
-
-              {paymentSheetData && isVerified && (
-                <View
-                  style={[
-                    styles.successContainer,
-                    { backgroundColor: isDark ? '#1e293b' : '#f0fdf4' },
-                  ]}
-                >
-                  <Icon name="check-circle" size={14} color="#10b981" />
-                  <Text
-                    style={[
-                      styles.successText,
-                      { color: isDark ? '#e2e8f0' : '#10b981' },
-                    ]}
-                  >
-                    Ready to pay ₹{paymentSheetData.grandTotal} via ZeptPay
-                    {paymentSheetData.paymentType === 'qr' && ' (QR Code)'}
-                    {paymentSheetData.paymentType === 'autopay' && ' (AutoPay)'}
-                  </Text>
-                </View>
-              )}
-            </>
-          ) : (
-            <>
-              <View style={styles.paymentMethodHeader}>
-                <View style={styles.paymentMethodLogo}>
-                  <View
-                    style={[
-                      styles.codIconLarge,
-                      { backgroundColor: '#10b981' },
-                    ]}
-                  >
-                    <Icon name="money" size={16} color="#fff" />
-                  </View>
-                  <Text
-                    style={[
-                      styles.paymentMethodText,
-                      { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-                    ]}
-                  >
-                    Cash on Delivery
-                  </Text>
-                </View>
-              </View>
-              <Text
-                style={[
-                  styles.paymentDescription,
-                  { color: isDark ? '#cbd5e1' : '#64748b' },
-                ]}
-              >
-                Pay ₹{paymentUtils.formatPrice(calculatedData?.grandTotal || 0)}{' '}
-                when your item is delivered.
-              </Text>
-            </>
-          )}
-        </View>
-      </Animated.View>
-
-      {/* Pay Button */}
-      <View
-        style={[
-          styles.section,
-          { backgroundColor: isDark ? '#1e293b' : '#fff' },
-        ]}
-      >
-        <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-          <TouchableOpacity
-            style={[
-              styles.payButton,
-              {
-                backgroundColor:
-                  paymentMethod === 'online'
-                    ? isDark
-                      ? '#3B82F6'
-                      : '#2563EB'
-                    : isDark
-                    ? '#8b5cf6'
-                    : '#635BFF',
-              },
-              isButtonDisabled && styles.disabledButton,
-            ]}
-            onPress={handlePayment}
-            onPressIn={() =>
-              Animated.spring(buttonScale, {
-                toValue: 0.95,
-                useNativeDriver: true,
-              }).start()
-            }
-            onPressOut={() =>
-              Animated.spring(buttonScale, {
-                toValue: 1,
-                useNativeDriver: true,
-              }).start()
-            }
-            disabled={isButtonDisabled}
-          >
-            <View style={styles.payButtonContent}>
-              {loading || paymentProcessing || externalLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <View style={styles.lockIcon}>
-                    {paymentMethod === 'online' ? (
-                      <Icon name="lock" size={20} color="#fff" />
-                    ) : (
-                      <Icon name="money" size={20} color="#fff" />
-                    )}
-                  </View>
-                  <View style={styles.buttonTextContainer}>
-                    <Text style={styles.payButtonMainText}>{buttonText}</Text>
-                    <Text style={styles.payButtonSubText}>
-                      {paymentMethod === 'online'
-                        ? 'Securely via ZeptPay'
-                        : 'Pay on delivery'}
-                    </Text>
-                  </View>
-                </>
-              )}
             </View>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-
-      {/* Address Section */}
-      <Animated.View
-        style={[
-          styles.section,
-          { backgroundColor: isDark ? '#1e293b' : '#fff' },
-        ]}
-      >
-        <View style={styles.sectionHeader}>
-          <Icon
-            name="location-on"
-            size={18}
-            color={isDark ? '#8b5cf6' : '#635BFF'}
-          />
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-            ]}
-          >
-            Delivery Address
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.addressContainer,
-            { backgroundColor: isDark ? '#334155' : '#f8fafc' },
-          ]}
-        >
-          <Text
-            style={[
-              styles.addressText,
-              { color: isDark ? '#e2e8f0' : '#1a1a1a' },
-            ]}
-          >
-            {checkoutData.shippingAddress?.address}
-          </Text>
-        </View>
-      </Animated.View>
-
-      {/* Footer */}
-      <View style={[styles.section, styles.verticalBrandFooter]}>
-        <View style={styles.verticalBrandSection}>
-          <View style={styles.tizzygoVerticalBrand}>
-            <Image
-              source={AIRCLOUD_LOGO}
-              style={styles.tizzygoFooterLogo}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.tizzygoFooterBrandText}>AirCloud</Text>
-              <Text style={styles.tizzygoFooterTagline}>
-                Superfast Delivery
-              </Text>
+          </View>
+          <View style={styles.verticalSeparator} />
+          <View style={styles.verticalBrandSection}>
+            <View style={styles.razorpayVerticalBrand}>
+              <Image
+                source={RAZORPAY_LOGO}
+                style={styles.razorpayFooterLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.razorpayVerticalText}>Razorpay</Text>
+              <Text style={styles.razorpayPartnerText}>Payment Partner</Text>
+              <View style={styles.razorpaySecureBadge}>
+                <FontAwesome name="shield" size={10} color="#fff" />
+                <Text style={styles.razorpaySecureText}>SECURE</Text>
+              </View>
             </View>
           </View>
         </View>
-        <View style={styles.verticalSeparator} />
-        <View style={styles.verticalBrandSection}>
-          <View style={styles.zeptpayVerticalBrand}>
-            <View style={styles.zeptpayVerticalLogo}>
-              <View
-                style={[
-                  styles.zeptpayVerticalDot,
-                  { backgroundColor: '#3B82F6' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.zeptpayVerticalDot,
-                  { backgroundColor: '#60A5FA' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.zeptpayVerticalDot,
-                  { backgroundColor: '#93C5FD' },
-                ]}
-              />
-            </View>
-            <Text style={styles.zeptpayVerticalText}>ZeptPay</Text>
-            <Text style={styles.zeptpayPartnerText}>Payment Partner</Text>
-          </View>
-        </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
-// Keep all styles exactly as they were in the original file
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   brandHeader: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -782,15 +788,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   paymentMethodLogo: { flexDirection: 'row', alignItems: 'center' },
-  zeptpayLogoContainer: { flexDirection: 'row', marginRight: 8 },
-  zeptpayDot: { width: 6, height: 6, borderRadius: 3, marginRight: 2 },
+  razorpayLogo: { width: 24, height: 24, marginRight: 8 },
+  razorpayLogoLarge: { width: 28, height: 28, marginRight: 12 },
   paymentMethodText: { fontSize: 13, fontWeight: '700' },
   paymentMethodIcons: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
+  razorpayBadgeContainer: { marginTop: 4 },
+  razorpayBadge: {
+    backgroundColor: '#1a1a1a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  razorpayBadgeText: { fontSize: 9, color: '#fff', fontWeight: '700' },
   codIcon: {
     width: 20,
     height: 20,
@@ -846,11 +864,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   successText: { fontSize: 11, fontWeight: '600' },
+  payButtonWrapper: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
   payButton: {
     borderRadius: 14,
     paddingVertical: 18,
     alignItems: 'center',
-    marginBottom: 12,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -883,11 +904,45 @@ const styles = StyleSheet.create({
   },
   addressContainer: { borderRadius: 10, padding: 14 },
   addressText: { fontSize: 11, fontWeight: '500', lineHeight: 16 },
+  sessionErrorContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+  },
+  sessionErrorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sessionErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#DC2626',
+  },
+  sessionRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  sessionRetryText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   verticalBrandFooter: {
     backgroundColor: '#1a1a1a',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
+    marginBottom: 16,
   },
   verticalBrandSection: {
     width: '100%',
@@ -924,33 +979,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     marginVertical: 16,
   },
-  zeptpayVerticalBrand: {
+  razorpayVerticalBrand: {
     flexDirection: 'column',
     alignItems: 'center',
     width: '100%',
   },
-  zeptpayVerticalLogo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+  razorpayFooterLogo: {
+    width: 50,
+    height: 50,
+    marginBottom: 8,
   },
-  zeptpayVerticalDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginHorizontal: 2,
-  },
-  zeptpayVerticalText: {
+  razorpayVerticalText: {
     fontSize: 20,
     fontWeight: '800',
     color: '#fff',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  zeptpayPartnerText: {
+  razorpayPartnerText: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
     fontWeight: '500',
+  },
+  razorpaySecureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2d3748',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+    gap: 4,
+  },
+  razorpaySecureText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 

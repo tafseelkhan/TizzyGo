@@ -35,4 +35,21 @@ export type RootStackParamList = {
     };
   };
   Tracking: { bookingId: string };
+  RideSearch: {
+    bookingId: string;
+    pickup: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    drop: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    fare: number;
+    rideType: string;
+    customerId: string; // ✅ Add this
+    polyline: string;
+  };
 };

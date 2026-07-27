@@ -13,8 +13,8 @@ import {
   useRoute,
   NavigationProp,
 } from '@react-navigation/native';
-import LikeComponent from '../global/LikeGlobal';
-import AddToCart from './AddToCart';
+import LikeComponent from '../../global/LikeGlobal';
+import AddToCart from '../AddToCart';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -88,7 +88,7 @@ const RelatedThird: React.FC<Props> = ({ userId }) => {
         setError(null);
 
         // Slot = 3 for RelatedThird
-        const url = `http://10.206.8.121:5000/api/public/related/${id}?slot=3`;
+        const url = `http://172.21.55.121:5000/api/public/related/${id}?slot=3`;
         console.log('Fetching related products from URL:', url);
         const response = await fetch(url);
 

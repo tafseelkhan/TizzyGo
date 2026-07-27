@@ -204,7 +204,7 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           latitude: lat,
           longitude: lng,
           address: address,
-          googlePlaceId: suggestion.placeId,
+          googlePlaceId: suggestion.placeId || place.place_id || '', // ✅ Real placeId
         };
         if (searchType === 'pickup') {
           setPickup(locationData);
