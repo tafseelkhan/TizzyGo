@@ -28,7 +28,7 @@ const SERVICES: ServiceItem[] = [
     id: 'local',
     name: 'FWSLocal',
     image: require('../../../../assets/cabs/FWSLocalRide.png'),
-    screen: 'LocationInput',
+    screen: 'LocalRideLocationInput',
     size: 'large',
   },
   {

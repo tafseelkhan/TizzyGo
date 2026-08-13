@@ -514,7 +514,7 @@ const BookingScreen: React.FC = () => {
 
   const openLocationInput = useCallback(() => {
     try {
-      navigation.navigate('LocationInput', {
+      navigation.navigate('LocalRideLocationInput', {
         pickupText,
         dropText,
         pickup: pickup ?? undefined,
@@ -682,7 +682,11 @@ const BookingScreen: React.FC = () => {
     setLoading(true);
     setShowRideModal(false);
     try {
-      const response = await rideBooking.createBooking(quoteId, 'ONLINE');
+      const response = await rideBooking.createBooking(
+        quoteId,
+        'LOCAL_RIDE',
+        'ONLINE',
+      );
       if (response.success && response.data) {
         setBookingId(response.data.bookingId);
 
@@ -729,42 +733,6 @@ const BookingScreen: React.FC = () => {
       setLoading(false);
     }
   }, [pickup, drop, selectedRideTypeGroup, navigation, startPolling, user]);
-
-  const cancelBooking = useCallback(async () => {
-    if (!bookingId) return;
-    Alert.alert('Cancel Booking', 'Are you sure?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          setLoading(true);
-          try {
-            const response = await rideBooking.cancelBooking(
-              bookingId,
-              'User cancelled',
-            );
-            if (response.success) {
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
-              setBookingId(null);
-              setSearchStatus(null);
-              Alert.alert('Cancelled', 'Booking has been cancelled.');
-            } else {
-              Alert.alert('Error', response.message || 'Failed to cancel');
-            }
-          } catch (error) {
-            console.error('Cancel error:', error);
-            Alert.alert('Error', 'Failed to cancel.');
-          } finally {
-            setLoading(false);
-          }
-        },
-      },
-    ]);
-  }, [bookingId]);
 
   // ============================================================
   //  ✅ SOCKET LIVE TRACKING
@@ -1121,18 +1089,6 @@ const BookingScreen: React.FC = () => {
             </>
           )}
         </AnimatedPressable>
-
-        {bookingId && (
-          <AnimatedPressable
-            style={styles.cancelButton}
-            onPress={cancelBooking}
-            disabled={loading}
-            scaleTo={0.96}
-          >
-            <Icon name="close" size={15} color={COLORS.danger} />
-            <Text style={styles.cancelButtonText}>Cancel booking</Text>
-          </AnimatedPressable>
-        )}
       </View>
 
       <RideModal
@@ -1352,18 +1308,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.1,
   },
-  cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: COLORS.dangerMuted,
-    gap: 6,
-  },
-  cancelButtonText: { color: COLORS.danger, fontSize: 13.5, fontWeight: '600' },
   markerDrop: {
     width: 28,
     height: 28,

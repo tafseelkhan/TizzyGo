@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-native';
 
-// Mock Data for Categories - YAHAN DEFINED
-const DEFAULT_CATEGORIES = ['All', 'Rido', 'Zido', 'Hopz'];
+const DEFAULT_CATEGORIES = [
+  'All',
+  'FWSLocal',
+  'FWSAirport',
+  'FWSIntercity',
+  'FWSOutstation',
+  'FWSScheduled',
+  'FWSShared',
+  'FWSCorporate',
+  'FWSRental',
+];
 
 interface CategoryTabsProps {
   categories?: string[];
@@ -15,11 +24,9 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
   selectedCategory: externalSelectedCategory,
   onSelectCategory,
 }) => {
-  // Internal state if parent doesn't control
   const [internalSelectedCategory, setInternalSelectedCategory] =
     useState<string>('All');
 
-  // Use external if provided, else internal
   const selectedCategory =
     externalSelectedCategory !== undefined
       ? externalSelectedCategory
@@ -38,6 +45,7 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
       horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.categoriesContainer}
+      contentContainerStyle={styles.categoriesContent}
     >
       {categories.map(cat => {
         const isSelected = cat === selectedCategory;
@@ -51,6 +59,7 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
                 ? styles.categoryTabActive
                 : styles.categoryTabInactive,
             ]}
+            activeOpacity={0.7}
           >
             <Text
               style={[
@@ -71,32 +80,38 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
 
 const styles = StyleSheet.create({
   categoriesContainer: {
-    flexDirection: 'row',
-    marginBottom: 25,
+    marginBottom: 20,
+  },
+  categoriesContent: {
+    paddingHorizontal: 4,
   },
   categoryTab: {
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 25,
     marginRight: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   categoryTabActive: {
-    backgroundColor: '#2ECC71',
+    backgroundColor: '#1A1A1A',
+    borderColor: '#1A1A1A',
   },
   categoryTabInactive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E8E8E8',
   },
   categoryText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   categoryTextActive: {
-    color: '#000',
+    color: '#FFFFFF',
   },
   categoryTextInactive: {
-    color: '#A3A3A3',
+    color: '#666666',
   },
 });
 

@@ -133,26 +133,26 @@ const BottomNavigation = ({
         navigation.navigate('CustomerCab');
       },
     },
-    {
-      id: 3,
-      icon: 'directions-car' as const,
-      action: () => {
-        triggerLightHaptic();
-        navigation
-          .getParent()
-          ?.navigate('BottomNavigator', { screen: 'Rentes' });
-      },
-    },
-    {
-      id: 4,
-      icon: 'local-shipping' as const,
-      action: () => {
-        triggerLightHaptic();
-        navigation
-          .getParent()
-          ?.navigate('BottomNavigator', { screen: 'Shippings' });
-      },
-    },
+    // {
+    //   id: 3,
+    //   icon: 'directions-car' as const,
+    //   action: () => {
+    //     triggerLightHaptic();
+    //     navigation
+    //       .getParent()
+    //       ?.navigate('BottomNavigator', { screen: 'Rentes' });
+    //   },
+    // },
+    // {
+    //   id: 4,
+    //   icon: 'local-shipping' as const,
+    //   action: () => {
+    //     triggerLightHaptic();
+    //     navigation
+    //       .getParent()
+    //       ?.navigate('BottomNavigator', { screen: 'Shippings' });
+    //   },
+    // },
   ];
 
   const toggleSpeedDial = () => {
@@ -323,7 +323,7 @@ const BottomNavigation = ({
         </TouchableOpacity>
 
         {/* Chat Button */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={[
             styles.navButton,
             activeTab === 'chat' && [
@@ -343,7 +343,7 @@ const BottomNavigation = ({
               style={styles.navIconImage}
             />
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Center Floating Action Button */}
         <View style={styles.fabContainer}>
@@ -400,7 +400,7 @@ const BottomNavigation = ({
         </View>
 
         {/* My Ads Button */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={[
             styles.navButton,
             activeTab === 'ads' && [
@@ -425,7 +425,7 @@ const BottomNavigation = ({
                 : themeColors.text
             }
           />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* ✅ Profile Button with Lottie Animation */}
         {renderProfileButton()}

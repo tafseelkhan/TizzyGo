@@ -1,8 +1,9 @@
-// components/RatingSummary.tsx
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { AirbnbRating } from 'react-native-ratings';
-import { useTheme } from "../../../contexts/theme/ThemeContext";
+// components/RatingSummary.tsx - REDESIGNED
+
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../../../contexts/theme/ThemeContext';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 interface RatingStats {
   totalRatings: number;
@@ -17,15 +18,11 @@ interface RatingSummaryProps {
 }
 
 const lightColors = {
-  background: '#FFFFFF',
-  card: '#F8F9FA',
-  text: '#1E293B',
+  background: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
   border: '#E2E8F0',
-  primary: '#3B82F6',
-  secondary: '#64748B',
-  error: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
+  primary: '#6366F1',
   muted: '#94A3B8',
 };
 
@@ -34,63 +31,79 @@ const darkColors = {
   card: '#1E293B',
   text: '#F1F5F9',
   border: '#334155',
-  primary: '#60A5FA',
-  secondary: '#94A3B8',
-  error: '#F87171',
-  success: '#34D399',
-  warning: '#FBBF24',
+  primary: '#818CF8',
   muted: '#64748B',
 };
 
 export default function RatingSummary({ stats }: RatingSummaryProps) {
   const { isDark } = useTheme();
   const colors = isDark ? darkColors : lightColors;
-  
+
   const { totalRatings, averageRating, totalReviews, distribution } = stats;
   const MAX_RATINGS_PER_STAR = 100;
 
+  const renderStars = (rating: number) => {
+    return (
+      <View style={styles.starRow}>
+        {[1, 2, 3, 4, 5].map(star => (
+          <Icon
+            key={star}
+            name={star <= rating ? 'star' : 'star-outline'}
+            size={14}
+            color={star <= rating ? '#F59E0B' : colors.border}
+          />
+        ))}
+      </View>
+    );
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { color: colors.text }]}>
-        Product Rating
-      </Text>
+    <View style={[styles.container, { backgroundColor: colors.card }]}>
+      <View style={styles.header}>
+        <View style={styles.ratingMain}>
+          <Text style={[styles.averageRating, { color: colors.text }]}>
+            {averageRating}
+          </Text>
+          {renderStars(parseFloat(averageRating))}
+          <Text style={[styles.ratingCount, { color: colors.muted }]}>
+            {totalRatings} ratings • {totalReviews} reviews
+          </Text>
+        </View>
+        <View style={styles.percentageBadge}>
+          <Text style={styles.percentageText}>{stats.percentage}%</Text>
+        </View>
+      </View>
 
-      {/* Average star rating */}
-      <AirbnbRating
-        count={5}
-        defaultRating={parseFloat(averageRating)}
-        size={20}
-        showRating={false}
-        isDisabled={true}
-        selectedColor="#ffd700"
-      />
-      <Text style={[styles.ratingText, { color: colors.text, opacity: 0.8 }]}>
-        {averageRating} ({totalRatings} ratings, {totalReviews} reviews)
-      </Text>
-
-      {/* Star distribution */}
-      <View style={styles.distributionContainer}>
-        {[5, 4, 3, 2, 1].map((star) => {
+      <View style={styles.distribution}>
+        {[5, 4, 3, 2, 1].map(star => {
           const count = distribution[star - 1] || 0;
-          const percentage = Math.min((count / MAX_RATINGS_PER_STAR) * 100, 100);
+          const percentage = Math.min(
+            (count / MAX_RATINGS_PER_STAR) * 100,
+            100,
+          );
 
           return (
-            <View key={star} style={styles.starRow}>
+            <View key={star} style={styles.distributionRow}>
               <Text style={[styles.starLabel, { color: colors.text }]}>
-                {star} ★
+                {star}★
               </Text>
-              <View style={[styles.barBackground, { backgroundColor: colors.border }]}>
+              <View
+                style={[
+                  styles.barBackground,
+                  { backgroundColor: colors.border },
+                ]}
+              >
                 <View
                   style={[
                     styles.barFill,
                     {
                       width: `${percentage}%`,
                       backgroundColor: colors.primary,
-                    }
+                    },
                   ]}
                 />
               </View>
-              <Text style={[styles.starCount, { color: colors.text }]}>
+              <Text style={[styles.countLabel, { color: colors.muted }]}>
                 {count}
               </Text>
             </View>
@@ -103,42 +116,71 @@ export default function RatingSummary({ stats }: RatingSummaryProps) {
 
 const styles = StyleSheet.create({
   container: {
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 8,
+  ratingMain: {
+    gap: 4,
   },
-  ratingText: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  distributionContainer: {
-    marginTop: 8,
-    maxWidth: 200,
-    alignSelf: "center",
+  averageRating: {
+    fontSize: 32,
+    fontWeight: '700',
   },
   starRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
+    flexDirection: 'row',
+    gap: 2,
+  },
+  ratingCount: {
+    fontSize: 13,
+  },
+  percentageBadge: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  percentageText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  distribution: {
+    gap: 6,
+  },
+  distributionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   starLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
     width: 30,
   },
   barBackground: {
     flex: 1,
-    height: 8,
-    borderRadius: 4,
-    overflow: "hidden",
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
   },
   barFill: {
-    height: "100%",
+    height: '100%',
+    borderRadius: 3,
   },
-  starCount: {
+  countLabel: {
     fontSize: 12,
-    marginLeft: 8,
+    width: 30,
+    textAlign: 'right',
   },
 });

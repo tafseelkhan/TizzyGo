@@ -4,8 +4,8 @@ import { Alert, Platform } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 
 // Base URL - aapka local IP ya production URL
-const BASE_URL = 'http://172.21.55.121:5000';
-const CART_BASE_URL = 'http://172.21.55.121:5000';
+const BASE_URL = 'http://10.141.253.121:5000';
+const CART_BASE_URL = 'http://10.141.253.121:5000';
 
 // Internal API Key
 const INTERNAL_API_KEY =
@@ -22,7 +22,6 @@ export const setNavigationRef = (nav: any) => {
 const getHeaders = async (includeAuth: boolean = true) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-internal-key': INTERNAL_API_KEY,
   };
 
   if (includeAuth) {
@@ -109,7 +108,7 @@ export const APIs = {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) throw new Error('No auth token found');
 
-      const url = new URL(`${BASE_URL}/api/search`);
+      const url = new URL(`${BASE_URL}/api/v0/search`);
       url.searchParams.append('q', query);
       if (category) url.searchParams.append('category', category);
 
@@ -132,7 +131,7 @@ export const APIs = {
 
   getPopularSearches: async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/search/popular`, {
+      const response = await fetch(`${BASE_URL}/api/v0/search/popular`, {
         method: 'GET',
         headers: await getHeaders(false),
       });
@@ -144,7 +143,7 @@ export const APIs = {
     }
   },
 
-  // ✅ Updated: Changed from /api/recent-search to /api/search/recent
+  // ✅ Updated: Changed from /api/v0/recent-search to /api/v0/search/recent
   getRecentSearches: async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -152,7 +151,7 @@ export const APIs = {
 
       if (!token) throw new Error('No token found');
 
-      const response = await fetch(`${BASE_URL}/api/search/recent`, {
+      const response = await fetch(`${BASE_URL}/api/v0/search/recent`, {
         method: 'GET',
         headers: await getHeaders(true),
       });
@@ -173,10 +172,10 @@ export const APIs = {
     }
   },
 
-  // ✅ Updated: Changed from /api/recent-search to /api/search/recent
+  // ✅ Updated: Changed from /api/v0/recent-search to /api/v0/search/recent
   removeRecentSearch: async (id: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/search/recent/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/v0/search/recent/${id}`, {
         method: 'DELETE',
         headers: await getHeaders(true),
       });
@@ -188,14 +187,14 @@ export const APIs = {
     }
   },
 
-  // ✅ Updated: Changed from /api/recent-search/clear to /api/search/recent/clear/all
+  // ✅ Updated: Changed from /api/v0/recent-search/clear to /api/v0/search/recent/clear/all
   clearAllRecentSearches: async (): Promise<{
     success: boolean;
     message?: string;
     deletedCount?: number;
   }> => {
     try {
-      const response = await fetch(`${BASE_URL}/api/search/recent/clear/all`, {
+      const response = await fetch(`${BASE_URL}/api/v0/search/recent/clear/all`, {
         method: 'DELETE',
         headers: await getHeaders(true),
       });
@@ -214,7 +213,7 @@ export const APIs = {
 
   getCartCount: async () => {
     try {
-      const response = await fetch(`${CART_BASE_URL}/api/cart/count`, {
+      const response = await fetch(`${CART_BASE_URL}/api/v0/cart/count`, {
         method: 'GET',
         headers: await getHeaders(true),
       });
@@ -228,7 +227,7 @@ export const APIs = {
 
   applyFilters: async (filters: any) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/products/filter`, {
+      const response = await fetch(`${BASE_URL}/api/v0/products/filter`, {
         method: 'POST',
         headers: await getHeaders(true),
         body: JSON.stringify(filters),
@@ -243,7 +242,7 @@ export const APIs = {
 
   getAppliedFiltersCount: async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/filters/count`, {
+      const response = await fetch(`${BASE_URL}/api/v0/filters/count`, {
         method: 'GET',
         headers: await getHeaders(true),
       });
@@ -257,7 +256,7 @@ export const APIs = {
 
   clearFilters: async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/filters/clear`, {
+      const response = await fetch(`${BASE_URL}/api/v0/filters/clear`, {
         method: 'POST',
         headers: await getHeaders(true),
       });
@@ -271,7 +270,7 @@ export const APIs = {
 
   getLocations: async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/locations/popular`, {
+      const response = await fetch(`${BASE_URL}/api/v0/locations/popular`, {
         method: 'GET',
         headers: await getHeaders(false), // No auth needed for locations
       });
@@ -289,7 +288,7 @@ export const APIUtils = {
   // Network status check
   isOnline: async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${BASE_URL}/api/health`);
+      const response = await fetch(`${BASE_URL}/api/v0/health`);
       return response.ok;
     } catch {
       return false;

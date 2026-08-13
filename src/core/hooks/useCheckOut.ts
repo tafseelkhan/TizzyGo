@@ -1,5 +1,6 @@
-// hooks/useCheckout.ts - WITH FULL CONSOLE LOGS
-import { useState, useCallback, useRef, useEffect } from 'react';
+// hooks/useCheckout.ts - FULLY OPTIMIZED (No Unnecessary Re-renders)
+
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   checkoutService,
   EssentialProductInfo,
@@ -20,24 +21,16 @@ export const useCheckout = ({
   shippingAddress,
   couponCode,
 }: UseCheckoutProps) => {
-  console.log('========================================');
-  console.log('🎯 [useCheckout] HOOK INITIALIZED');
-  console.log('========================================');
-  console.log('📅 Timestamp:', new Date().toISOString());
-  console.log('📦 essentialProductInfo:', !!essentialProductInfo);
-  console.log('  - mongoObjectId:', essentialProductInfo?.mongoObjectId);
-  console.log('  - vendorCodeUID:', essentialProductInfo?.vendorCodeUID);
-  console.log('  - sellerId:', essentialProductInfo?.sellerId);
-  console.log('💰 quantity:', quantity);
-  console.log('📍 shippingAddress:', {
-    hasAddress: !!shippingAddress?.address,
-    hasLat: !!shippingAddress?.latitude,
-    hasLng: !!shippingAddress?.longitude,
-    lat: shippingAddress?.latitude,
-    lng: shippingAddress?.longitude,
-  });
-  console.log('🏷️ couponCode:', couponCode);
-  console.log('========================================');
+  // ✅ LOGGING ONLY ONCE - Not on every render
+  const hasLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!hasLoggedRef.current) {
+      console.log('========================================');
+      console.log('🎯 [useCheckout] HOOK INITIALIZED (once)');
+      console.log('========================================');
+      hasLoggedRef.current = true;
+    }
+  }, []);
 
   const [calculatedData, setCalculatedData] = useState<CalculatedData | null>(
     null,
@@ -46,18 +39,70 @@ export const useCheckout = ({
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [couponManuallyApplied, setCouponManuallyApplied] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const calculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const isCalculatingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
+  const lastFetchKeyRef = useRef<string>('');
 
-  const clearCouponMessages = useCallback(() => {
-    console.log('🔄 [useCheckout] clearCouponMessages called');
-    setCouponError(null);
-    setCouponSuccess(null);
+  // ✅ STABLE FETCH KEY - Only depends on primitive values
+  const fetchKey = useMemo(() => {
+    return `${essentialProductInfo?.mongoObjectId || 'no-product'}_${quantity}_${couponCode || 'no-coupon'}_${!!essentialProductInfo}`;
+  }, [
+    essentialProductInfo?.mongoObjectId,
+    quantity,
+    couponCode,
+    essentialProductInfo,
+  ]);
+
+  // ✅ STABLE STATE SETTERS - Compare before updating
+  const setCalculatedDataIfChanged = useCallback(
+    (newData: CalculatedData | null) => {
+      setCalculatedData(prev => {
+        // ✅ Only update if data actually changed
+        if (JSON.stringify(prev) === JSON.stringify(newData)) {
+          return prev;
+        }
+        return newData;
+      });
+    },
+    [],
+  );
+
+  const setCouponErrorIfChanged = useCallback((newError: string | null) => {
+    setCouponError(prev => {
+      if (prev === newError) return prev;
+      return newError;
+    });
   }, []);
 
+  const setCouponSuccessIfChanged = useCallback((newSuccess: string | null) => {
+    setCouponSuccess(prev => {
+      if (prev === newSuccess) return prev;
+      return newSuccess;
+    });
+  }, []);
+
+  const setLocationErrorIfChanged = useCallback((newError: string | null) => {
+    setLocationError(prev => {
+      if (prev === newError) return prev;
+      return newError;
+    });
+  }, []);
+
+  const clearCouponMessages = useCallback(() => {
+    setCouponErrorIfChanged(null);
+    setCouponSuccessIfChanged(null);
+  }, [setCouponErrorIfChanged, setCouponSuccessIfChanged]);
+
+  const clearLocationError = useCallback(() => {
+    setLocationErrorIfChanged(null);
+  }, [setLocationErrorIfChanged]);
+
+  // ✅ STABLE fetchCalculatedData - Only depends on primitive values
   const fetchCalculatedData = useCallback(
     async (
       options: {
@@ -66,19 +111,25 @@ export const useCheckout = ({
         isLocationUpdate?: boolean;
       } = {},
     ) => {
-      console.log('========================================');
-      console.log('🔄 [useCheckout] fetchCalculatedData CALLED');
-      console.log('========================================');
-      console.log('  - isCalculatingRef.current:', isCalculatingRef.current);
-      console.log('  - essentialProductInfo:', !!essentialProductInfo);
-      console.log('  - quantity:', quantity);
-      console.log('  - shippingAddress:', !!shippingAddress?.latitude);
-      console.log('  - couponCode:', couponCode);
-      console.log('  - options:', options);
+      // ✅ Extract stable values for comparison
+      const productId = essentialProductInfo?.mongoObjectId;
+      const sellerId = essentialProductInfo?.sellerId;
+      const vendorCode = essentialProductInfo?.vendorCodeUID;
+      const displayId = essentialProductInfo?.displayProductId;
+      const lat = shippingAddress?.latitude;
+      const lng = shippingAddress?.longitude;
+      const address = shippingAddress?.address;
+      const placeId = shippingAddress?.googlePlaceId;
 
-      if (isCalculatingRef.current || !essentialProductInfo) {
+      console.log('🔄 [useCheckout] fetchCalculatedData CALLED');
+      console.log('  - productId:', productId);
+      console.log('  - quantity:', quantity);
+      console.log('  - couponCode:', couponCode);
+
+      // ✅ Prevent concurrent fetches
+      if (isCalculatingRef.current || !essentialProductInfo || !productId) {
         console.log(
-          '❌ [useCheckout] Skipping - already calculating or no product info',
+          '❌ [useCheckout] Skipping - no product info or already calculating',
         );
         return;
       }
@@ -88,17 +139,13 @@ export const useCheckout = ({
       }
 
       calculationTimeoutRef.current = setTimeout(async () => {
-        console.log(
-          '⏰ [useCheckout] Timeout completed, starting calculation...',
-        );
+        console.log('⏰ [useCheckout] Starting calculation...');
         try {
           isCalculatingRef.current = true;
           setCalculating(true);
           if (!options.skipCouponCheck) clearCouponMessages();
+          clearLocationError();
 
-          console.log(
-            '📤 [useCheckout] Calling checkoutService.calculatePrice...',
-          );
           const result = await checkoutService.calculatePrice(
             essentialProductInfo,
             quantity,
@@ -108,43 +155,65 @@ export const useCheckout = ({
             options,
           );
 
-          console.log('📥 [useCheckout] Result received:');
-          console.log('  - has calculatedData:', !!result.calculatedData);
-          console.log('  - couponMessage:', result.couponMessage);
-          if (result.calculatedData) {
-            console.log('  - grandTotal:', result.calculatedData.grandTotal);
-            console.log('  - subtotal:', result.calculatedData.subtotal);
-            console.log('  - deliveryFee:', result.calculatedData.deliveryFee);
-            console.log('  - tax:', result.calculatedData.tax);
-            console.log('  - discount:', result.calculatedData.discount);
+          console.log(
+            '📥 [useCheckout] Result received:',
+            !!result.calculatedData,
+          );
+
+          // ✅ Handle LOCATION_NOT_FOUND
+          if (result.locationError || result.calculatedData?.error) {
+            const errorMsg =
+              result.locationError || result.calculatedData?.error || '';
+            if (
+              errorMsg.includes('LOCATION_NOT_FOUND') ||
+              errorMsg.toLowerCase().includes('location not found')
+            ) {
+              console.warn('⚠️ [useCheckout] Location not found');
+              setLocationErrorIfChanged(
+                'Please set your delivery address in profile first',
+              );
+              setCalculatedDataIfChanged(null);
+              hasFetchedRef.current = true;
+              return;
+            }
           }
 
           if (result.calculatedData) {
-            console.log('✅ [useCheckout] Setting calculatedData');
             const processed = checkoutService.processCouponMessage(
               result.couponMessage,
               result.calculatedData,
               couponSuccess,
             );
 
-            setCouponError(processed.couponError);
-            setCouponSuccess(processed.couponSuccess);
+            setCouponErrorIfChanged(processed.couponError);
+            setCouponSuccessIfChanged(processed.couponSuccess);
             setCouponManuallyApplied(processed.couponManuallyApplied);
-            setCalculatedData(result.calculatedData);
-            console.log('✅ [useCheckout] calculatedData set successfully');
+            setCalculatedDataIfChanged(
+              result.calculatedData as unknown as CalculatedData,
+            );
+            console.log('✅ [useCheckout] calculatedData set');
           } else {
-            console.log('❌ [useCheckout] No calculatedData in response');
+            console.log('❌ [useCheckout] No calculatedData');
           }
+
+          hasFetchedRef.current = true;
         } catch (error: any) {
-          console.error('❌ [useCheckout] Calculation error:', error.message);
-          console.error('  - error stack:', error.stack);
-          setCouponError(error.response?.data?.message || 'Calculation failed');
+          console.error('❌ [useCheckout] Error:', error.message);
+          if (error.message === 'LOCATION_NOT_FOUND') {
+            setLocationErrorIfChanged(
+              'Please set your delivery address in profile first',
+            );
+          } else {
+            setCouponErrorIfChanged(
+              error.response?.data?.message || 'Calculation failed',
+            );
+          }
         } finally {
           isCalculatingRef.current = false;
           setCalculating(false);
-          console.log('🔓 [useCheckout] Calculation finished, lock released');
+          console.log('🔓 [useCheckout] Finished');
         }
-      }, 500);
+      }, 300);
     },
     [
       essentialProductInfo,
@@ -154,76 +223,85 @@ export const useCheckout = ({
       couponManuallyApplied,
       couponSuccess,
       clearCouponMessages,
+      clearLocationError,
+      setCouponErrorIfChanged,
+      setCouponSuccessIfChanged,
+      setLocationErrorIfChanged,
+      setCalculatedDataIfChanged,
     ],
   );
 
-  // ✅ Auto-trigger calculation when essential data changes
+  // ✅ AUTO-CALCULATION - Only triggers when fetchKey changes
   useEffect(() => {
-    console.log('🔍 [useCheckout] useEffect triggered for auto-calculation');
-    console.log('  - essentialProductInfo:', !!essentialProductInfo);
-    console.log('  - shippingAddress has lat:', !!shippingAddress?.latitude);
-    console.log('  - shippingAddress has lng:', !!shippingAddress?.longitude);
+    console.log('🔍 [useCheckout] Auto-calculation check');
+    console.log('  - fetchKey:', fetchKey);
+    console.log('  - lastFetchKey:', lastFetchKeyRef.current);
 
-    if (
-      essentialProductInfo &&
-      shippingAddress?.latitude &&
-      shippingAddress?.longitude
-    ) {
-      console.log(
-        '✅ [useCheckout] All data ready, triggering fetchCalculatedData...',
-      );
+    if (essentialProductInfo && fetchKey !== lastFetchKeyRef.current) {
+      console.log('✅ [useCheckout] Triggering fetch...');
+      lastFetchKeyRef.current = fetchKey;
+      hasFetchedRef.current = false;
       fetchCalculatedData();
     } else {
-      console.log('❌ [useCheckout] Data not ready for calculation');
-      if (!essentialProductInfo)
-        console.log('  - missing: essentialProductInfo');
-      if (!shippingAddress?.latitude)
-        console.log('  - missing: shippingAddress.latitude');
-      if (!shippingAddress?.longitude)
-        console.log('  - missing: shippingAddress.longitude');
+      console.log('❌ [useCheckout] Skipping - no change');
     }
-  }, [essentialProductInfo, shippingAddress, fetchCalculatedData]);
+  }, [essentialProductInfo, fetchKey, fetchCalculatedData]);
 
+  // ✅ STABLE applyCoupon
   const applyCoupon = useCallback(
     async (code: string) => {
-      console.log('🔄 [useCheckout] applyCoupon called with code:', code);
+      console.log('🔄 [useCheckout] applyCoupon:', code);
       if (calculating) {
-        console.log('❌ [useCheckout] Already calculating, skipping');
+        console.log('❌ Already calculating, skipping');
         return;
       }
       try {
         triggerHaptic('light');
         clearCouponMessages();
         setCouponManuallyApplied(true);
+        hasFetchedRef.current = false;
         await fetchCalculatedData();
-        console.log('✅ [useCheckout] Coupon applied successfully');
+        console.log('✅ Coupon applied');
       } catch (error) {
-        console.error('❌ [useCheckout] Failed to apply coupon:', error);
-        setCouponError('Failed to apply coupon');
+        console.error('❌ Failed to apply coupon:', error);
+        setCouponErrorIfChanged('Failed to apply coupon');
         setCouponManuallyApplied(false);
       }
     },
-    [calculating, clearCouponMessages, fetchCalculatedData],
+    [
+      calculating,
+      clearCouponMessages,
+      fetchCalculatedData,
+      setCouponErrorIfChanged,
+    ],
   );
 
+  // ✅ STABLE removeCoupon
   const removeCoupon = useCallback(async () => {
-    console.log('🔄 [useCheckout] removeCoupon called');
+    console.log('🔄 [useCheckout] removeCoupon');
     if (calculating) {
-      console.log('❌ [useCheckout] Already calculating, skipping');
+      console.log('❌ Already calculating, skipping');
       return;
     }
     try {
       triggerHaptic('light');
       clearCouponMessages();
       setCouponManuallyApplied(false);
+      hasFetchedRef.current = false;
       await fetchCalculatedData({ skipCouponCheck: true });
-      setCouponSuccess('Coupon removed successfully');
-      console.log('✅ [useCheckout] Coupon removed successfully');
+      setCouponSuccessIfChanged('Coupon removed successfully');
+      console.log('✅ Coupon removed');
     } catch (error) {
-      console.error('❌ [useCheckout] Failed to remove coupon:', error);
-      setCouponError('Failed to remove coupon');
+      console.error('❌ Failed to remove coupon:', error);
+      setCouponErrorIfChanged('Failed to remove coupon');
     }
-  }, [calculating, clearCouponMessages, fetchCalculatedData]);
+  }, [
+    calculating,
+    clearCouponMessages,
+    fetchCalculatedData,
+    setCouponSuccessIfChanged,
+    setCouponErrorIfChanged,
+  ]);
 
   return {
     calculatedData,
@@ -231,10 +309,12 @@ export const useCheckout = ({
     couponError,
     couponSuccess,
     couponManuallyApplied,
-    setCouponError,
-    setCouponSuccess,
+    locationError,
+    setCouponError: setCouponErrorIfChanged,
+    setCouponSuccess: setCouponSuccessIfChanged,
     setCouponManuallyApplied,
     clearCouponMessages,
+    clearLocationError,
     fetchCalculatedData,
     applyCoupon,
     removeCoupon,

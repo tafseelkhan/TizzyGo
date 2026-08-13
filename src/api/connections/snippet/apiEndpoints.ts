@@ -27,6 +27,8 @@ export const API_ENDPOINTS = {
   ADD_TO_CART: '/api/v0/cart/add',
   UPDATE_CART: '/api/v0/cart/update',
   REMOVE_FROM_CART: '/api/v0/cart/remove',
+  CART_CHECKOUT: '/api/v0/cart/checkout',
+  CART_CHECKOUT_LOCATION: '/api/v0/cart/checkout/location',
   CHECK_CART: '/api/v0/cart/check',
 
   // Buy Now endpoints
@@ -62,11 +64,11 @@ export const API_ENDPOINTS = {
   FETCH_LIKE_STATUS: '/api/v0/likes',
   TOGGLE_LIKE: '/api/v0/likes',
 
-  // Rating & Review endpoints
-  RATING_GLOBAL_STATS: '/api/v0/ratings/stats',
-  REVIEWS: '/api/v0/ratings/reviews',
-  REVIEW: '/api/v0/ratings/review',
-  USER_RATING: '/api/v0/ratings/user-rating',
+  RATING_GLOBAL_STATS: '/api/v0/rating-review/rating/stats',
+  REVIEWS: '/api/v0/rating-review/rating/reviews',
+  REVIEW: '/api/v0/rating-review/rating',
+  USER_RATING: '/api/v0/rating-review/rating/user',
+  REVIEW_DELETE: '/api/v0/rating-review',
 
   // Payment endpoints
   CREATE_PAYMENT_INTENT: '/api/v0/payment/create-payment-intent',
@@ -78,11 +80,11 @@ export const API_ENDPOINTS = {
   GET_SESSION_STATUS: '/checkout/session/:checkoutSessionId',
 
   // Search endpoints
-  SEARCH_PRODUCTS: '/api/v0/search/products',
+  SEARCH_PRODUCTS: '/api/v0/search',
   RECENT_SEARCHES: '/api/v0/search/recent',
   POPULAR_SEARCHES: '/api/v0/search/popular',
   REMOVE_RECENT_SEARCH: '/api/v0/search/recent',
-  CLEAR_RECENT_SEARCHES: '/api/v0/search/recent/all',
+  CLEAR_RECENT_SEARCHES: '/api/v0/search/clear/all',
 
   // Stories endpoints
   FETCH_STORIES: '/api/v0/stories',
@@ -106,6 +108,7 @@ export const API_ENDPOINTS = {
   // RIDE ENDPOINTS (NEW)KW
   // ================================
   RIDE_OPTIONS: '/api/v0/ride/options',
+  AIRPORT_OPTIONS: '/api/v0/ride/airport/options',
   RIDE_BOOK: '/api/v0/ride/book',
   RIDE_SEARCH_STATUS: '/api/v0/ride/search-status',
   RIDE_RETRY: '/api/v0/ride/retry',
@@ -113,6 +116,9 @@ export const API_ENDPOINTS = {
   RIDE_BOOKING: '/api/v0/ride/booking',
   RIDE_CUSTOMER_BOOKINGS: '/api/v0/ride/bookings/customer',
   RIDE_DRIVER_BOOKINGS: '/api/v0/ride/bookings/driver',
+
+  ORDER_CONFIRMATION: '/api/v0/checkout/order-confirmation',
+  ORDER_TRACKING: '/api/v0/checkout/order-tracking',
 };
 
 /**

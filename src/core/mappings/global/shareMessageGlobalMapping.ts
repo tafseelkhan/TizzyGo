@@ -1,4 +1,5 @@
-// utils/shareMessages.ts
+// utils/shareMessages.ts - FIXED (No Duplicates)
+
 export const shareMessages = {
   getRandomMessage: (productTitle: string): string => {
     const messages = [

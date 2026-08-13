@@ -12,14 +12,20 @@ import HomeScreen from '../screens/home/HomeScreen';
 import SettingsScreen from '../screens/settings/Settings';
 import ProductDetailScreen from '../screens/store/ProductDetailScreen';
 import OrderSuccessScreen from '../screens/inventory/OrderSuccessScreen';
-import BuyNowScreen from '../screens/shop/BuyNow';
+import YourOrderScreen from '../screens/inventory/YourOrders/YourOrders';
+import CheckOutScreen from '../screens/shop/CheckOutScreen';
+import CartScreen from '../screens/cart/CartScreen';
+import PaymentSuccess from '../screens/inventory/paymentSuccess';
+import OrderTrackingScreen from '../screens/inventory/Tracking/OrderTrackingScreen';
 
 // Cabs Imports
 import CustomerHomeScreen from '../screens/cabs/home/customerHome';
 import FwsRidesOptionServicesScreen from '../screens/cabs/services/FwsRidesOptionServices';
 import FWSLocalRideScreen from '../screens/cabs/FWSLocalRide/FWSLocalRide';
-import LocationInputScreen from '../screens/cabs/common/LocationInputScreen';
-import RideSearchScreen from '../screens/cabs/common/RideSearchScreen';
+import LocalRideLocationInput from '../screens/cabs/FWSLocalRide/common/LocationInputScreen';
+import RideSearchScreen from '../screens/cabs/FWSLocalRide/common/RideSearchScreen';
+import FWSAirportScreen from '../screens/cabs/FWSAirport/FWSAirport';
+import AirportLocationInput from '../screens/cabs/FWSAirport/common/LocationInputScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -33,7 +39,11 @@ export type RootStackParamList = {
   Settings: undefined;
   ProductDetail: { productId: string };
   OrderSuccessScreen: undefined;
-  BuyNow: { productId: string; variantId?: string | null };
+  YourOrders: undefined;
+  CheckOutScreen: { productId: string; variantId?: string | null };
+  CartScreen: undefined;
+  OrderConfirmation: { checkoutSessionId: string };
+  OrderTracking: { orderId: string };
 
   // Cabs Screens
   CustomerCab: undefined;
@@ -54,7 +64,40 @@ export type RootStackParamList = {
     pickupText?: string;
     dropText?: string;
   };
-  LocationInput: {
+  FWSAirport: {
+    pickup?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    drop?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    pickupText?: string;
+    dropText?: string;
+    selectedOption?: string;
+  };
+  AirportLocationInput: {
+    pickupText?: string;
+    dropText?: string;
+    pickup?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    drop?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+  };
+  LocalRideLocationInput: {
     pickupText?: string;
     dropText?: string;
     pickup?: {
@@ -113,7 +156,11 @@ export default function AppNavigator() {
           name="OrderSuccessScreen"
           component={OrderSuccessScreen}
         />
-        <Stack.Screen name="BuyNow" component={BuyNowScreen} />
+        <Stack.Screen name="YourOrders" component={YourOrderScreen} />
+        <Stack.Screen name="CheckOutScreen" component={CheckOutScreen} />
+        <Stack.Screen name="CartScreen" component={CartScreen} />
+        <Stack.Screen name="OrderConfirmation" component={PaymentSuccess} />
+        <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
 
         {/* Cabs Screens - Add more when needed */}
         <Stack.Screen name="CustomerCab" component={CustomerHomeScreen} />
@@ -122,8 +169,16 @@ export default function AppNavigator() {
           component={FwsRidesOptionServicesScreen}
         />
         <Stack.Screen name="FWSLocalRide" component={FWSLocalRideScreen} />
-        <Stack.Screen name="LocationInput" component={LocationInputScreen} />
+        <Stack.Screen
+          name="LocalRideLocationInput"
+          component={LocalRideLocationInput}
+        />
         <Stack.Screen name="RideSearch" component={RideSearchScreen} />
+        <Stack.Screen name="FWSAirport" component={FWSAirportScreen} />
+        <Stack.Screen
+          name="AirportLocationInput"
+          component={AirportLocationInput}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

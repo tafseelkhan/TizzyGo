@@ -21,11 +21,11 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
-import { RootStackParamList } from '../FWSLocalRide/RootStackParamList';
-import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
-import { rideBooking } from '../../../../api/features/private/rideBookingPrivateSlice';
-import { AnimatedPressable } from '../FWSLocalRide/AnimatedPressable';
-import { decodePolyline } from '../../../utils/cabs/common/polylineUtils';
+import { RootStackParamList } from '../RootStackParamList';
+import { COLORS } from '../../../../../api/constants/FWSLocalRideColor';
+import { rideBooking } from '../../../../../api/features/private/rideBookingPrivateSlice';
+import { AnimatedPressable } from '../AnimatedPressable';
+import { decodePolyline } from '../../../../utils/cabs/common/polylineUtils';
 import {
   connectSocket,
   onEvent,
@@ -42,7 +42,7 @@ import {
   onAuthSuccess,
   onAuthError,
   onSocketError,
-} from '../../../utils/socket/socketRideSearching';
+} from '../../../../utils/socket/socketRideSearching';
 
 const { height, width } = Dimensions.get('window');
 

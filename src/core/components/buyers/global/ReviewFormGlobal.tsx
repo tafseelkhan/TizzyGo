@@ -1,4 +1,5 @@
-// components/ReviewForm.tsx
+// components/ReviewForm.tsx - NO EMOJIS, ONLY ICONS
+
 import React, { useState } from 'react';
 import {
   View,
@@ -12,7 +13,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
-  Linking, // ✅ Add Linking import
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
@@ -21,7 +22,7 @@ import {
   ImageLibraryOptions,
   ImagePickerResponse,
   launchCamera,
-  CameraOptions, // ✅ Import CameraOptions for camera specific options
+  CameraOptions,
 } from 'react-native-image-picker';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { check, PERMISSIONS, request, RESULTS } from 'react-native-permissions';
@@ -34,11 +35,11 @@ interface ReviewFormProps {
 }
 
 const lightColors = {
-  background: '#FFFFFF',
-  card: '#F8F9FA',
-  text: '#1E293B',
+  background: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
   border: '#E2E8F0',
-  primary: '#3B82F6',
+  primary: '#6366F1',
   secondary: '#64748B',
   error: '#EF4444',
   success: '#10B981',
@@ -51,7 +52,7 @@ const darkColors = {
   card: '#1E293B',
   text: '#F1F5F9',
   border: '#334155',
-  primary: '#60A5FA',
+  primary: '#818CF8',
   secondary: '#94A3B8',
   error: '#F87171',
   success: '#34D399',
@@ -74,18 +75,18 @@ const StarRating = ({
   const colors = isDark ? darkColors : lightColors;
 
   return (
-    <View style={{ flexDirection: 'row' }}>
+    <View style={{ flexDirection: 'row', gap: 4 }}>
       {[1, 2, 3, 4, 5].map(star => (
         <TouchableOpacity
           key={star}
           onPress={() => !disabled && onRatingChange(star)}
           disabled={disabled}
+          style={styles.starTouch}
         >
           <Text
             style={{
               fontSize: size,
-              color: rating && star <= rating ? '#ffd700' : colors.border,
-              marginRight: 4,
+              color: rating && star <= rating ? '#F59E0B' : colors.border,
             }}
           >
             {rating && star <= rating ? '★' : '☆'}
@@ -112,49 +113,40 @@ export default function ReviewForm({
   const [openConfirmSubmit, setOpenConfirmSubmit] = useState(false);
   const [showImagePickerOptions, setShowImagePickerOptions] = useState(false);
 
-  // Permission check function
+  // Permission functions...
   const checkPhotoPermission = async (): Promise<boolean> => {
     try {
       let permission;
-      
       if (Platform.OS === 'ios') {
         permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
       } else {
-        // For Android 13+ - Fix: Convert Platform.Version to number
-        const androidVersion = typeof Platform.Version === 'string' 
-          ? parseInt(Platform.Version, 10) 
-          : Platform.Version;
-          
+        const androidVersion =
+          typeof Platform.Version === 'string'
+            ? parseInt(Platform.Version, 10)
+            : Platform.Version;
         if (androidVersion >= 33) {
           permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
         } else {
           permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
         }
       }
-
       const result = await check(permission);
-      
-      if (result === RESULTS.GRANTED) {
-        return true;
-      }
-      
+      if (result === RESULTS.GRANTED) return true;
       if (result === RESULTS.DENIED) {
         const requestResult = await request(permission);
         return requestResult === RESULTS.GRANTED;
       }
-      
       if (result === RESULTS.BLOCKED) {
         Alert.alert(
           'Permission Required',
-          'Please enable photo library access in settings to upload images.',
+          'Please enable photo library access in settings.',
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ]
+          ],
         );
         return false;
       }
-      
       return false;
     } catch (error) {
       console.error('Permission check error:', error);
@@ -164,37 +156,27 @@ export default function ReviewForm({
 
   const checkCameraPermission = async (): Promise<boolean> => {
     try {
-      let permission;
-      
-      if (Platform.OS === 'ios') {
-        permission = PERMISSIONS.IOS.CAMERA;
-      } else {
-        permission = PERMISSIONS.ANDROID.CAMERA;
-      }
-
+      const permission =
+        Platform.OS === 'ios'
+          ? PERMISSIONS.IOS.CAMERA
+          : PERMISSIONS.ANDROID.CAMERA;
       const result = await check(permission);
-      
-      if (result === RESULTS.GRANTED) {
-        return true;
-      }
-      
+      if (result === RESULTS.GRANTED) return true;
       if (result === RESULTS.DENIED) {
         const requestResult = await request(permission);
         return requestResult === RESULTS.GRANTED;
       }
-      
       if (result === RESULTS.BLOCKED) {
         Alert.alert(
           'Permission Required',
-          'Please enable camera access in settings to take photos.',
+          'Please enable camera access in settings.',
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ]
+          ],
         );
         return false;
       }
-      
       return false;
     } catch (error) {
       console.error('Camera permission error:', error);
@@ -202,14 +184,10 @@ export default function ReviewForm({
     }
   };
 
-  // Show image picker options (Gallery or Camera)
-  const handleImagePick = () => {
-    setShowImagePickerOptions(true);
-  };
+  const handleImagePick = () => setShowImagePickerOptions(true);
 
   const pickFromGallery = async () => {
     setShowImagePickerOptions(false);
-    
     const hasPermission = await checkPhotoPermission();
     if (!hasPermission) return;
 
@@ -222,25 +200,19 @@ export default function ReviewForm({
       };
 
       launchImageLibrary(options, (response: ImagePickerResponse) => {
-        if (response.didCancel) {
-          console.log('User cancelled image picker');
-          return;
-        }
-
+        if (response.didCancel) return;
         if (response.errorCode) {
-          console.log('ImagePicker Error Code: ', response.errorCode);
-          Alert.alert('Error', response.errorMessage || 'Failed to pick images');
+          Alert.alert(
+            'Error',
+            response.errorMessage || 'Failed to pick images',
+          );
           return;
         }
-
-        if (!response.assets || response.assets.length === 0) {
-          console.log('No assets selected');
-          return;
-        }
+        if (!response.assets || response.assets.length === 0) return;
 
         const availableSlots = 5 - images.length;
         if (availableSlots <= 0) {
-          Alert.alert('Limit Reached', 'You can only upload up to 5 images');
+          Alert.alert('Limit Reached', 'Maximum 5 images allowed');
           return;
         }
 
@@ -268,39 +240,28 @@ export default function ReviewForm({
 
   const takeFromCamera = async () => {
     setShowImagePickerOptions(false);
-    
     const hasPermission = await checkCameraPermission();
     if (!hasPermission) return;
 
     try {
-      // ✅ Fix: Use CameraOptions instead of ImageLibraryOptions
       const options: CameraOptions = {
         mediaType: 'photo',
         quality: 0.8,
         includeBase64: true,
-        saveToPhotos: true, // This works with CameraOptions
+        saveToPhotos: true,
       };
 
       launchCamera(options, (response: ImagePickerResponse) => {
-        if (response.didCancel) {
-          console.log('User cancelled camera');
-          return;
-        }
-
+        if (response.didCancel) return;
         if (response.errorCode) {
-          console.log('Camera Error Code: ', response.errorCode);
           Alert.alert('Error', response.errorMessage || 'Failed to take photo');
           return;
         }
-
-        if (!response.assets || response.assets.length === 0) {
-          console.log('No photo captured');
-          return;
-        }
+        if (!response.assets || response.assets.length === 0) return;
 
         const availableSlots = 5 - images.length;
         if (availableSlots <= 0) {
-          Alert.alert('Limit Reached', 'You can only upload up to 5 images');
+          Alert.alert('Limit Reached', 'Maximum 5 images allowed');
           return;
         }
 
@@ -319,10 +280,8 @@ export default function ReviewForm({
   const handleDeleteNewImage = (index: number) => {
     const newList = [...images];
     const newBase64List = [...imageBase64];
-
     newList.splice(index, 1);
     newBase64List.splice(index, 1);
-
     setImages(newList);
     setImageBase64(newBase64List);
   };
@@ -342,13 +301,6 @@ export default function ReviewForm({
         .map(base64 => `data:image/jpeg;base64,${base64}`),
     };
 
-    console.log('📦 Sending FINAL JSON data:', {
-      productId: submitData.productId,
-      rating: submitData.rating,
-      review: submitData.review,
-      imagesCount: submitData.images.length,
-    });
-
     handleSubmit(submitData);
     setOpenConfirmSubmit(false);
   };
@@ -360,49 +312,59 @@ export default function ReviewForm({
     setImageBase64([]);
   };
 
-  // Image picker options modal
+  // Image picker modal
   const ImagePickerModal = () => (
     <Modal
       visible={showImagePickerOptions}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={() => setShowImagePickerOptions(false)}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>
-            Choose Option
+        <View
+          style={[styles.pickerModalContent, { backgroundColor: colors.card }]}
+        >
+          <Text style={[styles.pickerModalTitle, { color: colors.text }]}>
+            Add Photos
           </Text>
-          
+
           <TouchableOpacity
             onPress={pickFromGallery}
-            style={[
-              styles.pickerOption,
-              { borderBottomColor: colors.border }
-            ]}
+            style={[styles.pickerOption, { borderBottomColor: colors.border }]}
           >
-            <Icon name="images" size={24} color={colors.primary} />
+            <View
+              style={[
+                styles.pickerIcon,
+                { backgroundColor: colors.primary + '20' },
+              ]}
+            >
+              <Icon name="images" size={24} color={colors.primary} />
+            </View>
             <Text style={[styles.pickerOptionText, { color: colors.text }]}>
               Choose from Gallery
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={takeFromCamera}
-            style={styles.pickerOption}
+            style={[styles.pickerOption, { borderBottomColor: colors.border }]}
           >
-            <Icon name="camera" size={24} color={colors.primary} />
+            <View
+              style={[
+                styles.pickerIcon,
+                { backgroundColor: colors.success + '20' },
+              ]}
+            >
+              <Icon name="camera" size={24} color={colors.success} />
+            </View>
             <Text style={[styles.pickerOptionText, { color: colors.text }]}>
               Take a Photo
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setShowImagePickerOptions(false)}
-            style={[
-              styles.pickerCancelButton,
-              { borderTopColor: colors.border }
-            ]}
+            style={styles.pickerCancelButton}
           >
             <Text style={[styles.pickerCancelText, { color: colors.error }]}>
               Cancel
@@ -416,51 +378,67 @@ export default function ReviewForm({
   return (
     <>
       <View style={[styles.container, { backgroundColor: colors.card }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Add a Review</Text>
+        {/* ✅ FIX: Removed emoji, using icon with text */}
+        <View style={styles.titleContainer}>
+          <MaterialIcon name="rate-review" size={24} color={colors.primary} />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Write a Review
+          </Text>
+        </View>
 
         {/* Rating */}
         <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Your Rating</Text>
+          <Text style={[styles.label, { color: colors.text }]}>
+            Your Rating
+          </Text>
           <StarRating
             rating={rating}
             onRatingChange={setRating}
             disabled={loadingSubmit}
-            size={28}
+            size={32}
           />
           {!rating && (
-            <Text style={[styles.errorText, { color: colors.error }]}>
-              * Please select a rating
-            </Text>
+            <View style={styles.errorContainer}>
+              <Icon name="warning-outline" size={14} color={colors.error} />
+              <Text style={[styles.errorText, { color: colors.error }]}>
+                Please select a rating
+              </Text>
+            </View>
           )}
         </View>
 
         {/* Review Text */}
-        <TextInput
-          placeholder="Write your review (optional)"
-          placeholderTextColor={colors.text + '80'}
-          multiline
-          numberOfLines={4}
-          style={[
-            styles.textInput,
-            {
-              borderColor: colors.border,
-              color: colors.text,
-              backgroundColor: colors.background,
-            },
-          ]}
-          value={reviewText}
-          onChangeText={setReviewText}
-          editable={!loadingSubmit}
-        />
+        <View style={styles.textInputWrapper}>
+          <TextInput
+            placeholder="What do you think about this product?"
+            placeholderTextColor={colors.muted}
+            multiline
+            numberOfLines={4}
+            style={[
+              styles.textInput,
+              {
+                borderColor: colors.border,
+                color: colors.text,
+                backgroundColor: colors.background,
+              },
+            ]}
+            value={reviewText}
+            onChangeText={setReviewText}
+            editable={!loadingSubmit}
+          />
+        </View>
 
         {/* Images */}
         <View style={styles.section}>
-          <Text style={[styles.imageLabel, { color: colors.text, opacity: 0.8 }]}>
-            Images (Optional, max 5)
-          </Text>
+          {/* ✅ FIX: Removed emoji, using icon with text */}
+          <View style={styles.imageLabelContainer}>
+            <Icon name="camera-outline" size={18} color={colors.text} />
+            <Text style={[styles.imageLabel, { color: colors.text }]}>
+              Add Photos (Optional)
+            </Text>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.imageContainer}>
-              {/* New Images */}
               {images.map((uri, index) => (
                 <View key={index} style={styles.imageWrapper}>
                   <Image
@@ -475,12 +453,11 @@ export default function ReviewForm({
                     ]}
                     onPress={() => handleDeleteNewImage(index)}
                   >
-                    <Icon name="close" size={16} color="white" />
+                    <Icon name="close" size={14} color="white" />
                   </TouchableOpacity>
                 </View>
               ))}
 
-              {/* Upload Button */}
               <TouchableOpacity
                 onPress={handleImagePick}
                 disabled={images.length >= 5 || loadingSubmit}
@@ -495,24 +472,25 @@ export default function ReviewForm({
               >
                 <MaterialIcon
                   name="cloud-upload"
-                  size={24}
+                  size={28}
                   color={images.length >= 5 ? colors.border : colors.primary}
                 />
                 <Text
                   style={[
                     styles.uploadText,
                     {
-                      color: images.length >= 5 ? colors.border : colors.primary,
+                      color:
+                        images.length >= 5 ? colors.border : colors.primary,
                     },
                   ]}
                 >
-                  Upload {'\n'}(Max 5)
+                  Upload
                 </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
-          <Text style={[styles.imageCount, { color: colors.text, opacity: 0.8 }]}>
-            {images.length} of 5 images selected
+          <Text style={[styles.imageCount, { color: colors.muted }]}>
+            {images.length} of 5 images
           </Text>
         </View>
 
@@ -527,12 +505,12 @@ export default function ReviewForm({
             style={[
               styles.cancelButton,
               {
-                borderColor: colors.primary,
+                borderColor: colors.border,
                 opacity: loadingSubmit ? 0.5 : 1,
               },
             ]}
           >
-            <Text style={[styles.cancelButtonText, { color: colors.primary }]}>
+            <Text style={[styles.cancelButtonText, { color: colors.text }]}>
               Cancel
             </Text>
           </TouchableOpacity>
@@ -540,10 +518,7 @@ export default function ReviewForm({
           <TouchableOpacity
             onPress={() => {
               if (!rating) {
-                Alert.alert(
-                  'Rating Required',
-                  'Please select a star rating before submitting.',
-                );
+                Alert.alert('Rating Required', 'Please select a star rating.');
                 return;
               }
               setOpenConfirmSubmit(true);
@@ -565,84 +540,66 @@ export default function ReviewForm({
           </TouchableOpacity>
         </View>
 
-        {/* Confirm Submit Modal */}
+        {/* Confirm Modal */}
         <Modal
           visible={openConfirmSubmit}
           transparent={true}
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setOpenConfirmSubmit(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
+            <View
+              style={[
+                styles.confirmModalContent,
+                { backgroundColor: colors.card },
+              ]}
+            >
+              <Text style={[styles.confirmTitle, { color: colors.text }]}>
                 Confirm Submission
               </Text>
 
-              <View style={styles.modalSection}>
-                <Text style={[styles.modalLabel, { color: colors.text }]}>
-                  Rating:{' '}
+              <View style={styles.confirmSection}>
+                <Text style={[styles.confirmLabel, { color: colors.text }]}>
+                  Rating
                 </Text>
                 <StarRating
                   rating={rating}
                   onRatingChange={() => {}}
                   disabled={true}
-                  size={20}
+                  size={24}
                 />
-                <Text style={[styles.modalText, { color: colors.text }]}>
-                  {rating} stars
-                </Text>
               </View>
 
               {reviewText && (
-                <View style={styles.modalSection}>
-                  <Text style={[styles.modalLabel, { color: colors.text }]}>
-                    Review:
+                <View style={styles.confirmSection}>
+                  <Text style={[styles.confirmLabel, { color: colors.text }]}>
+                    Review
                   </Text>
-                  <Text
-                    style={[
-                      styles.modalReviewText,
-                      { color: colors.text, opacity: 0.8 },
-                    ]}
-                  >
-                    {reviewText.substring(0, 100)}
-                    {reviewText.length > 100 ? '...' : ''}
+                  <Text style={[styles.confirmText, { color: colors.muted }]}>
+                    {reviewText.substring(0, 150)}
+                    {reviewText.length > 150 ? '...' : ''}
                   </Text>
                 </View>
               )}
 
               {images.length > 0 && (
-                <View style={styles.modalSection}>
-                  <Text style={[styles.modalLabel, { color: colors.text }]}>
-                    Images: {images.length}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.modalReviewText,
-                      { color: colors.text, opacity: 0.8, fontSize: 12 },
-                    ]}
-                  >
-                    (Base64 images will be uploaded)
+                <View style={styles.confirmSection}>
+                  <Text style={[styles.confirmLabel, { color: colors.text }]}>
+                    Photos ({images.length})
                   </Text>
                 </View>
               )}
 
-              <Text style={[styles.modalConfirmText, { color: colors.text }]}>
-                Are you sure you want to submit this review?
-              </Text>
-
-              <View style={styles.modalButtonRow}>
+              <View style={styles.confirmButtonRow}>
                 <TouchableOpacity
                   onPress={() => setOpenConfirmSubmit(false)}
                   style={[
-                    styles.modalCancelButton,
-                    { borderColor: colors.primary },
+                    styles.confirmCancelButton,
+                    { borderColor: colors.border },
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.modalCancelButtonText,
-                      { color: colors.primary },
-                    ]}
+                    style={[styles.confirmCancelText, { color: colors.text }]}
                   >
                     Cancel
                   </Text>
@@ -650,19 +607,18 @@ export default function ReviewForm({
                 <TouchableOpacity
                   onPress={handleFormSubmit}
                   style={[
-                    styles.modalSubmitButton,
+                    styles.confirmSubmitButton,
                     { backgroundColor: colors.primary },
                   ]}
                 >
-                  <Text style={styles.modalSubmitButtonText}>Submit</Text>
+                  <Text style={styles.confirmSubmitText}>Submit</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
       </View>
-      
-      {/* Image Picker Options Modal */}
+
       <ImagePickerModal />
     </>
   );
@@ -670,37 +626,65 @@ export default function ReviewForm({
 
 const styles = StyleSheet.create({
   container: {
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
-    borderRadius: 12,
-    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
   },
   section: {
     marginBottom: 16,
   },
   label: {
     fontSize: 16,
+    fontWeight: '600',
     marginBottom: 8,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   errorText: {
     fontSize: 12,
-    marginTop: 4,
+  },
+  starTouch: {
+    padding: 2,
+  },
+  textInputWrapper: {
+    marginBottom: 16,
   },
   textInput: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     textAlignVertical: 'top',
     fontSize: 16,
     minHeight: 100,
   },
+  imageLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
   imageLabel: {
     fontSize: 14,
-    marginBottom: 8,
+    fontWeight: '500',
   },
   imageContainer: {
     flexDirection: 'row',
@@ -710,13 +694,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     position: 'relative',
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   image: {
     width: 80,
     height: 80,
-    borderRadius: 8,
   },
   deleteImageButton: {
     position: 'absolute',
@@ -730,41 +713,46 @@ const styles = StyleSheet.create({
     height: 80,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   uploadText: {
-    fontSize: 10,
+    fontSize: 11,
     marginTop: 4,
-    textAlign: 'center',
+    fontWeight: '500',
   },
   imageCount: {
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
   },
   buttonRow: {
-    marginTop: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
   },
   cancelButton: {
+    flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 24,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
+    fontWeight: '600',
   },
   submitButton: {
+    flex: 2,
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   submitButtonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -772,76 +760,92 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  modalContent: {
-    borderRadius: 12,
-    padding: 20,
-    margin: 20,
-    minWidth: 300,
+  pickerModalContent: {
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
   },
-  modalTitle: {
+  pickerModalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 16,
     textAlign: 'center',
-  },
-  modalSection: {
-    marginBottom: 12,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  modalText: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  modalReviewText: {
-    fontSize: 14,
-  },
-  modalConfirmText: {
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  modalButtonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalCancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  modalCancelButtonText: {
-    fontSize: 16,
-  },
-  modalSubmitButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  modalSubmitButtonText: {
-    color: 'white',
-    fontSize: 16,
   },
   pickerOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: 14,
     borderBottomWidth: 1,
+    gap: 12,
+  },
+  pickerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pickerOptionText: {
     fontSize: 16,
-    marginLeft: 12,
+    fontWeight: '500',
   },
   pickerCancelButton: {
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderTopWidth: 1,
     marginTop: 8,
   },
   pickerCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmModalContent: {
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  confirmSection: {
+    marginBottom: 16,
+  },
+  confirmLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  confirmText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  confirmButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  confirmCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmSubmitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmSubmitText: {
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },

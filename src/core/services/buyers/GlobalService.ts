@@ -9,7 +9,7 @@ import {
 } from "./../../types/HomeTypes";
 
 // ✅ BASE URL aur TOKEN KEYS
-const BASE_URL = 'http://172.21.55.121:5000';
+const BASE_URL = 'http://10.141.253.121:5000';
 const TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 

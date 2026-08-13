@@ -1,5 +1,5 @@
 // src/services/paymentService.ts - FINAL FIXED VERSION
-import * as paymentApi from '../../../../api/features/private/paymentPrivateSlice';
+import * as paymentApi from '../../../../api/features/private/checkoutPaymentPrivateSlice';
 import { getToken } from '../../../../api/connections/token/tokenSlice';
 import { generateIdempotencyKey } from '../../../../core/utils/buyers/shop/throttle';
 
@@ -23,6 +23,16 @@ export interface PaymentResult {
   transaction?: any;
   orderId?: string;
   error?: string;
+}
+
+// ✅ BUY NOW PARAMS INTERFACE
+export interface BuyNowParams {
+  isBuyNow: boolean;
+  productId: string;
+  sellerId: string;
+  productDataId: string;
+  quantity: number;
+  variantId?: string;
 }
 
 class PaymentService {
@@ -114,17 +124,18 @@ class PaymentService {
     };
   }
 
-  // ✅ CREATE CHECKOUT SESSION - WITH paymentIntentId
+  // ✅ CREATE CHECKOUT SESSION - WITH BUY NOW PARAMS
   async createCheckoutSession(
     address: any,
     paymentMethod: 'online' | 'cod',
+    buyNowParams?: BuyNowParams, // ✅ NEW PARAM
   ): Promise<{
     success: boolean;
     checkoutSessionId?: string;
     paymentSheetData?: PaymentSessionData;
     orderId?: string;
     finalAmount?: number;
-    paymentIntentId?: string; // ✅ ADDED
+    paymentIntentId?: string;
     error?: string;
   }> {
     console.log('========================================');
@@ -132,6 +143,14 @@ class PaymentService {
     console.log('========================================');
     console.log('📅 Timestamp:', new Date().toISOString());
     console.log('💳 Payment Method:', paymentMethod);
+    console.log('🛒 isBuyNow:', buyNowParams?.isBuyNow || false);
+    console.log('📦 productId:', buyNowParams?.productId || 'NOT PROVIDED');
+    console.log('🏷️ sellerId:', buyNowParams?.sellerId || 'NOT PROVIDED');
+    console.log(
+      '📋 productDataId:',
+      buyNowParams?.productDataId || 'NOT PROVIDED',
+    );
+    console.log('💰 quantity:', buyNowParams?.quantity || 1);
 
     const idempotencyKey = generateIdempotencyKey();
     console.log('🔑 [Idempotency Key]:', idempotencyKey);
@@ -155,22 +174,38 @@ class PaymentService {
     }
 
     try {
+      // ✅ BUILD PARAMS WITH BUY NOW DATA
+      const params: paymentApi.CreatePaymentIntentParams = {
+        address,
+        paymentMethod,
+        idempotencyKey,
+      };
+
+      // ✅ ADD BUY NOW PARAMS IF PROVIDED
+      if (buyNowParams?.isBuyNow) {
+        params.isBuyNow = true;
+        params.productId = buyNowParams.productId;
+        params.sellerId = buyNowParams.sellerId;
+        params.productDataId = buyNowParams.productDataId;
+        params.quantity = buyNowParams.quantity;
+        if (buyNowParams.variantId) {
+          params.variantId = buyNowParams.variantId;
+        }
+      }
+
       console.log(
         '📤 [PaymentService] Calling paymentApi.createPaymentIntentAPI...',
       );
 
-      const response = await paymentApi.createPaymentIntentAPI(
-        address,
-        paymentMethod,
-        idempotencyKey,
-      );
+      const response = await paymentApi.createPaymentIntentAPI(params);
 
       console.log('📥 [PaymentService] API Response received');
       console.log('  - success:', response.success);
       console.log('  - hasCheckoutSessionId:', !!response.checkoutSessionId);
       console.log('  - orderId:', response.orderId);
       console.log('  - finalAmount:', response.finalAmount);
-      console.log('  - paymentIntentId:', response.paymentIntentId); // ✅ LOG THIS
+      console.log('  - paymentIntentId:', response.paymentIntentId);
+      console.log('  - isCartCheckout:', response.isCartCheckout);
 
       if (response.success) {
         console.log('✅ [PaymentService] API call successful');
@@ -195,14 +230,13 @@ class PaymentService {
           };
         }
 
-        // ✅ RETURN paymentIntentId
         return {
           success: true,
           checkoutSessionId: response.checkoutSessionId,
           paymentSheetData,
           orderId: response.orderId,
           finalAmount: response.finalAmount,
-          paymentIntentId: response.paymentIntentId, // ✅ YAHI - Razorpay order ID
+          paymentIntentId: response.paymentIntentId,
         };
       }
 
@@ -256,12 +290,20 @@ class PaymentService {
   // ✅ PROCESS ONLINE PAYMENT
   async processOnlinePayment(
     checkoutSessionId: string,
-    paymentSheetData: PaymentSessionData,
-    paymentResult: any,
+    razorpay_order_id: string,
+    razorpay_payment_id: string,
+    razorpay_signature: string,
   ): Promise<PaymentResult> {
     console.log('========================================');
     console.log('💳 [PaymentService] processOnlinePayment CALLED');
     console.log('========================================');
+    console.log('📋 Checkout Session ID:', checkoutSessionId);
+    console.log('📋 Razorpay Order ID:', razorpay_order_id);
+    console.log('📋 Razorpay Payment ID:', razorpay_payment_id);
+    console.log(
+      '📋 Razorpay Signature:',
+      razorpay_signature ? 'PROVIDED' : 'NOT PROVIDED',
+    );
 
     if (!this.isReady()) {
       console.error('❌ Service not ready');
@@ -269,27 +311,13 @@ class PaymentService {
     }
 
     try {
-      const transactionId =
-        paymentResult.data?.transactionId ||
-        paymentResult?.transactionId ||
-        paymentResult.data?.id ||
-        paymentResult?.id ||
-        paymentResult?.razorpay_payment_id;
-
-      const paymentMethodResult =
-        paymentResult.data?.method || paymentResult?.paymentMethod || 'online';
-
-      console.log('📤 Calling processPaymentAPI...');
-      console.log('  - checkoutSessionId:', checkoutSessionId);
-      console.log('  - transactionId:', transactionId);
-      console.log('  - paymentMethodResult:', paymentMethodResult);
-      console.log('  - paymentType:', paymentSheetData.paymentType);
+      console.log('📤 Calling processPaymentAPI with correct parameters...');
 
       const response = await paymentApi.processPaymentAPI(
         checkoutSessionId,
-        transactionId,
-        paymentMethodResult,
-        paymentSheetData.paymentType,
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
       );
 
       console.log('📥 Response:', JSON.stringify(response, null, 2));

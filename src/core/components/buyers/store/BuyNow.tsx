@@ -20,7 +20,9 @@ import {
 } from 'react-native-safe-area-context';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useTheme } from '../../../contexts/theme/ThemeContext';
@@ -224,7 +226,7 @@ const BuyNow: React.FC<BuyNowProps> = ({
 
       setShowVariantModal(false);
 
-      navigation.navigate('BuyNow', {
+      navigation.navigate('CheckOutScreen', {
         productId: productId,
         variantId: selectedVariant?.variantId || null,
       });
@@ -832,8 +834,8 @@ const BuyNow: React.FC<BuyNowProps> = ({
         style={[
           styles.buyNowButton,
           {
-            backgroundColor: isBuyNowDisabled ? '#9CA3AF' : BLACK,
-            shadowColor: isBuyNowDisabled ? '#9CA3AF' : '#000',
+            backgroundColor: '#000000',
+            shadowColor: '#4a4a4a', // Grayish shadow for glossy effect
           },
         ]}
         activeOpacity={0.8}
@@ -841,9 +843,16 @@ const BuyNow: React.FC<BuyNowProps> = ({
         {loading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>
-            {!productAvailable ? 'Out of Stock' : 'Buy Now'}
-          </Text>
+          <View style={styles.buttonContent}>
+            <MaterialIcons
+              name="shopping-cart-checkout"
+              size={18}
+              color="#fff"
+            />
+            <Text style={styles.buttonText}>
+              {!productAvailable ? 'Out of Stock' : 'Buy Now'}
+            </Text>
+          </View>
         )}
       </TouchableOpacity>
     </>
@@ -1129,10 +1138,15 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 50,
     width: '100%',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 7,
+    elevation: 6,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   buttonText: {
     fontSize: 16,

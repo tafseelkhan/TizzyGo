@@ -461,12 +461,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   // ✅ Loading Skeleton
   if (gridLoading && memoizedProducts.length === 0) {
     return (
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: isDark ? '#0F172A' : '#f8fafc' },
-        ]}
-      >
+      <View style={[styles.container]}>
         <View style={styles.gridContainer}>
           {[...Array(2)].map((_, colIndex) => (
             <View key={`col-${colIndex}`} style={styles.column}>
@@ -541,12 +536,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   // ✅ If initial render and loading, show skeleton
   if (isInitialRender && gridLoading) {
     return (
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: isDark ? '#0F172A' : '#f8fafc' },
-        ]}
-      >
+      <View style={[styles.container]}>
         <View style={styles.gridContainer}>
           {[...Array(2)].map((_, colIndex) => (
             <View key={`col-${colIndex}`} style={styles.column}>
@@ -590,12 +580,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 
   // ✅ MAIN RENDER
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? '#0F172A' : '#f8fafc' },
-      ]}
-    >
+    <View style={[styles.container]}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -864,7 +849,7 @@ export default React.memo(ProductGrid);
 
 // ============ STYLES ============
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#00000000' },
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   horizontalSection: { paddingHorizontal: 16, marginTop: 16, marginBottom: 20 },
   horizontalHeader: {

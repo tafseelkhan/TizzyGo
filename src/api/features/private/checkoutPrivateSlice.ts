@@ -1,3 +1,5 @@
+// api/features/private/checkoutPrivateSlice.ts
+
 import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
@@ -10,23 +12,68 @@ import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 export interface CalculationParams {
   mongoObjectId: string;
-  quantity: number;
-  vendorCodeUID: string;
-  sellerId: string;
   displayProductId: string;
-  isLocationUpdate?: boolean;
-  sellerLat?: number;
-  sellerLng?: number;
-  sellerAddress?: string;
-  buyerLat?: number;
-  buyerLng?: number;
-  buyerAddress?: string;
-  buyerGooglePlaceId?: string;
+  sellerId: string;
+  vendorCodeUID: string;
+  quantity: number;
   couponCode?: string;
+  isLocationUpdate?: boolean;
 }
 
-export interface ProductFetchParams {
-  productId: string;
+export interface CheckoutResponse {
+  success: boolean;
+  calculated: CalculatedData;
+  location: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  };
+  couponMessage?: string;
+}
+
+export interface CalculatedData {
+  mrp: number;
+  price: number;
+  finalPrice: number;
+  savedAmount: number;
+  discountPercent: number;
+  quantity: number;
+  totalMrp: number;
+  totalFinalPrice: number;
+  totalSavedAmount: number;
+  gstRate: number;
+  gstType: string;
+  gstAmount: number;
+  perProductGst: number;
+  platformFee: number;
+  packagingFee: number;
+  deliveryCharge: number;
+  distanceKm: number;
+  volumetricWeight: number;
+  actualWeight: number;
+  chargeableWeight: number;
+  deliveryRatePerKm: number;
+  deliveryRatePerKg: number;
+  subtotal: number;
+  totalBeforeCoupon: number;
+  discountAppliedAmount: number;
+  grandTotal: number;
+  couponUsed: string | null;
+  couponData: any | null;
+  buyerLocation: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    googlePlaceId: string | null;
+  };
+  sellerLocation: {
+    latitude: number;
+    longitude: number;
+    address: string | null;
+    googlePlaceId: string | null;
+  };
+  error?: string;
+  code?: string;
 }
 
 // ================================
@@ -35,7 +82,6 @@ export interface ProductFetchParams {
 
 const getHeaders = async () => {
   const token = await getToken();
-
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -43,57 +89,69 @@ const getHeaders = async () => {
 };
 
 // ================================
-// 1. FETCH CALCULATED CHECKOUT DATA
+// CHECKOUT API CLASS
 // ================================
+
 class CheckoutApi {
+  /**
+   * ✅ FETCH CALCULATED CHECKOUT DATA
+   * Backend automatically fetches buyer location from database.
+   */
   fetchCalculatedDataAPI = async (params: CalculationParams) => {
+    console.log('🚀 [CheckoutApi] fetchCalculatedDataAPI called');
+    console.log('📦 Params:', JSON.stringify(params, null, 2));
+
     const urlParams = new URLSearchParams();
 
+    // ✅ REQUIRED PARAMS
     urlParams.append('productId', params.mongoObjectId);
     urlParams.append('quantity', params.quantity.toString());
     urlParams.append('vendorCodeUID', params.vendorCodeUID);
     urlParams.append('sellerId', params.sellerId);
     urlParams.append('productDataId', params.displayProductId);
 
-    if (params.isLocationUpdate) {
-      urlParams.append('isLocationUpdate', 'true');
-    }
-
-    if (params.sellerLat && params.sellerLng) {
-      urlParams.append('sellerLat', params.sellerLat.toString());
-      urlParams.append('sellerLng', params.sellerLng.toString());
-    }
-
-    if (params.sellerAddress) {
-      urlParams.append('sellerAddress', params.sellerAddress);
-    }
-
-    if (params.buyerLat && params.buyerLng) {
-      urlParams.append('buyerLat', params.buyerLat.toString());
-      urlParams.append('buyerLng', params.buyerLng.toString());
-    }
-
-    if (params.buyerAddress) {
-      urlParams.append('buyerAddress', params.buyerAddress);
-    }
-
-    if (params.buyerGooglePlaceId) {
-      urlParams.append('buyerGooglePlaceId', params.buyerGooglePlaceId);
-    }
-
+    // ✅ OPTIONAL PARAMS
     if (params.couponCode) {
       urlParams.append('couponCode', params.couponCode);
     }
 
-    const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`,
-      {
+    if (params.isLocationUpdate) {
+      urlParams.append('isLocationUpdate', 'true');
+    }
+
+    // ❌ REMOVED ALL LOCATION PARAMS
+
+    const url = `${API_BASE_URL}${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`;
+    console.log('🌐 [CheckoutApi] URL:', url);
+
+    try {
+      const data = await fetchHandler(url, {
         method: 'GET',
         headers: await getHeaders(),
-      },
-    );
+      });
 
-    return data;
+      console.log('✅ [CheckoutApi] Response received');
+      console.log('📊 Response data:', JSON.stringify(data, null, 2));
+
+      if (!data.success && data.code === 'LOCATION_NOT_FOUND') {
+        console.warn('⚠️ [CheckoutApi] Location not found in database');
+        throw new Error('LOCATION_NOT_FOUND');
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('❌ [CheckoutApi] Error:', error.message);
+      if (error.message === 'LOCATION_NOT_FOUND') {
+        throw new Error('LOCATION_NOT_FOUND');
+      }
+      throw error;
+    }
   };
 }
+
+// ================================
+// ✅ EXPORT SINGLETON INSTANCE
+// ================================
+
 export const checkoutApi = new CheckoutApi();
+export { CheckoutApi };

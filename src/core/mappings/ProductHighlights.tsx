@@ -510,7 +510,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 12,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
   },
   header: {
     paddingHorizontal: 16,

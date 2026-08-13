@@ -1,3 +1,7 @@
+// ============================================================
+// api/features/private/RatingGlobalPrivateSlice.ts
+// ============================================================
+
 import Config from 'react-native-config';
 import { jwtDecode } from 'jwt-decode';
 
@@ -81,31 +85,53 @@ export const getCurrentUserId = async (): Promise<string | null> => {
 };
 
 // ================================
-// FETCH RATING STATS
+// ✅ FETCH RATING STATS
+// GET /api/v0/rating-review/rating/stats/:productId
 // ================================
 
 export const fetchRatingStatsAPI = async (
   productId: string,
 ): Promise<RatingStats> => {
-  const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`,
-    {
+  try {
+    console.log('📊 fetchRatingStatsAPI called with productId:', productId);
+
+    // ✅ FIXED: Correct URL format
+    const url = `${API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`;
+    console.log('📤 URL:', url);
+
+    const data = await fetchHandler(url, {
       method: 'GET',
       headers: await getHeaders(),
-    },
-  );
+    });
 
-  return {
-    totalRatings: data?.totalRatings || 0,
-    averageRating: data?.averageRating?.toString() || '0',
-    percentage: data?.percentage?.toString() || '0',
-    distribution: data?.distribution || [0, 0, 0, 0, 0],
-    totalReviews: data?.totalReviews || 0,
-  };
+    console.log('📥 Response data:', data);
+
+    // ✅ Backend returns: { success: true, data: { ... } }
+    const statsData = data?.data || data;
+
+    return {
+      totalRatings: statsData?.totalRatings || 0,
+      averageRating: statsData?.averageRating?.toString() || '0.0',
+      percentage: statsData?.percentage?.toString() || '0%',
+      distribution: statsData?.distribution || [0, 0, 0, 0, 0],
+      totalReviews: statsData?.totalReviews || 0,
+    };
+  } catch (error: any) {
+    console.error('❌ fetchRatingStatsAPI error:', error.message);
+    // ✅ Return default stats on error
+    return {
+      totalRatings: 0,
+      averageRating: '0.0',
+      percentage: '0%',
+      distribution: [0, 0, 0, 0, 0],
+      totalReviews: 0,
+    };
+  }
 };
 
 // ================================
-// FETCH REVIEWS
+// ✅ FETCH REVIEWS WITH USER DATA
+// GET /api/v0/rating-review/rating/reviews/:productId?page=1&limit=10
 // ================================
 
 export const fetchReviewsWithUserDataAPI = async (
@@ -113,77 +139,122 @@ export const fetchReviewsWithUserDataAPI = async (
   page: number = 1,
   limit: number = 10,
 ): Promise<Review[]> => {
-  const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`,
-    {
-      method: 'GET',
-      headers: await getHeaders(),
-    },
-  );
-
-  return data?.reviews || data || [];
-};
-
-// ================================
-// SUBMIT REVIEW
-// ================================
-
-export const submitReviewAPI = async (
-  submitData: any,
-  reviewId?: string,
-) => {
-  const endpoint = reviewId
-    ? `${API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}`
-    : `${API_BASE_URL}${API_ENDPOINTS.REVIEW}`;
-
-  return await fetchHandler(endpoint, {
-    method: reviewId ? 'PUT' : 'POST',
-    headers: await getHeaders(),
-    body: JSON.stringify(submitData),
-  });
-};
-
-// ================================
-// DELETE REVIEW
-// ================================
-
-export const deleteReviewAPI = async (
-  reviewId: string,
-): Promise<void> => {
-  await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}`,
-    {
-      method: 'DELETE',
-      headers: await getHeaders(),
-    },
-  );
-};
-
-// ================================
-// FETCH USER RATING
-// ================================
-
-export const fetchUserRatingAPI = async (
-  productId: string,
-) => {
   try {
-    const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`,
-      {
-        method: 'GET',
-        headers: await getHeaders(),
-      },
+    console.log(
+      '📚 fetchReviewsWithUserDataAPI called with productId:',
+      productId,
     );
 
-    return data;
+    // ✅ FIXED: Correct URL format
+    const url = `${API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`;
+    console.log('📤 URL:', url);
+
+    const data = await fetchHandler(url, {
+      method: 'GET',
+      headers: await getHeaders(),
+    });
+
+    console.log('📥 Response data:', data?.length || 0, 'reviews');
+
+    // ✅ Backend returns: { success: true, data: [ ... ] }
+    return data?.data || data || [];
   } catch (error: any) {
-    if (
-      error?.message?.includes('404') ||
-      error?.status === 404
-    ) {
+    console.error('❌ fetchReviewsWithUserDataAPI error:', error.message);
+    return [];
+  }
+};
+
+// ================================
+// ✅ SUBMIT REVIEW
+// POST /api/v0/rating-review/rating
+// PUT /api/v0/rating-review/rating/:reviewId
+// ================================
+
+export const submitReviewAPI = async (submitData: any, reviewId?: string) => {
+  try {
+    console.log('📝 submitReviewAPI called with reviewId:', reviewId);
+
+    // ✅ FIXED: Correct URL format
+    const endpoint = reviewId
+      ? `${API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}` // PUT for update
+      : `${API_BASE_URL}${API_ENDPOINTS.REVIEW}`; // POST for create
+
+    console.log('📤 URL:', endpoint);
+
+    const data = await fetchHandler(endpoint, {
+      method: reviewId ? 'PUT' : 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({
+        productId: submitData.productId,
+        rating: submitData.rating,
+        review: submitData.review || '',
+        images: submitData.images || [],
+      }),
+    });
+
+    console.log('✅ Review submitted successfully');
+
+    // ✅ Backend returns: { success: true, data: { ... } }
+    return data?.data || data;
+  } catch (error: any) {
+    console.error('❌ submitReviewAPI error:', error.message);
+    throw error;
+  }
+};
+
+// ================================
+// ✅ DELETE REVIEW
+// DELETE /api/v0/rating-review/:ratingReviewId
+// ================================
+
+export const deleteReviewAPI = async (reviewId: string): Promise<void> => {
+  try {
+    console.log('🗑️ deleteReviewAPI called with reviewId:', reviewId);
+
+    // ✅ FIXED: Correct URL format
+    const url = `${API_BASE_URL}${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`;
+    console.log('📤 URL:', url);
+
+    await fetchHandler(url, {
+      method: 'DELETE',
+      headers: await getHeaders(),
+    });
+
+    console.log('✅ Review deleted successfully');
+  } catch (error: any) {
+    console.error('❌ deleteReviewAPI error:', error.message);
+    throw error;
+  }
+};
+
+// ================================
+// ✅ FETCH USER RATING
+// GET /api/v0/rating-review/rating/user/:productId
+// ================================
+
+export const fetchUserRatingAPI = async (productId: string) => {
+  try {
+    console.log('👤 fetchUserRatingAPI called with productId:', productId);
+
+    // ✅ FIXED: Correct URL format
+    const url = `${API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`;
+    console.log('📤 URL:', url);
+
+    const data = await fetchHandler(url, {
+      method: 'GET',
+      headers: await getHeaders(),
+    });
+
+    console.log('📥 Response data:', data);
+
+    // ✅ Backend returns: { success: true, data: { ... } }
+    return data?.data || data;
+  } catch (error: any) {
+    if (error?.message?.includes('404') || error?.status === 404) {
       return null;
     }
 
+    console.error('❌ fetchUserRatingAPI error:', error.message);
     throw error;
   }
 };

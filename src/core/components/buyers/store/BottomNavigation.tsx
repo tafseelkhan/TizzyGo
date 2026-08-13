@@ -1,199 +1,231 @@
-// BottomNavigation.tsx - FINAL FIXED VERSION WITH ZEPTPAYACCOUNTID
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
-import {
-  useSafeAreaInsets,
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+// components/BottomNavigation.tsx - WITH BUYNOW & ADDTOCART (Layout Same)
+
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
+import { View, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../../contexts/theme/ThemeContext';
 import AddToCart from './AddToCart';
 import BuyNow from './BuyNow';
-import { useTheme } from '../../../contexts/theme/ThemeContext';
 
 const ORANGE = '#FF8438';
+const { width } = Dimensions.get('window');
 
+// Type definitions for props
 interface BottomNavigationProps {
   productData?: any;
   productId?: string;
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
 }
 
-const BottomNavigation = ({
-  productData,
-  productId,
-}: BottomNavigationProps) => {
-  const insets = useSafeAreaInsets();
-  const { isDark } = useTheme();
+// ✅ FIX 1: Memoize component
+const BottomNavigation = React.memo(
+  ({
+    productData,
+    productId,
+    activeTab,
+    setActiveTab,
+  }: BottomNavigationProps) => {
+    const { isDark } = useTheme();
+    const insets = useSafeAreaInsets();
 
-  const [isInCart, setIsInCart] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+    const [isInCart, setIsInCart] = useState(false);
+    const [quantity, setQuantity] = useState(1);
+    const [selectedVariant, setSelectedVariant] = useState<any>(null);
 
-  // ✅ Ensure zeptPayAccountId is set in product
-  const productWithVendor = productData
-    ? {
+    // ✅ FIX 2: Use useMemo to stabilize product object
+    const productWithVendor = useMemo(() => {
+      if (!productData) return null;
+      return {
         ...productData,
         zeptPayAccountId:
           productData?.zeptPayAccountId ||
           productData?.vendorCodeUID ||
           productData?.seller?.zeptPayAccountId ||
           'DEFAULT_VENDOR',
-      }
-    : null;
-
-  const product = productWithVendor;
-  const id = productId || product?.id || product?._id;
-
-  // Default variant select - also ensure variant has zeptPayAccountId
-  useEffect(() => {
-    if (product?.variants && product.variants.length > 0) {
-      const defaultVariant = {
-        ...product.variants[0],
-        zeptPayAccountId:
-          product.variants[0]?.zeptPayAccountId ||
-          product?.zeptPayAccountId ||
-          'DEFAULT_VENDOR',
       };
-      setSelectedVariant(defaultVariant);
-    }
-  }, [product]);
+    }, [productData]);
 
-  // ✅ Product available check - Sirf product data ke hisaab se
-  const isProductAvailable = () => {
-    if (!product) return false;
+    const product = productWithVendor;
+    const id = productId || product?.id || product?._id;
 
-    if (product.inStock !== undefined && product.inStock !== null) {
-      return product.inStock === true;
-    }
-    if (
-      product.quantityAvailable !== undefined &&
-      product.quantityAvailable !== null
-    ) {
-      return product.quantityAvailable > 0;
-    }
-    if (product.stock !== undefined && product.stock !== null) {
-      return product.stock > 0;
-    }
-    return true;
-  };
+    // ✅ FIX 3: Use useMemo for variants with stable reference
+    const variants = useMemo(() => {
+      if (!product?.variants) return [];
+      return product.variants.map((v: any) => ({
+        ...v,
+        zeptPayAccountId:
+          v?.zeptPayAccountId || product?.zeptPayAccountId || 'DEFAULT_VENDOR',
+      }));
+    }, [product]);
 
-  const variants =
-    product?.variants?.map((v: any) => ({
-      ...v,
-      zeptPayAccountId:
-        v?.zeptPayAccountId || product?.zeptPayAccountId || 'DEFAULT_VENDOR',
-    })) || [];
+    // ✅ FIX 4: Use useRef to track if default variant is set
+    const defaultVariantSetRef = useRef(false);
 
-  const handleVariantSelect = (variant: any) => {
-    // ✅ Ensure variant has zeptPayAccountId
-    const variantWithVendor = {
-      ...variant,
-      zeptPayAccountId:
-        variant?.zeptPayAccountId ||
-        product?.zeptPayAccountId ||
-        'DEFAULT_VENDOR',
-    };
-    setSelectedVariant(variantWithVendor);
-  };
+    useEffect(() => {
+      // ✅ Only set default variant once
+      if (
+        product?.variants &&
+        product.variants.length > 0 &&
+        !defaultVariantSetRef.current
+      ) {
+        defaultVariantSetRef.current = true;
+        const defaultVariant = {
+          ...product.variants[0],
+          zeptPayAccountId:
+            product.variants[0]?.zeptPayAccountId ||
+            product?.zeptPayAccountId ||
+            'DEFAULT_VENDOR',
+        };
+        setSelectedVariant(defaultVariant);
+      }
+    }, [product]);
 
-  const handleAddToCartSuccess = () => {
-    setIsInCart(true);
-    setQuantity(1);
-  };
-
-  // Agar product nahi hai toh loading dikhao
-  if (!product) {
-    return (
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
-          <ActivityIndicator size="small" color={ORANGE} />
-        </View>
-      </SafeAreaView>
+    // ✅ FIX 5: Memoize callbacks
+    const handleVariantSelect = useCallback(
+      (variant: any) => {
+        const variantWithVendor = {
+          ...variant,
+          zeptPayAccountId:
+            variant?.zeptPayAccountId ||
+            product?.zeptPayAccountId ||
+            'DEFAULT_VENDOR',
+        };
+        setSelectedVariant(variantWithVendor);
+      },
+      [product],
     );
-  }
 
-  const buyNowProduct = {
-    ...product,
-    _id: product._id || product.id || id,
-    id: product.id || product._id || id,
-    zeptPayAccountId: product?.zeptPayAccountId || 'DEFAULT_VENDOR',
-  };
+    const handleAddToCartSuccess = useCallback(() => {
+      setIsInCart(true);
+      setQuantity(1);
+    }, []);
 
-  const productAvailable = isProductAvailable();
+    // ✅ FIX 6: Memoize computed values
+    const isProductAvailable = useMemo(() => {
+      if (!product) return false;
 
-  return (
-    <SafeAreaView
-      edges={['bottom']}
-      style={[
-        styles.safeArea,
-        { backgroundColor: isDark ? '#0F172A' : '#FFF' },
-      ]}
-    >
+      if (product.inStock !== undefined && product.inStock !== null) {
+        return product.inStock === true;
+      }
+      if (
+        product.quantityAvailable !== undefined &&
+        product.quantityAvailable !== null
+      ) {
+        return product.quantityAvailable > 0;
+      }
+      if (product.stock !== undefined && product.stock !== null) {
+        return product.stock > 0;
+      }
+      return true;
+    }, [product]);
+
+    // ✅ FIX 7: Memoize buyNowProduct
+    const buyNowProduct = useMemo(() => {
+      if (!product) return null;
+      return {
+        ...product,
+        _id: product._id || product.id || id,
+        id: product.id || product._id || id,
+        zeptPayAccountId: product?.zeptPayAccountId || 'DEFAULT_VENDOR',
+      };
+    }, [product, id]);
+
+    // Loading state
+    if (!product) {
+      return (
+        <View
+          style={[
+            styles.bottomNav,
+            {
+              backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+              borderColor: isDark ? '#334155' : '#E5E7EB',
+              bottom: Math.max(insets.bottom, 16),
+              left: Math.max(insets.left, 16),
+              right: Math.max(insets.right, 16),
+            },
+          ]}
+        >
+          <View style={styles.navContent}>
+            <ActivityIndicator size="small" color={ORANGE} />
+          </View>
+        </View>
+      );
+    }
+
+    return (
       <View
         style={[
-          styles.bottomBar,
+          styles.bottomNav,
           {
             backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-            paddingBottom: Math.max(insets.bottom, 12),
-            paddingTop: 12,
-            borderTopColor: isDark ? '#334155' : '#F0F0F0',
+            borderColor: isDark ? '#334155' : '#E5E7EB',
+            bottom: Math.max(insets.bottom, 16),
+            left: Math.max(insets.left, 16),
+            right: Math.max(insets.right, 16),
           },
         ]}
       >
-        {/* LEFT: Buy Now */}
-        <View style={styles.buyNowWrap}>
-          <BuyNow
-            product={buyNowProduct}
-            productLoading={false}
-            productAvailable={productAvailable}
-            variants={variants}
-            selectedVariant={selectedVariant}
-            onVariantSelect={handleVariantSelect}
-          />
-        </View>
+        <View style={styles.navContent}>
+          {/* LEFT: Buy Now */}
+          <View style={styles.buyNowWrap}>
+            <BuyNow
+              product={buyNowProduct}
+              productLoading={false}
+              productAvailable={isProductAvailable}
+              variants={variants}
+              selectedVariant={selectedVariant}
+              onVariantSelect={handleVariantSelect}
+            />
+          </View>
 
-        {/* RIGHT: Add to Cart (orange pill) */}
-        <View style={styles.addToCartWrap}>
-          <AddToCart
-            productId={id}
-            productData={product}
-            initialIsInCart={isInCart}
-            initialQuantity={quantity}
-            productLoading={false}
-            productAvailable={productAvailable}
-            variants={variants}
-            selectedVariant={selectedVariant}
-            onVariantSelect={handleVariantSelect}
-            onAddToCartSuccess={handleAddToCartSuccess}
-          />
+          {/* RIGHT: Add to Cart */}
+          <View style={styles.addToCartWrap}>
+            <AddToCart
+              productId={id}
+              productData={product}
+              initialIsInCart={isInCart}
+              initialQuantity={quantity}
+              productLoading={false}
+              productAvailable={isProductAvailable}
+              variants={variants}
+              selectedVariant={selectedVariant}
+              onVariantSelect={handleVariantSelect}
+              onAddToCartSuccess={handleAddToCartSuccess}
+            />
+          </View>
         </View>
       </View>
-    </SafeAreaView>
-  );
-};
+    );
+  },
+);
+
+// ✅ FIX 8: Add display name
+BottomNavigation.displayName = 'BottomNavigation';
 
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: '#FFFFFF',
+  bottomNav: {
+    position: 'absolute',
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    zIndex: 1000,
+    elevation: 50,
+    borderWidth: 1,
+    width: width * 0.92,
+    alignSelf: 'center',
   },
-  bottomBar: {
+  navContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
+    justifyContent: 'center',
     gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 12,
-    minHeight: 60,
   },
   buyNowWrap: {
     flex: 0.9,

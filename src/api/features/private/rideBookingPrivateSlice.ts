@@ -115,6 +115,7 @@ export interface RideOptionsResponse {
 
 export interface BookingRequest {
   quoteId: string;
+  serviceType: 'LOCAL_RIDE' | 'AIRPORT'; // ✅ ADD THIS
   paymentMethod: 'COC' | 'ONLINE';
 }
 
@@ -239,6 +240,46 @@ class RideBooking {
     }
   };
 
+getAirportRideOptions = async (
+  pickup: Location,
+  drop: Location,
+  tripType: "AIRPORT_TO_LOCATION" | "LOCATION_TO_AIRPORT",
+): Promise<RideOptionsResponse> => {
+  if (!pickup || !drop) {
+    return {
+      success: false,
+      message: 'Pickup and drop locations are required',
+    };
+  }
+
+  if (!tripType || !["AIRPORT_TO_LOCATION", "LOCATION_TO_AIRPORT"].includes(tripType)) {
+    return {
+      success: false,
+      message: 'Valid tripType is required: AIRPORT_TO_LOCATION or LOCATION_TO_AIRPORT',
+    };
+  }
+
+  try {
+    const data = await fetchHandler(
+      `${API_BASE_URL}${API_ENDPOINTS.AIRPORT_OPTIONS}`,  // ✅ /api/ride/airport/options
+      {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ pickup, drop, tripType }),
+      },
+    );
+
+    return data || { success: false, message: 'Failed to get airport ride options' };
+  } catch (error) {
+    console.error('Get airport ride options API error:', error);
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : 'Failed to get airport ride options',
+    };
+  }
+};
+
   // ================================
   // 2. CREATE BOOKING
   // ================================
@@ -259,6 +300,7 @@ class RideBooking {
 
   createBooking = async (
     quoteId: string,
+    serviceType: 'LOCAL_RIDE' | 'AIRPORT' = 'LOCAL_RIDE', // ✅ ADD serviceType parameter with default
     paymentMethod: 'COC' | 'ONLINE' = 'COC',
   ): Promise<BookingResponse> => {
     if (!quoteId) {
@@ -274,7 +316,11 @@ class RideBooking {
         {
           method: 'POST',
           headers: await this.getHeaders(),
-          body: JSON.stringify({ quoteId, paymentMethod }),
+          body: JSON.stringify({
+            quoteId,
+            serviceType, // ✅ SEND serviceType
+            paymentMethod,
+          }),
         },
       );
 

@@ -1,4 +1,5 @@
-// ProductDetailsScreen.tsx - FINAL COMPLETE VERSION
+// ProductDetailsScreen.tsx - FINAL WITH SHARE BUTTON
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -41,7 +42,7 @@ import {
 import RatingReviewSystem from '../global/RatingGlobal';
 import LikeComponent from '../global/LikeGlobal';
 import CommentComponent from '../global/CommentGlobal';
-import ShareWithStats from '../global/ShareGlobal';
+import ProductShare from '../global/ShareGlobal'; // ✅ IMPORT SHARE
 import { useUser } from '../../../contexts/auth/UserContext';
 
 const { width } = Dimensions.get('window');
@@ -591,7 +592,9 @@ export const ProductDetailsScreen: React.FC = () => {
                       ]}
                     >
                       <Text style={styles.avatarText}>
-                        {(review as any)?.user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                        {(review as any)?.user?.name
+                          ?.charAt(0)
+                          ?.toUpperCase() || 'U'}
                       </Text>
                     </View>
                   ))}
@@ -631,11 +634,14 @@ export const ProductDetailsScreen: React.FC = () => {
                 <CommentComponent productId={productId} />
                 <Text style={styles.actionLabel}>Comment</Text>
               </View>
+              {/* ✅ SHARE BUTTON ADDED */}
               <View style={styles.actionItem}>
-                <ShareWithStats
+                <ProductShare
                   productId={productId}
-                  productTitle={product.title || ''}
+                  productTitle={product.title || 'Product'}
                   category={product.category || ''}
+                  productImage={productImages[0] || ''}
+                  productPrice={`₹${currentPrice || product.finalPrice || product.price || 0}`}
                 />
                 <Text style={styles.actionLabel}>Share</Text>
               </View>
@@ -759,7 +765,7 @@ const styles = StyleSheet.create({
 
   // Image Card
   imageCardContainer: {
-    backgroundColor: '#ECECEC',
+    backgroundColor: '#FFFFFF',
     paddingBottom: 14,
     position: 'relative',
     paddingTop: 16,

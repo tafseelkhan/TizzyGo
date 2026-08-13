@@ -1,4 +1,4 @@
-// src/screens/PaymentStep.tsx - FINAL WITH SAFE AREA
+// src/screens/PaymentStep.tsx - FINAL WITH NAVIGATION
 import React from 'react';
 import {
   View,
@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -31,7 +32,7 @@ interface PaymentStepProps {
   onPaymentMethodChange?: (method: 'online' | 'cod') => void;
 }
 
-const AIRCLOUD_LOGO = require('../../../../assets/images/aircloud.png');
+const QUTON_LOGO = require('../../../../assets/images/quton.png');
 const RAZORPAY_LOGO = require('../../../../assets/images/razorpay.png');
 
 const PaymentStepComponent: React.FC<PaymentStepProps> = ({
@@ -44,6 +45,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
 }) => {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
 
   const {
     loading,
@@ -76,6 +78,31 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
     externalLoading ||
     !checkoutSessionCreated ||
     (paymentMethod === 'online' && !isVerified);
+
+  // ✅ Handle payment success - navigate to OrderConfirmation
+  const handlePaymentSuccess = (checkoutSessionId: string) => {
+    console.log(
+      `📱 [Navigation] Payment success, navigating to OrderConfirmation with: ${checkoutSessionId}`,
+    );
+    navigation.navigate('OrderConfirmation', {
+      checkoutSessionId: checkoutSessionId,
+    });
+  };
+
+  // ✅ Override the default onOrderConfirmed to handle navigation
+  const handleOrderConfirmed = (orderData: any) => {
+    console.log('🎉 Order confirmed:', orderData);
+
+    // If we have checkoutSessionId, navigate to OrderConfirmation
+    if (orderData?.checkoutSessionId) {
+      handlePaymentSuccess(orderData.checkoutSessionId);
+    } else if (checkoutData?.checkoutSessionId) {
+      handlePaymentSuccess(checkoutData.checkoutSessionId);
+    } else if (onOrderConfirmed) {
+      // Fallback to original callback
+      onOrderConfirmed(orderData);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -112,8 +139,8 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
         >
           <View style={styles.tizzygoHeader}>
             <Image
-              source={AIRCLOUD_LOGO}
-              style={styles.aircloudLogo}
+              source={QUTON_LOGO}
+              style={styles.qutonLogo}
               resizeMode="contain"
             />
             <View>
@@ -123,7 +150,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                   { color: isDark ? '#e2e8f0' : '#1a1a1a' },
                 ]}
               >
-                AirCloud
+                Quton
               </Text>
               <Text
                 style={[
@@ -576,7 +603,10 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
                 },
                 isButtonDisabled && styles.disabledButton,
               ]}
-              onPress={handlePayment}
+              onPress={() => {
+                // ✅ Pass the navigation handler to usePayment hook
+                handlePayment();
+              }}
               onPressIn={() =>
                 Animated.spring(buttonScale, {
                   toValue: 0.95,
@@ -666,12 +696,12 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
           <View style={styles.verticalBrandSection}>
             <View style={styles.tizzygoVerticalBrand}>
               <Image
-                source={AIRCLOUD_LOGO}
+                source={QUTON_LOGO}
                 style={styles.tizzygoFooterLogo}
                 resizeMode="contain"
               />
               <View>
-                <Text style={styles.tizzygoFooterBrandText}>AirCloud</Text>
+                <Text style={styles.tizzygoFooterBrandText}>Quton</Text>
                 <Text style={styles.tizzygoFooterTagline}>
                   Superfast Delivery
                 </Text>
@@ -700,6 +730,7 @@ const PaymentStepComponent: React.FC<PaymentStepProps> = ({
   );
 };
 
+// Styles remain the same...
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -718,7 +749,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tizzygoHeader: { flexDirection: 'row', alignItems: 'center' },
-  aircloudLogo: { width: 48, height: 48, borderRadius: 10, marginRight: 12 },
+  qutonLogo: { width: 48, height: 48, borderRadius: 10, marginRight: 12 },
   tizzygoBrandText: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
   tizzygoTagline: { fontSize: 10, fontWeight: '500' },
   secureTransactionBadge: {

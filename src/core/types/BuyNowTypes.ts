@@ -101,5 +101,5 @@ export interface ThemeColors {
 }
 
 export type RootStackParamList = {
-  BuyNow: { productId: string; variantId?: string | null };
+  CheckOutScreen: { productId: string; variantId?: string | null };
 };

@@ -1,4 +1,4 @@
-// src/components/Header.tsx - FINAL WITH DRAGGABLE MODAL & SHIMMER EFFECT
+// src/components/Header.tsx - FINAL WITH VALIDATION FIX
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -16,7 +16,10 @@ import {
   Alert,
   Switch,
   PanResponder,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -108,6 +111,7 @@ const Header: React.FC<HeaderProps> = ({
   } | null>(null);
   const [modalHeight] = useState(new Animated.Value(500));
   const [isDragging, setIsDragging] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Refs
   const navigation = useNavigation<any>();
@@ -120,6 +124,27 @@ const Header: React.FC<HeaderProps> = ({
   const themeContext = useTheme();
   const isDark =
     parentIsDark !== undefined ? parentIsDark : themeContext?.isDark || false;
+
+  // Keyboard listeners
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+      },
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      },
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   // Start shimmer animation
   useEffect(() => {
@@ -287,36 +312,79 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   const saveSelectedLocation = async (selectedLocation: PlaceSuggestion) => {
+    if (!selectedLocation?.place_id) {
+      Alert.alert('Error', 'Invalid location selected. Please try again.');
+      return;
+    }
+
     setSavingLocation(true);
     try {
       const details = await googlePlacesService.getPlaceDetails(
         selectedLocation.place_id,
       );
-      if (details) {
-        setLocation(details.address);
-        const result = await locationApi.saveLocation(
-          details.lat,
-          details.lng,
-          details.address,
-          details.city,
-          details.state,
-          details.country,
-          details.pinCode,
-          details.placeId,
+
+      if (!details) {
+        Alert.alert(
+          'Error',
+          'Could not fetch location details. Please try again.',
         );
-        if (result.success) {
-          setLocationModalVisible(false);
-          setSearchLocationQuery('');
-          setLocationSuggestions([]);
-          Alert.alert('Success', 'Location saved successfully!');
-          await loadDataFromBackend();
-        } else {
-          Alert.alert('Error', result.message || 'Failed to save location');
-        }
+        setSavingLocation(false);
+        return;
       }
-    } catch (error) {
+
+      // Validate required fields with fallback values
+      const locationData = {
+        lat: details.lat || 0,
+        lng: details.lng || 0,
+        address:
+          details.address || selectedLocation.description || 'Unknown Location',
+        city: details.city || 'Unknown',
+        state: details.state || 'Unknown',
+        country: details.country || 'India',
+        pinCode: details.pinCode || '000000',
+        placeId: selectedLocation.place_id || '',
+      };
+
+      // Validate coordinates
+      if (locationData.lat === 0 && locationData.lng === 0) {
+        Alert.alert(
+          'Error',
+          'Invalid coordinates for this location. Please try another.',
+        );
+        setSavingLocation(false);
+        return;
+      }
+
+      const result = await locationApi.saveLocation(
+        locationData.lat,
+        locationData.lng,
+        locationData.address,
+        locationData.city,
+        locationData.state,
+        locationData.country,
+        locationData.pinCode,
+        locationData.placeId,
+      );
+
+      if (result.success) {
+        setLocation(locationData.address);
+        setLocationModalVisible(false);
+        setSearchLocationQuery('');
+        setLocationSuggestions([]);
+        Alert.alert('Success', 'Location saved successfully!');
+        await loadDataFromBackend();
+      } else {
+        Alert.alert(
+          'Error',
+          result.message || 'Failed to save location. Please try again.',
+        );
+      }
+    } catch (error: any) {
       console.error('Error saving location:', error);
-      Alert.alert('Error', 'Failed to save location.');
+      Alert.alert(
+        'Error',
+        error?.message || 'Failed to save location. Please try again.',
+      );
     } finally {
       setSavingLocation(false);
     }
@@ -372,10 +440,10 @@ const Header: React.FC<HeaderProps> = ({
             gpsLocation.lat,
             gpsLocation.lng,
             addressInfo.address,
-            addressInfo.city,
-            addressInfo.state,
-            addressInfo.country,
-            addressInfo.pinCode,
+            addressInfo.city || 'Unknown',
+            addressInfo.state || 'Unknown',
+            addressInfo.country || 'India',
+            addressInfo.pinCode || '000000',
             '',
           );
           if (result.success) {
@@ -574,370 +642,422 @@ const Header: React.FC<HeaderProps> = ({
         </View>
       </Animated.View>
 
-      {/* Draggable Half-Screen Modal */}
+      {/* Draggable Half-Screen Modal with Keyboard Fix & Safe Area */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={locationModalVisible}
         onRequestClose={() => setLocationModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalContainer,
-              {
-                backgroundColor: themeColors.modalBg,
-                height: modalHeight,
-                maxHeight: Dimensions.get('window').height - 80,
-              },
-            ]}
-          >
-            {/* Draggable Handle */}
-            <View {...panResponder.panHandlers} style={styles.modalDragHandle}>
-              <View style={styles.dragIndicator} />
-              <Text
-                style={[
-                  styles.dragText,
-                  { color: themeColors.suggestionSecondaryText },
-                ]}
-              >
-                Drag to resize
-              </Text>
-            </View>
-
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text
-                style={[
-                  styles.modalTitle,
-                  { color: themeColors.locationTextColor },
-                ]}
-              >
-                Select Delivery Location
-              </Text>
-              <TouchableOpacity
-                onPress={() => setLocationModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <Icon
-                  name="close"
-                  size={24}
-                  color={themeColors.locationTextColor}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* GPS Tracking Section */}
-            <View
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalOverlay}>
+            <Animated.View
               style={[
-                styles.sectionCard,
+                styles.modalContainer,
                 {
-                  backgroundColor: themeColors.cardBg,
-                  borderColor: themeColors.borderColor,
+                  backgroundColor: themeColors.modalBg,
+                  height: keyboardVisible ? '100%' : modalHeight,
+                  maxHeight: keyboardVisible
+                    ? Dimensions.get('window').height
+                    : Dimensions.get('window').height - 80,
                 },
               ]}
             >
-              <View style={styles.sectionHeader}>
-                <LinearGradient
-                  colors={['#4F46E5', '#6366F1']}
-                  style={styles.sectionIconContainer}
-                >
-                  <Fontisto name="map-marker-alt" size={16} color="#FFFFFF" />
-                </LinearGradient>
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    { color: themeColors.locationTextColor },
-                  ]}
-                >
-                  Location Tracking
-                </Text>
-              </View>
-
-              <View style={styles.gpsToggleContainer}>
-                <View style={styles.gpsToggleLeft}>
-                  <Text
-                    style={[
-                      styles.gpsToggleText,
-                      { color: themeColors.locationTextColor },
-                    ]}
+              {/* Safe Area View for proper spacing */}
+              <SafeAreaView style={styles.safeAreaContainer} edges={['top']}>
+                {/* Draggable Handle */}
+                {!keyboardVisible && (
+                  <View
+                    {...panResponder.panHandlers}
+                    style={styles.modalDragHandle}
                   >
-                    Automatic Tracking
-                  </Text>
-                  <Text
-                    style={[
-                      styles.gpsToggleSubtext,
-                      { color: themeColors.suggestionSecondaryText },
-                    ]}
-                  >
-                    Get real-time location updates
-                  </Text>
-                </View>
-                <Switch
-                  value={isGpsTrackingEnabled}
-                  onValueChange={toggleGpsTracking}
-                  disabled={updatingGpsStatus}
-                  trackColor={{ false: '#E5E7EB', true: '#4F46E5' }}
-                  thumbColor="#FFFFFF"
-                />
-              </View>
-
-              {isGpsTrackingEnabled && (
-                <View style={styles.infoBadge}>
-                  <Icon name="info" size={14} color="#4F46E5" />
-                  <Text style={styles.infoBadgeText}>
-                    Updates every 30 seconds
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Current Location Section */}
-            {currentCoordinates && (
-              <View
-                style={[
-                  styles.sectionCard,
-                  {
-                    backgroundColor: themeColors.cardBg,
-                    borderColor: themeColors.borderColor,
-                  },
-                ]}
-              >
-                <View style={styles.sectionHeader}>
-                  <LinearGradient
-                    colors={['#10B981', '#059669']}
-                    style={styles.sectionIconContainer}
-                  >
-                    <Icon name="gps-fixed" size={16} color="#FFFFFF" />
-                  </LinearGradient>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: themeColors.locationTextColor },
-                    ]}
-                  >
-                    Current Location
-                  </Text>
-                  <View style={styles.liveBadge}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>LIVE</Text>
-                  </View>
-                </View>
-                <Text style={styles.coordinatesText}>
-                  {currentCoordinates.lat.toFixed(6)},{' '}
-                  {currentCoordinates.lng.toFixed(6)}
-                </Text>
-              </View>
-            )}
-
-            {/* Update Location Button with Shimmer Effect */}
-            <TouchableOpacity
-              style={styles.updateLocationButton}
-              onPress={handleUpdateLocation}
-              disabled={isGettingGpsLocation}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={['#4F46E5', '#6366F1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.updateButtonGradient}
-              >
-                {isGettingGpsLocation ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <>
-                    <Icon name="my-location" size={20} color="white" />
-                    <Text style={styles.updateLocationButtonText}>
-                      Update Current Location
+                    <View style={styles.dragIndicator} />
+                    <Text
+                      style={[
+                        styles.dragText,
+                        { color: themeColors.suggestionSecondaryText },
+                      ]}
+                    >
+                      Drag to resize
                     </Text>
-                  </>
+                  </View>
                 )}
-              </LinearGradient>
-              <ShimmerOverlay />
-            </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text
-                style={[
-                  styles.dividerText,
-                  { color: themeColors.suggestionSecondaryText },
-                ]}
-              >
-                OR
-              </Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Search Section with Shimmer Effect on Input */}
-            <View
-              style={[
-                styles.sectionCard,
-                {
-                  backgroundColor: themeColors.cardBg,
-                  borderColor: themeColors.borderColor,
-                },
-              ]}
-            >
-              <View style={styles.sectionHeader}>
-                <LinearGradient
-                  colors={['#8B5CF6', '#7C3AED']}
-                  style={styles.sectionIconContainer}
-                >
-                  <Icon name="search" size={16} color="#FFFFFF" />
-                </LinearGradient>
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    { color: themeColors.locationTextColor },
-                  ]}
-                >
-                  Search Address
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.searchInputContainer,
-                  {
-                    backgroundColor: themeColors.inputBg,
-                    borderColor: themeColors.inputBorder,
-                  },
-                ]}
-              >
-                <Icon
-                  name="search"
-                  size={20}
-                  color={themeColors.suggestionSecondaryText}
-                />
-                <TextInput
-                  ref={searchInputRef}
-                  style={[
-                    styles.searchInput,
-                    { color: themeColors.locationTextColor },
-                  ]}
-                  placeholder="Search for area, street, or landmark..."
-                  placeholderTextColor={themeColors.suggestionSecondaryText}
-                  value={searchLocationQuery}
-                  onChangeText={setSearchLocationQuery}
-                />
-                {searchLocationQuery.length > 0 && (
+                {/* Modal Header */}
+                <View style={styles.modalHeader}>
+                  <Text
+                    style={[
+                      styles.modalTitle,
+                      { color: themeColors.locationTextColor },
+                    ]}
+                  >
+                    Select Delivery Location
+                  </Text>
                   <TouchableOpacity
-                    onPress={() => setSearchLocationQuery('')}
-                    style={styles.clearButton}
+                    onPress={() => {
+                      setLocationModalVisible(false);
+                      Keyboard.dismiss();
+                    }}
+                    style={styles.closeButton}
                   >
                     <Icon
-                      name="clear"
-                      size={18}
-                      color={themeColors.suggestionSecondaryText}
+                      name="close"
+                      size={24}
+                      color={themeColors.locationTextColor}
                     />
                   </TouchableOpacity>
-                )}
-              </View>
-            </View>
+                </View>
 
-            {/* Suggestions List */}
-            {loadingLocations ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4F46E5" />
-                <Text
-                  style={[
-                    styles.loadingText,
-                    { color: themeColors.suggestionSecondaryText },
-                  ]}
-                >
-                  Searching locations...
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={locationSuggestions}
-                keyExtractor={item => item.place_id}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.suggestionsList}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.suggestionItem,
-                      { borderBottomColor: themeColors.borderColor },
-                    ]}
-                    onPress={() => saveSelectedLocation(item)}
-                    disabled={savingLocation}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.suggestionIconContainer}>
-                      <Icon name="location-on" size={20} color="#4F46E5" />
-                    </View>
-                    <View style={styles.suggestionTextContainer}>
-                      <Text
+                {/* Scrollable Content with SafeArea bottom padding */}
+                <View style={styles.contentContainer}>
+                  {/* Content - Hide GPS and other sections when keyboard is visible to show suggestions properly */}
+                  {!keyboardVisible && (
+                    <>
+                      {/* GPS Tracking Section */}
+                      <View
                         style={[
-                          styles.suggestionMainText,
-                          { color: themeColors.suggestionText },
+                          styles.sectionCard,
+                          {
+                            backgroundColor: themeColors.cardBg,
+                            borderColor: themeColors.borderColor,
+                          },
                         ]}
                       >
-                        {item.structured_formatting?.main_text ||
-                          item.description}
-                      </Text>
-                      {item.structured_formatting?.secondary_text && (
+                        <View style={styles.sectionHeader}>
+                          <LinearGradient
+                            colors={['#4F46E5', '#6366F1']}
+                            style={styles.sectionIconContainer}
+                          >
+                            <Fontisto
+                              name="map-marker-alt"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                          </LinearGradient>
+                          <Text
+                            style={[
+                              styles.sectionTitle,
+                              { color: themeColors.locationTextColor },
+                            ]}
+                          >
+                            Location Tracking
+                          </Text>
+                        </View>
+
+                        <View style={styles.gpsToggleContainer}>
+                          <View style={styles.gpsToggleLeft}>
+                            <Text
+                              style={[
+                                styles.gpsToggleText,
+                                { color: themeColors.locationTextColor },
+                              ]}
+                            >
+                              Automatic Tracking
+                            </Text>
+                            <Text
+                              style={[
+                                styles.gpsToggleSubtext,
+                                { color: themeColors.suggestionSecondaryText },
+                              ]}
+                            >
+                              Get real-time location updates
+                            </Text>
+                          </View>
+                          <Switch
+                            value={isGpsTrackingEnabled}
+                            onValueChange={toggleGpsTracking}
+                            disabled={updatingGpsStatus}
+                            trackColor={{ false: '#E5E7EB', true: '#4F46E5' }}
+                            thumbColor="#FFFFFF"
+                          />
+                        </View>
+
+                        {isGpsTrackingEnabled && (
+                          <View style={styles.infoBadge}>
+                            <Icon name="info" size={14} color="#4F46E5" />
+                            <Text style={styles.infoBadgeText}>
+                              Updates every 30 seconds
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Current Location Section */}
+                      {currentCoordinates && (
+                        <View
+                          style={[
+                            styles.sectionCard,
+                            {
+                              backgroundColor: themeColors.cardBg,
+                              borderColor: themeColors.borderColor,
+                            },
+                          ]}
+                        >
+                          <View style={styles.sectionHeader}>
+                            <LinearGradient
+                              colors={['#10B981', '#059669']}
+                              style={styles.sectionIconContainer}
+                            >
+                              <Icon
+                                name="gps-fixed"
+                                size={16}
+                                color="#FFFFFF"
+                              />
+                            </LinearGradient>
+                            <Text
+                              style={[
+                                styles.sectionTitle,
+                                { color: themeColors.locationTextColor },
+                              ]}
+                            >
+                              Current Location
+                            </Text>
+                            <View style={styles.liveBadge}>
+                              <View style={styles.liveDot} />
+                              <Text style={styles.liveText}>LIVE</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.coordinatesText}>
+                            {currentCoordinates.lat.toFixed(6)},{' '}
+                            {currentCoordinates.lng.toFixed(6)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Update Location Button with Shimmer Effect */}
+                      <TouchableOpacity
+                        style={styles.updateLocationButton}
+                        onPress={handleUpdateLocation}
+                        disabled={isGettingGpsLocation}
+                        activeOpacity={0.9}
+                      >
+                        <LinearGradient
+                          colors={['#4F46E5', '#6366F1']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.updateButtonGradient}
+                        >
+                          {isGettingGpsLocation ? (
+                            <ActivityIndicator size="small" color="white" />
+                          ) : (
+                            <>
+                              <Icon
+                                name="my-location"
+                                size={20}
+                                color="white"
+                              />
+                              <Text style={styles.updateLocationButtonText}>
+                                Update Current Location
+                              </Text>
+                            </>
+                          )}
+                        </LinearGradient>
+                        <ShimmerOverlay />
+                      </TouchableOpacity>
+
+                      {/* Divider */}
+                      <View style={styles.dividerContainer}>
+                        <View style={styles.dividerLine} />
                         <Text
                           style={[
-                            styles.suggestionSecondaryText,
+                            styles.dividerText,
                             { color: themeColors.suggestionSecondaryText },
                           ]}
                         >
-                          {item.structured_formatting.secondary_text}
+                          OR
                         </Text>
-                      )}
+                        <View style={styles.dividerLine} />
+                      </View>
+                    </>
+                  )}
+
+                  {/* Search Section - Always visible */}
+                  <View
+                    style={[
+                      styles.sectionCard,
+                      {
+                        backgroundColor: themeColors.cardBg,
+                        borderColor: themeColors.borderColor,
+                      },
+                    ]}
+                  >
+                    <View style={styles.sectionHeader}>
+                      <LinearGradient
+                        colors={['#8B5CF6', '#7C3AED']}
+                        style={styles.sectionIconContainer}
+                      >
+                        <Icon name="search" size={16} color="#FFFFFF" />
+                      </LinearGradient>
+                      <Text
+                        style={[
+                          styles.sectionTitle,
+                          { color: themeColors.locationTextColor },
+                        ]}
+                      >
+                        Search Address
+                      </Text>
                     </View>
-                    <Icon
-                      name="chevron-right"
-                      size={20}
-                      color={themeColors.suggestionSecondaryText}
-                    />
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  searchLocationQuery.length > 0 ? (
-                    <View style={styles.emptyContainer}>
+
+                    <View
+                      style={[
+                        styles.searchInputContainer,
+                        {
+                          backgroundColor: themeColors.inputBg,
+                          borderColor: themeColors.inputBorder,
+                        },
+                      ]}
+                    >
                       <Icon
-                        name="location-off"
-                        size={48}
+                        name="search"
+                        size={20}
                         color={themeColors.suggestionSecondaryText}
                       />
+                      <TextInput
+                        ref={searchInputRef}
+                        style={[
+                          styles.searchInput,
+                          { color: themeColors.locationTextColor },
+                        ]}
+                        placeholder="Search for area, street, or landmark..."
+                        placeholderTextColor={
+                          themeColors.suggestionSecondaryText
+                        }
+                        value={searchLocationQuery}
+                        onChangeText={setSearchLocationQuery}
+                        returnKeyType="search"
+                      />
+                      {searchLocationQuery.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setSearchLocationQuery('')}
+                          style={styles.clearButton}
+                        >
+                          <Icon
+                            name="clear"
+                            size={18}
+                            color={themeColors.suggestionSecondaryText}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Suggestions List - Always visible and scrollable */}
+                  {loadingLocations ? (
+                    <View style={[styles.loadingContainer, { flex: 1 }]}>
+                      <ActivityIndicator size="large" color="#4F46E5" />
                       <Text
                         style={[
-                          styles.emptyText,
+                          styles.loadingText,
                           { color: themeColors.suggestionSecondaryText },
                         ]}
                       >
-                        No locations found
-                      </Text>
-                      <Text
-                        style={[
-                          styles.emptySubtext,
-                          { color: themeColors.suggestionSecondaryText },
-                        ]}
-                      >
-                        Try searching with a different term
+                        Searching locations...
                       </Text>
                     </View>
-                  ) : null
-                }
-              />
-            )}
+                  ) : (
+                    <FlatList
+                      data={locationSuggestions}
+                      keyExtractor={item => item.place_id}
+                      showsVerticalScrollIndicator={false}
+                      style={styles.suggestionsListContainer}
+                      contentContainerStyle={[
+                        styles.suggestionsList,
+                        keyboardVisible && { paddingBottom: 120 },
+                      ]}
+                      keyboardShouldPersistTaps="handled"
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.suggestionItem,
+                            { borderBottomColor: themeColors.borderColor },
+                          ]}
+                          onPress={() => saveSelectedLocation(item)}
+                          disabled={savingLocation}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.suggestionIconContainer}>
+                            <Icon
+                              name="location-on"
+                              size={20}
+                              color="#4F46E5"
+                            />
+                          </View>
+                          <View style={styles.suggestionTextContainer}>
+                            <Text
+                              style={[
+                                styles.suggestionMainText,
+                                { color: themeColors.suggestionText },
+                              ]}
+                            >
+                              {item.structured_formatting?.main_text ||
+                                item.description}
+                            </Text>
+                            {item.structured_formatting?.secondary_text && (
+                              <Text
+                                style={[
+                                  styles.suggestionSecondaryText,
+                                  {
+                                    color: themeColors.suggestionSecondaryText,
+                                  },
+                                ]}
+                              >
+                                {item.structured_formatting.secondary_text}
+                              </Text>
+                            )}
+                          </View>
+                          <Icon
+                            name="chevron-right"
+                            size={20}
+                            color={themeColors.suggestionSecondaryText}
+                          />
+                        </TouchableOpacity>
+                      )}
+                      ListEmptyComponent={
+                        searchLocationQuery.length > 0 ? (
+                          <View style={styles.emptyContainer}>
+                            <Icon
+                              name="location-off"
+                              size={48}
+                              color={themeColors.suggestionSecondaryText}
+                            />
+                            <Text
+                              style={[
+                                styles.emptyText,
+                                { color: themeColors.suggestionSecondaryText },
+                              ]}
+                            >
+                              No locations found
+                            </Text>
+                            <Text
+                              style={[
+                                styles.emptySubtext,
+                                { color: themeColors.suggestionSecondaryText },
+                              ]}
+                            >
+                              Try searching with a different term
+                            </Text>
+                          </View>
+                        ) : null
+                      }
+                    />
+                  )}
 
-            {savingLocation && (
-              <View style={styles.savingOverlay}>
-                <ActivityIndicator size="large" color="white" />
-                <Text style={[styles.savingText, { color: '#FFFFFF' }]}>
-                  Saving location...
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </View>
+                  {savingLocation && (
+                    <View style={styles.savingOverlay}>
+                      <ActivityIndicator size="large" color="white" />
+                      <Text style={[styles.savingText, { color: '#FFFFFF' }]}>
+                        Saving location...
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </SafeAreaView>
+            </Animated.View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -997,11 +1117,19 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
+  },
+  safeAreaContainer: {
+    flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
   },
   modalDragHandle: {
     alignItems: 'center',
@@ -1180,6 +1308,9 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  suggestionsListContainer: {
+    flex: 1,
   },
   suggestionsList: {
     paddingBottom: 20,

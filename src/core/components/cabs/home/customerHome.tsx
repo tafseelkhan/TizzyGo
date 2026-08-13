@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, SafeAreaView, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Header from './HeaderHome';
 import CategoryTabs from './CategoryTabsHome';
 import VehiclesList from './VehicleListHome';
 import BottomNavigation from './BottomNavigationHome';
+import { profileService } from '../../../services/profile/profileService';
 
-// Define navigation param types
 type RootStackParamList = {
   CustomerCab: undefined;
   CustomerShop: undefined;
@@ -19,18 +19,39 @@ type RootStackParamList = {
   MyAds: undefined;
   Profile: undefined;
   Search: undefined;
+  FWSRideOptions: undefined;
+  LocationInput: undefined;
   [key: string]: any;
 };
 
-// CarItem type - Import from VehiclesList
 import { CarItem } from './VehicleListHome';
 
 const HomeScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<string>('home');
+  const [userName, setUserName] = useState<string>('Martin');
+  const [userImage, setUserImage] = useState<string | null>(null);
 
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const result = await profileService.fetchProfile();
+      if (result.success && result.data) {
+        if (result.data.name) setUserName(result.data.name);
+        if (result.data.image && result.data.image !== '') {
+          setUserImage(result.data.image);
+        }
+      }
+    } catch (error) {
+      console.log('Profile fetch error:', error);
+    }
+  };
 
   const handleTabPress = (tab: string) => {
     setActiveTab(tab);
@@ -42,12 +63,7 @@ const HomeScreen: React.FC = () => {
 
   const handleBookPress = (vehicle: CarItem) => {
     console.log('Book Now pressed for:', vehicle.name);
-    navigation.navigate('BookCab');
-  };
-
-  const handleFavoritePress = (vehicle: CarItem) => {
-    console.log('Favorite toggled for:', vehicle.name);
-    // Toggle favorite logic here
+    navigation.navigate(vehicle.screen as never);
   };
 
   const handleHomePress = () => {
@@ -62,38 +78,49 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Profile');
   };
 
+  const getFilterValue = (category: string) => {
+    if (category === 'All') return undefined;
+    return category.replace('FWS', '').toLowerCase();
+  };
+
+  const handleLocationUpdate = (newLocation: string) => {
+    console.log('Location updated:', newLocation);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
+      <FlatList
+        data={[]}
+        renderItem={null}
+        ListHeaderComponent={
+          <>
+            <Header
+              onSearchPress={handleSearchPress}
+              onFilterPress={() => console.log('Filter pressed')}
+              onNotificationPress={() => console.log('Notification pressed')}
+              userName={userName}
+              userImage={userImage}
+              onLocationUpdate={handleLocationUpdate}
+            />
+
+            <View style={styles.contentPanel}>
+              <CategoryTabs
+                selectedCategory={selectedCategory}
+                onSelectCategory={setSelectedCategory}
+              />
+
+              <VehiclesList
+                onBookPress={handleBookPress}
+                serviceFilter={getFilterValue(selectedCategory)}
+              />
+            </View>
+          </>
+        }
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header Component */}
-        <Header
-          onSearchPress={handleSearchPress}
-          onFilterPress={() => console.log('Filter pressed')}
-          onNotificationPress={() => console.log('Notification pressed')}
-        />
+        keyboardShouldPersistTaps="handled"
+      />
 
-        {/* Gray Content Panel */}
-        <View style={styles.grayContentPanel}>
-          {/* Category Tabs Component - Data inside component */}
-          <CategoryTabs
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
-
-          {/* Vehicles List Component - Data inside component */}
-          <VehiclesList
-            onBookPress={handleBookPress}
-            onFavoritePress={handleFavoritePress}
-          />
-        </View>
-
-        <View style={{ height: 110 }} />
-      </ScrollView>
-
-      {/* Bottom Navigation Component */}
       <BottomNavigation
         activeTab={activeTab}
         onTabPress={handleTabPress}
@@ -107,19 +134,18 @@ const HomeScreen: React.FC = () => {
   );
 };
 
-export default HomeScreen;
-
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#F8F9FA',
   },
-  scrollContent: {
-    paddingBottom: 20,
+  listContent: {
+    paddingBottom: 100,
   },
-  grayContentPanel: {
+  contentPanel: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
 });
+
+export default HomeScreen;

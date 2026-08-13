@@ -679,3 +679,102 @@ export const isShippingAddress = (obj: any): obj is ShippingAddress => {
     'longitude' in obj
   );
 };
+
+export interface CartItemResponse {
+  _id: string;
+  userId: string;
+  productId: string;
+  quantity: number;
+  productData: {
+    productDataId: string;
+    fulfillmentType: 'SELLER' | 'FWS';
+    zeptPayAccountId: string;
+    sellerId: string;
+  };
+  selectedVariant?: any;
+  couponCode?: string | null;
+  discountApplied?: number;
+  calculated: {
+    // Per product
+    mrp: number;
+    price: number;
+    finalPrice: number;
+    savedAmount: number;
+    discountPercent: number;
+    
+    // Quantity based
+    quantity: number;
+    totalMrp: number;
+    totalFinalPrice: number;
+    totalSavedAmount: number;
+    
+    // GST
+    gstRate: number;
+    gstType: string;
+    gstAmount: number;
+    perProductGst: number;
+    
+    // Fees
+    platformFee: number;
+    packagingFee: number;
+    
+    // Delivery
+    deliveryCharge: number;
+    distanceKm: number;
+    volumetricWeight: number;
+    actualWeight: number;
+    chargeableWeight: number;
+    deliveryRatePerKm: number;
+    deliveryRatePerKg: number;
+    
+    // Totals
+    subtotal: number;
+    totalBeforeCoupon: number;
+    discountAppliedAmount: number;
+    grandTotal: number;
+    
+    // Coupon
+    couponUsed: string | null;
+    couponData: {
+      discount: number;
+      originalPrice: number;
+      finalPrice: number;
+      message?: string;
+    } | null;
+    
+    // Locations
+    buyerLocation?: {
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      googlePlaceId?: string;
+    };
+    sellerLocation?: {
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      googlePlaceId?: string;
+    };
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CartDataResponse {
+  items: CartItem[];
+  totalItems: number;
+  totalPrice: number;
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  discount: number;
+  grandTotal: number;
+  currency: string;
+}
+
+export interface CartItemParams {
+  productId: string;
+  quantity?: number;
+  variant?: any;
+  couponCode?: string;
+}

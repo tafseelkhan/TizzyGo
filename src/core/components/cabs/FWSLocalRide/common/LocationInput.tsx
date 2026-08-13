@@ -20,16 +20,16 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import axios from 'axios';
-import { COLORS } from '../../../../api/constants/FWSLocalRideColor';
-import { Suggestion } from '../../../types/FWSLocalRideTypes';
-import { GOOGLE_API_KEY } from '../../../../api/constants/mapConfig';
-import { AnimatedPressable } from '../FWSLocalRide/AnimatedPressable';
+import { COLORS } from '../../../../../api/constants/FWSLocalRideColor';
+import { Suggestion } from '../../../../types/FWSLocalRideTypes';
+import { GOOGLE_API_KEY } from '../../../../../api/constants/mapConfig';
+import { AnimatedPressable } from '../AnimatedPressable';
 
 // ✅ IMPORT LOCATION HELPER
 import {
   requestLocationPermission,
   fetchCurrentLocation,
-} from '../../../utils/cabs/locationHelper';
+} from '../../../../utils/cabs/locationHelper';
 
 interface LocationInputScreenProps {
   navigation: any;

@@ -232,26 +232,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
           <Octicons name="home" size={24} color="#000" />
         </TouchableOpacity>
 
-        {/* FWSRideOptions Button - Navigate to FWSRideOptions */}
-        <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === 'FWSRideOptions' && styles.navItemActive,
-          ]}
-          onPress={() => {
-            triggerLightHaptic();
-            if (onTabPress) onTabPress('FWSRideOptions');
-            if (onSearchPress) onSearchPress();
-            if (navigation) {
-              // Try to navigate to FWSRideOptions
-              console.log('🔍 Navigating to FWSRideOptions');
-              navigation.navigate('FWSRideOptions');
-            }
-          }}
-        >
-          <Fontisto name="nav-icon-grid-a" size={24} color="#000" />
-        </TouchableOpacity>
-
         {/* Chat Button */}
         <TouchableOpacity
           style={[styles.navItem, activeTab === 'chat' && styles.navItemActive]}

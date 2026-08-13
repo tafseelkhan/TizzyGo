@@ -1,5 +1,5 @@
 // components/CartButtonWithGradient.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   TouchableOpacity,
   View,
@@ -7,17 +7,17 @@ import {
   StyleSheet,
   Animated,
   Easing,
-} from "react-native";
-import LottieView from "lottie-react-native";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { APIs } from "../../../services/buyers/HomeService";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+} from 'react-native';
+import LottieView from 'lottie-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { APIs } from '../../../services/buyers/HomeService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // Import Lottie animation
-const cartAnimation = require("../../../components/animations/lotties/Add to cart.json");
+const cartAnimation = require('../../../components/animations/lotties/Add to cart.json');
 
 interface CartButtonProps {
   userId: string;
@@ -26,20 +26,20 @@ interface CartButtonProps {
 // Define navigation param types
 type RootStackParamList = {
   CartScreen: undefined;
-  [key: string]: any;
 };
 
 const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
   const { isDark } = useTheme();
   const [cartCount, setCartCount] = useState(0);
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [scaleAnim] = useState(new Animated.Value(1));
   const [bounceAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
     const fetchCartCount = async () => {
       try {
-        const token = await AsyncStorage.getItem("authToken");
+        const token = await AsyncStorage.getItem('authToken');
         if (!token) {
           setCartCount(0);
           return;
@@ -51,13 +51,13 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
           animateBounce();
         }
       } catch (error) {
-        console.error("Error fetching cart count:", error);
+        console.error('Error fetching cart count:', error);
         setCartCount(0);
       }
     };
 
     fetchCartCount();
-    const interval = setInterval(fetchCartCount, 30000);
+    const interval = setInterval(fetchCartCount, 2000);
     return () => clearInterval(interval);
   }, [userId]);
 
@@ -95,7 +95,7 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
   };
 
   const handleCartPress = () => {
-    navigation.navigate("CartScreen");
+    navigation.navigate('CartScreen');
   };
 
   // Get button background color based on theme
@@ -156,7 +156,7 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
             ]}
           >
             <Text style={styles.badgeText}>
-              {cartCount > 99 ? "99+" : cartCount}
+              {cartCount > 99 ? '99+' : cartCount}
             </Text>
           </Animated.View>
         )}
@@ -173,14 +173,14 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconContainer: {
     width: 32,
     height: 32,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   lottie: {
     width: 32,
@@ -188,18 +188,18 @@ const styles = StyleSheet.create({
     marginLeft: -30,
   },
   badge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
+    position: 'absolute',
+    top: 8,
+    right: 16,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#0d9488",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#0d9488',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 1,
@@ -209,10 +209,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   badgeText: {
-    color: "white",
+    color: 'white',
     fontSize: 10,
-    fontWeight: "bold",
-    textAlign: "center",
+    fontFamily: 'Poppins-LightItalic',
+    textAlign: 'center',
     paddingHorizontal: 5,
   },
 });

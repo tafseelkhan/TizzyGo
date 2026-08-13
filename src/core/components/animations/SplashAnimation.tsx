@@ -13,7 +13,6 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import LottieView from 'lottie-react-native';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import soundService from '../../services/animations/soundService';
 import {
   createScaleAnimation,
   createEntryAnimations,
@@ -47,23 +46,7 @@ export default function TizzyGo() {
   const primaryColor = isDark ? '#34D399' : '#10B981';
   const subtitleColor = isDark ? '#94A3B8' : '#6b7280';
 
-  // Load sound on mount
-  useEffect(() => {
-    const loadSound = async () => {
-      await soundService.loadSound(
-        require('../../../assets/sounds/splash_sound.mp3'),
-      );
-    };
-    loadSound();
-
-    return () => {
-      soundService.releaseSound();
-    };
-  }, []);
-
   const handleTap = () => {
-    console.log('👆 Tap detected!');
-    soundService.playSound();
     setIsPressed(true);
     setTimeout(() => setIsPressed(false), 200);
   };
@@ -151,7 +134,7 @@ export default function TizzyGo() {
               },
             ]}
           >
-            Tap anywhere to hearing
+            Tap anywhere to start
           </Animated.Text>
 
           <Animated.Text
@@ -160,7 +143,7 @@ export default function TizzyGo() {
               { color: subtitleColor, opacity: fadeAnim },
             ]}
           >
-            Built with Flixora ❤️
+            Built with Quton ❤️
           </Animated.Text>
         </Animated.View>
       </View>

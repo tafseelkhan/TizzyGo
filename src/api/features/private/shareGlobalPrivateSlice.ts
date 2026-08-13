@@ -1,14 +1,9 @@
+// api/features/private/shareGlobalPrivateSlice.ts - FIXED
+
 import { getToken } from '../../connections/token/tokenSlice';
 import { Alert } from 'react-native';
-import Config from 'react-native-config';
 import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
-
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-
-// ================================
-// TYPES
-// ================================
 
 export interface ShareResponse {
   share: {
@@ -21,13 +16,9 @@ export interface ShareResponse {
   message?: string;
 }
 
-// ================================
-// SHARE SERVICE
-// ================================
-
 export const shareService = {
   /**
-   * Create Share
+   * Create Share - FIXED
    */
   createShare: async (
     productId: string,
@@ -38,39 +29,47 @@ export const shareService = {
       const token = await getToken();
 
       if (!token) {
+        console.warn('⚠️ No token found, user not logged in');
         Alert.alert('Error', 'Please login to share products');
         return null;
       }
 
-      console.log(
-        'Creating Share:',
-        `${API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`,
-      );
+      const url = `${API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`;
+      const body = JSON.stringify({
+        productId,
+        productType,
+        platform,
+      });
 
-      const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            productId,
-            productType,
-            platform,
-          }),
+      console.log('📤 Creating Share URL:', url);
+      console.log('📤 Request Body:', body);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: body, // ✅ Body properly stringified
+      });
+
+      console.log('📥 Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Server Error:', errorData);
+        throw new Error(
+          errorData.message || `Server error: ${response.status}`,
+        );
+      }
+
+      const data = await response.json();
+      console.log('✅ Share created:', data);
 
       return data;
     } catch (error: any) {
       console.error('❌ Share API Error:', error);
-
-      Alert.alert(
-        'Error',
-        error?.message || 'Network error. Please try again.',
-      );
-
+      // ✅ Don't show Alert here - let component handle it
       return null;
     }
   },
@@ -79,14 +78,12 @@ export const shareService = {
    * Build Share URL
    */
   buildShareUrl: (productTitle: string, shareId: string): string => {
-    const base = 'https://www.tizzygo.com/flixora/s';
-
+    const base = 'https://www.tizzygo.com/quton/s';
     const params = new URLSearchParams({
       title: productTitle,
       id: shareId,
       show: '1',
     });
-
     return `${base}?${params.toString()}`;
   },
 };

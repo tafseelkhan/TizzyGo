@@ -1,9 +1,13 @@
-// src/hooks/usePayment.ts - FINAL WORKING VERSION
+// src/hooks/usePayment.ts - COMPLETE FIXED VERSION
+// ✅ Direct navigation to OrderConfirmation - NO ALERTS on success
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
-import { Config } from 'react-native-config';
-import paymentService from '../services/buyers/shop/paymentService';
+import Config from 'react-native-config';
+import paymentService, {
+  BuyNowParams,
+} from '../services/buyers/shop/paymentService';
 
 // Razorpay constants
 const RAZORPAY_KEY_ID = Config.RAZORPAY_KEY_ID || '';
@@ -107,6 +111,7 @@ export const usePayment = ({
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
   const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
+  const [lastOrderData, setLastOrderData] = useState<any>(null);
 
   const initializedRef = useRef<boolean>(false);
   const creatingSessionRef = useRef<boolean>(false);
@@ -144,17 +149,14 @@ export const usePayment = ({
   // ============= CONVERT TO RAZORPAY ORDER ID =============
   const convertToRazorpayOrderId = (id: string | undefined): string => {
     if (!id) return '';
-    // Already in correct format
     if (id.startsWith('order_')) return id;
-    // Convert ORD- to order_
     if (id.startsWith('ORD-')) {
       return 'order_' + id.substring(4);
     }
-    // Default: add order_ prefix
     return 'order_' + id;
   };
 
-  // ============= CREATE CHECKOUT SESSION =============
+  // ============= CREATE CHECKOUT SESSION - WITH BUY NOW PARAMS =============
   const createCheckoutSession = useCallback(async (): Promise<boolean> => {
     console.log('🚀 createCheckoutSession CALLED - Razorpay');
 
@@ -183,28 +185,44 @@ export const usePayment = ({
       setPaymentSheetData(null);
       setRazorpayOrderId(null);
 
+      // ✅ BUILD BUY NOW PARAMS
+      const buyNowParams: BuyNowParams | undefined = checkoutData.isBuyNow
+        ? {
+            isBuyNow: true,
+            productId:
+              checkoutData.productId || product.productId || product.id,
+            sellerId: checkoutData.sellerId || product.sellerId,
+            productDataId:
+              checkoutData.productDataId ||
+              product.productDataId ||
+              product._id,
+            quantity: checkoutData.quantity || 1,
+            variantId:
+              checkoutData.selectedVariant?.variantId || checkoutData.variantId,
+          }
+        : undefined;
+
       console.log('📤 Calling paymentService.createCheckoutSession...');
+      console.log('🛒 Buy Now Params:', buyNowParams);
 
       const result = (await paymentService.createCheckoutSession(
         checkoutData.shippingAddress,
         paymentMethod,
+        buyNowParams, // ✅ PASS BUY NOW PARAMS
       )) as CreateSessionResult;
 
       console.log('📥 Full Result:', JSON.stringify(result, null, 2));
 
       if (result.success) {
         const sessionId = result.checkoutSessionId || '';
-        const finalAmount =
-          result.finalAmount || calculatedData?.grandTotal || 0;
+        const finalAmount = calculatedData?.grandTotal || 0;
         const orderId = result.orderId || result.paymentSheetData?.orderId;
 
-        // ✅ Get paymentIntentId from backend (Razorpay order ID)
         const paymentIntentId =
           result.paymentIntentId ||
           result.paymentSheetData?.paymentIntentId ||
           result.paymentSheetData?.razorpayOrderId;
 
-        // ✅ Convert to proper Razorpay format
         const razorpayOrderIdValue = convertToRazorpayOrderId(
           paymentIntentId || orderId || sessionId,
         );
@@ -213,7 +231,7 @@ export const usePayment = ({
         console.log('📋 Session ID:', sessionId);
         console.log('💰 Final Amount:', finalAmount);
         console.log('📋 Internal Order ID:', orderId);
-        console.log('📋 Payment Intent ID from backend:', paymentIntentId);
+        console.log('📋 Payment Intent ID:', paymentIntentId);
         console.log('📋 Final Razorpay Order ID:', razorpayOrderIdValue);
 
         setCheckoutSessionId(sessionId);
@@ -228,7 +246,7 @@ export const usePayment = ({
           paymentIntentId: razorpayOrderIdValue,
           checkoutSessionId: sessionId,
           vendorCodeUID: result.paymentSheetData?.vendorCodeUID || '',
-          amount: result.paymentSheetData?.amount || finalAmount,
+          amount: finalAmount,
           appName: result.paymentSheetData?.appName || 'TizzyGo',
           payer:
             result.paymentSheetData?.payer ||
@@ -328,6 +346,37 @@ export const usePayment = ({
     return error.message || 'Failed to process payment. Please try again.';
   }, []);
 
+  // ============= HANDLE ORDER CONFIRMATION =============
+  const handleOrderConfirmation = useCallback(
+    (data: any) => {
+      console.log('🎉 [usePayment] Order confirmed, data:', data);
+
+      // ✅ Extract checkoutSessionId from various sources
+      const sessionId =
+        data?.checkoutSessionId ||
+        data?.transaction?.checkoutSessionId ||
+        checkoutSessionId ||
+        paymentSheetData?.checkoutSessionId ||
+        null;
+
+      const orderData = {
+        checkoutSessionId: sessionId,
+        orderId: data?.orderId || data?.transaction?.orderId || null,
+        transaction: data?.transaction || data,
+        success: true,
+      };
+
+      console.log(`📱 [usePayment] Final orderData:`, orderData);
+      setLastOrderData(orderData);
+
+      // ✅ Directly call onOrderConfirmed - NO ALERT
+      if (onOrderConfirmed) {
+        onOrderConfirmed(orderData);
+      }
+    },
+    [checkoutSessionId, paymentSheetData, onOrderConfirmed],
+  );
+
   // ============= RAZORPAY PAYMENT HANDLER =============
   const handleRazorpayPayment = useCallback(async (): Promise<void> => {
     console.log('💳 handleRazorpayPayment CALLED');
@@ -353,11 +402,8 @@ export const usePayment = ({
       return;
     }
 
-    // ✅ Use razorpayOrderId from state (already converted)
     const orderIdForRazorpay: string =
       razorpayOrderId || paymentSheetData?.paymentIntentId || checkoutSessionId;
-
-    // ✅ Ensure correct format one more time
     const finalOrderId = convertToRazorpayOrderId(orderIdForRazorpay);
 
     console.log('📋 Final Order ID for Razorpay:', finalOrderId);
@@ -368,7 +414,9 @@ export const usePayment = ({
       return;
     }
 
-    const grandTotal = paymentSheetData.grandTotal || 0;
+    const grandTotal =
+      calculatedData?.grandTotal || paymentSheetData?.grandTotal || 0;
+    console.log('💰 Final Grand Total:', grandTotal);
 
     try {
       setPaymentProcessing(true);
@@ -378,7 +426,7 @@ export const usePayment = ({
         key: RAZORPAY_KEY_ID,
         amount,
         currency: 'INR',
-        name: 'AirCloud',
+        name: 'Quton',
         description: `Payment for ${product?.title || 'Order'}`,
         order_id: finalOrderId,
         prefill: {
@@ -396,7 +444,8 @@ export const usePayment = ({
 
       console.log('📤 Opening Razorpay Checkout...');
       console.log('🔑 Key:', RAZORPAY_KEY_ID);
-      console.log('💰 Amount:', amount);
+      console.log('💰 Amount (in paise):', amount);
+      console.log('💰 Amount (in rupees):', grandTotal);
       console.log('📋 Order ID:', finalOrderId);
 
       const razorpayResponse = (await new Promise((resolve, reject) => {
@@ -415,26 +464,27 @@ export const usePayment = ({
 
       console.log('📤 Processing payment with backend...');
 
-      const paymentSessionData: PaymentSessionData = {
-        vendorCodeUID: paymentSheetData?.vendorCodeUID || '',
-        amount: paymentSheetData?.amount || grandTotal,
-        appName: paymentSheetData?.appName || 'TizzyGo',
-        payer: paymentSheetData?.payer || checkoutData?.shippingAddress || {},
-        currency: paymentSheetData?.currency || 'INR',
-        checkoutSessionId: checkoutSessionId,
-        paymentType: paymentSheetData?.paymentType || 'normal',
-        orderId: paymentSheetData?.orderId || finalOrderId,
-      };
-
       const paymentResult = (await paymentService.processOnlinePayment(
         checkoutSessionId,
-        paymentSessionData,
-        razorpayResponse,
+        razorpayResponse.razorpay_order_id,
+        razorpayResponse.razorpay_payment_id,
+        razorpayResponse.razorpay_signature,
       )) as PaymentResult;
 
       if (paymentResult.success) {
         console.log('✅ Razorpay payment successful');
-        setTimeout(() => onOrderConfirmed?.(paymentResult.transaction), 2000);
+
+        // ✅ Create order data with checkoutSessionId
+        const orderData = {
+          checkoutSessionId: checkoutSessionId,
+          orderId:
+            paymentResult.orderId || paymentResult.transaction?.orderId || null,
+          transaction: paymentResult.transaction || paymentResult,
+          success: true,
+        };
+
+        // ✅ Call handleOrderConfirmation - NO ALERT
+        handleOrderConfirmation(orderData);
       } else {
         Alert.alert(
           'Payment Failed',
@@ -453,16 +503,19 @@ export const usePayment = ({
     checkoutSessionId,
     product,
     checkoutData,
+    calculatedData,
     createCheckoutSession,
-    onOrderConfirmed,
     parseRazorpayError,
     razorpayOrderId,
+    handleOrderConfirmation,
   ]);
 
   // ============= COD HANDLER =============
   const handleCODConfirmation = useCallback(async (): Promise<void> => {
     console.log('📦 handleCODConfirmation CALLED');
-    if (!checkoutSessionCreated) {
+    console.log('📋 checkoutSessionId:', checkoutSessionId);
+
+    if (!checkoutSessionCreated || !checkoutSessionId) {
       Alert.alert('Error', 'Order session not ready. Please wait.');
       return;
     }
@@ -472,18 +525,33 @@ export const usePayment = ({
       const result = (await paymentService.confirmCODOrder(
         checkoutSessionId,
       )) as PaymentResult;
+
+      console.log('📦 COD Result:', JSON.stringify(result, null, 2));
+
       if (result.success) {
         console.log('✅ COD order confirmed');
-        Alert.alert(
-          'Order Confirmed! 🎉',
-          'Your COD order has been confirmed. Please keep cash ready for delivery.',
-          [
-            {
-              text: 'View Order',
-              onPress: () => onOrderConfirmed?.(result.transaction),
-            },
-          ],
-        );
+
+        // ✅ Extract checkoutSessionId from result
+        const sessionId =
+          result.transaction?.checkoutSessionId ||
+          result.transaction?.checkoutSession?.checkoutSessionId ||
+          checkoutSessionId;
+
+        const orderData = {
+          checkoutSessionId: sessionId,
+          orderId: result.orderId || result.transaction?.orderId || null,
+          transaction: result.transaction || result,
+          success: true,
+        };
+
+        console.log(`📱 [COD] Final orderData:`, orderData);
+        setLastOrderData(orderData);
+
+        // ✅ DIRECT NAVIGATION - NO ALERT
+        // Just call onOrderConfirmed - CheckoutStepper will handle navigation
+        if (onOrderConfirmed) {
+          onOrderConfirmed(orderData);
+        }
       } else {
         Alert.alert('Error', result.error || 'Failed to confirm COD order');
       }
@@ -551,6 +619,7 @@ export const usePayment = ({
     createCheckoutSession,
     sessionError,
     isCreatingSession,
+    lastOrderData,
   };
 };
 

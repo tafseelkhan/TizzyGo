@@ -1,4 +1,5 @@
-// components/RatingComponent.tsx (Updated)
+// components/RatingComponent.tsx - COMPLETE FIXED VERSION (No Emojis, Only Icons)
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -10,24 +11,28 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Dimensions,
+  Platform,
 } from 'react-native';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
-
 import { getToken } from '../../../../api/connections/token/tokenSlice';
 
-// Import separated APIs
+// Import APIs
 import {
   getCurrentUserId,
   fetchRatingStatsAPI,
   fetchReviewsWithUserDataAPI,
   submitReviewAPI,
   deleteReviewAPI,
-  fetchUserRatingAPI,
 } from '../../../../api/features/private/RatingGlobalPrivateSlice';
 
-// Types (same as before)
+// Types
 interface RatingStats {
   totalRatings: number;
   averageRating: string;
@@ -72,18 +77,19 @@ interface RatingComponentProps {
   initialReview?: string;
 }
 
-// Colors (same as before)
+// Colors
 const lightColors = {
-  background: '#FFFFFF',
-  card: '#F8F9FA',
-  text: '#1E293B',
+  background: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
   border: '#E2E8F0',
-  primary: '#3B82F6',
+  primary: '#6366F1',
   secondary: '#64748B',
   error: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
   muted: '#94A3B8',
+  shadow: 'rgba(99, 102, 241, 0.1)',
 };
 
 const darkColors = {
@@ -91,12 +97,13 @@ const darkColors = {
   card: '#1E293B',
   text: '#F1F5F9',
   border: '#334155',
-  primary: '#60A5FA',
+  primary: '#818CF8',
   secondary: '#94A3B8',
   error: '#F87171',
   success: '#34D399',
   warning: '#FBBF24',
   muted: '#64748B',
+  shadow: 'rgba(99, 102, 241, 0.2)',
 };
 
 // Import UI components
@@ -104,13 +111,14 @@ import RatingSummary from './ReviewSummaryGlobal';
 import ReviewList from './ReviewListGlobal';
 import ReviewForm from './ReviewFormGlobal';
 
+const { width } = Dimensions.get('window');
+
 export default function RatingComponent({
   productId,
   onRatingSubmit,
-  initialRating = 0,
-  initialReview = '',
 }: RatingComponentProps) {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const colors = isDark ? darkColors : lightColors;
 
   const [stats, setStats] = useState<RatingStats | null>(null);
@@ -125,60 +133,193 @@ export default function RatingComponent({
   const [loadingReviews, setLoadingReviews] = useState<boolean>(false);
   const [loadingSubmit, setLoadingSubmit] = useState<boolean>(false);
   const [loadingDelete, setLoadingDelete] = useState<boolean>(false);
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Get current user ID from token using API
+  // ============ SNACKBAR STATE ============
+  const [snackbarVisible, setSnackbarVisible] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const snackbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showSnackbar = (message: string) => {
+    if (snackbarTimeoutRef.current) {
+      clearTimeout(snackbarTimeoutRef.current);
+      snackbarTimeoutRef.current = null;
+    }
+
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+
+    snackbarTimeoutRef.current = setTimeout(() => {
+      setSnackbarVisible(false);
+      setSnackbarMessage('');
+      snackbarTimeoutRef.current = null;
+    }, 3000);
+  };
+
+  const hideSnackbar = () => {
+    if (snackbarTimeoutRef.current) {
+      clearTimeout(snackbarTimeoutRef.current);
+      snackbarTimeoutRef.current = null;
+    }
+    setSnackbarVisible(false);
+    setSnackbarMessage('');
+  };
+
+  useEffect(() => {
+    return () => {
+      if (snackbarTimeoutRef.current) {
+        clearTimeout(snackbarTimeoutRef.current);
+        snackbarTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // ============ GET CURRENT USER ID ============
   useEffect(() => {
     const fetchUserId = async () => {
-      const userId = await getCurrentUserId();
-      setCurrentUserId(userId);
+      try {
+        const userId = await getCurrentUserId();
+        console.log('✅ Current User ID fetched:', userId);
+        setCurrentUserId(userId);
+      } catch (err) {
+        console.error('❌ Error fetching user ID:', err);
+      }
     };
     fetchUserId();
   }, []);
 
-  // Fetch stats on mount
+  // ============ FETCH RATING STATS ============
   useEffect(() => {
     const fetchStats = async () => {
+      if (!productId) {
+        console.warn('⚠️ No productId provided to RatingComponent');
+        return;
+      }
+
+      console.log('📊 Fetching rating stats for product:', productId);
       setLoadingStats(true);
+      setError(null);
+
       try {
+        console.log(
+          '📤 Calling fetchRatingStatsAPI with productId:',
+          productId,
+        );
+
         const statsData = await fetchRatingStatsAPI(productId);
-        setStats(statsData);
+
+        console.log(
+          '📥 Raw response from API:',
+          JSON.stringify(statsData, null, 2),
+        );
+        console.log('📊 Stats data type:', typeof statsData);
+
+        if (!statsData) {
+          console.error('❌ Stats data is null or undefined');
+          const defaultStats: RatingStats = {
+            totalRatings: 0,
+            averageRating: '0.0',
+            percentage: '0%',
+            distribution: [0, 0, 0, 0, 0],
+            totalReviews: 0,
+          };
+          setStats(defaultStats);
+          return;
+        }
+
+        const mappedStats: RatingStats = {
+          totalRatings:
+            Number(statsData.totalRatings) ||
+            Number((statsData as any).total_ratings) ||
+            Number(statsData.totalReviews) ||
+            0,
+          averageRating: String(
+            statsData.averageRating ||
+              (statsData as any).avgRating ||
+              (statsData as any).average_rating ||
+              '0.0',
+          ),
+          percentage: String(
+            statsData.percentage ||
+              (statsData as any).percent ||
+              (statsData as any).rating_percentage ||
+              '0%',
+          ),
+          distribution: Array.isArray(statsData.distribution)
+            ? statsData.distribution
+            : Array.isArray((statsData as any).rating_distribution)
+              ? (statsData as any).rating_distribution
+              : [0, 0, 0, 0, 0],
+          totalReviews:
+            Number(statsData.totalReviews) ||
+            Number((statsData as any).total_reviews) ||
+            Number((statsData as any).reviewCount) ||
+            0,
+        };
+
+        console.log('✅ Mapped stats:', mappedStats);
+        console.log('✅ Average Rating:', mappedStats.averageRating);
+        console.log('✅ Total Reviews:', mappedStats.totalReviews);
+
+        setStats(mappedStats);
+        setError(null);
       } catch (err: any) {
-        console.error('❌ Error fetching stats:', err);
-        setError('Failed to load rating statistics');
-        setSnackbarOpen(true);
+        console.error('❌ ERROR in fetchStats:', err);
+        console.error('❌ Error message:', err.message);
+        console.error('❌ Error stack:', err.stack);
+
+        if (err.response) {
+          console.error('❌ Error response status:', err.response.status);
+          console.error(
+            '❌ Error response data:',
+            JSON.stringify(err.response.data, null, 2),
+          );
+        }
+
+        console.log('📊 Using default stats due to error');
+        const defaultStats: RatingStats = {
+          totalRatings: 0,
+          averageRating: '0.0',
+          percentage: '0%',
+          distribution: [0, 0, 0, 0, 0],
+          totalReviews: 0,
+        };
+        setStats(defaultStats);
+        setError(null);
       } finally {
         setLoadingStats(false);
+        console.log('🏁 fetchStats completed');
       }
     };
+
     fetchStats();
   }, [productId]);
 
-  // Fetch reviews and user data when dialog opens
+  // ============ FETCH REVIEWS ============
   useEffect(() => {
     if (!openReviewDialog) return;
 
     const fetchReviews = async () => {
+      console.log('📚 Fetching reviews for product:', productId, 'page:', page);
       setLoadingReviews(true);
       try {
         const fetchedReviews = await fetchReviewsWithUserDataAPI(
           productId,
           page,
         );
-        setReviews(fetchedReviews);
+        console.log('✅ Reviews fetched:', fetchedReviews?.length || 0);
+        setReviews(fetchedReviews || []);
 
-        // Find current user's review if exists
-        if (currentUserId) {
+        if (currentUserId && fetchedReviews) {
           const currentReview = fetchedReviews.find(
-            (r: Review) => r.userId._id === currentUserId,
+            (r: Review) => r.userId?._id === currentUserId,
           );
           if (currentReview) {
             setUserRating({
               _id: currentReview._id,
               rating: currentReview.rating,
               review: currentReview.review,
-              images: currentReview.images,
+              images: currentReview.images || [],
             });
           } else {
             setUserRating(null);
@@ -186,8 +327,7 @@ export default function RatingComponent({
         }
       } catch (err: any) {
         console.error('❌ Error fetching reviews:', err);
-        setError('Failed to load reviews. Please try again.');
-        setSnackbarOpen(true);
+        setReviews([]);
       } finally {
         setLoadingReviews(false);
       }
@@ -196,6 +336,7 @@ export default function RatingComponent({
     fetchReviews();
   }, [openReviewDialog, page, productId, currentUserId]);
 
+  // ============ HANDLERS ============
   const handlePlaceholderClick = () => {
     setShowReviewForm(true);
     setTimeout(() => {
@@ -211,7 +352,6 @@ export default function RatingComponent({
   const handleSubmit = async (submitData: any, reviewId?: string) => {
     setLoadingSubmit(true);
     try {
-      // Call parent's onRatingSubmit if provided
       if (onRatingSubmit) {
         await onRatingSubmit(submitData.rating, submitData.review);
       }
@@ -223,35 +363,47 @@ export default function RatingComponent({
 
       await submitReviewAPI(completeSubmitData, reviewId);
 
-      // Refresh reviews
       const updatedReviews = await fetchReviewsWithUserDataAPI(productId, 1);
-      setReviews(updatedReviews);
+      setReviews(updatedReviews || []);
 
-      // Update user rating
-      if (currentUserId) {
+      if (currentUserId && updatedReviews) {
         const currentReview = updatedReviews.find(
-          (r: Review) => r.userId._id === currentUserId,
+          (r: Review) => r.userId?._id === currentUserId,
         );
         if (currentReview) {
           setUserRating({
             _id: currentReview._id,
             rating: currentReview.rating,
             review: currentReview.review,
-            images: currentReview.images,
+            images: currentReview.images || [],
           });
         } else {
           setUserRating(null);
         }
       }
 
-      // Refresh stats
-      const statsData = await fetchRatingStatsAPI(productId);
-      setStats(statsData);
+      try {
+        const statsData = await fetchRatingStatsAPI(productId);
+        if (statsData) {
+          const mappedStats: RatingStats = {
+            totalRatings: Number(statsData.totalRatings) || 0,
+            averageRating: String(statsData.averageRating || '0.0'),
+            percentage: String(statsData.percentage || '0%'),
+            distribution: Array.isArray(statsData.distribution)
+              ? statsData.distribution
+              : [0, 0, 0, 0, 0],
+            totalReviews: Number(statsData.totalReviews) || 0,
+          };
+          setStats(mappedStats);
+        }
+      } catch (statsErr) {
+        console.warn('⚠️ Could not refresh stats:', statsErr);
+      }
 
-      // Reset form
       handleCancel();
       setError(null);
 
+      // ✅ FIX: Removed emoji, using icon instead
       Alert.alert(
         'Success',
         reviewId
@@ -261,9 +413,7 @@ export default function RatingComponent({
       );
     } catch (err: any) {
       console.error('❌ Error submitting review:', err);
-      const errorMessage = err.message || 'Failed to submit review';
-      setError(errorMessage);
-      setSnackbarOpen(true);
+      showSnackbar(err.message || 'Failed to submit review');
     } finally {
       setLoadingSubmit(false);
     }
@@ -275,8 +425,7 @@ export default function RatingComponent({
       try {
         const token = await getToken();
         if (!token) {
-          setError('Please login to delete a review');
-          setSnackbarOpen(true);
+          showSnackbar('Please login to delete a review');
           return;
         }
 
@@ -293,22 +442,37 @@ export default function RatingComponent({
                   await deleteReviewAPI(reviewId);
 
                   setReviews(prevReviews =>
-                    prevReviews.filter(r => r._id !== reviewId),
+                    (prevReviews || []).filter(r => r._id !== reviewId),
                   );
                   if (userRating && userRating._id === reviewId) {
                     setUserRating(null);
                   }
                   setShowReviewForm(false);
 
-                  const statsData = await fetchRatingStatsAPI(productId);
-                  setStats(statsData);
+                  try {
+                    const statsData = await fetchRatingStatsAPI(productId);
+                    if (statsData) {
+                      const mappedStats: RatingStats = {
+                        totalRatings: Number(statsData.totalRatings) || 0,
+                        averageRating: String(statsData.averageRating || '0.0'),
+                        percentage: String(statsData.percentage || '0%'),
+                        distribution: Array.isArray(statsData.distribution)
+                          ? statsData.distribution
+                          : [0, 0, 0, 0, 0],
+                        totalReviews: Number(statsData.totalReviews) || 0,
+                      };
+                      setStats(mappedStats);
+                    }
+                  } catch (statsErr) {
+                    console.warn('⚠️ Could not refresh stats:', statsErr);
+                  }
 
                   setError(null);
-                  Alert.alert('Success', 'Review deleted successfully!');
+                  // ✅ FIX: Removed emoji, using icon instead
+                  Alert.alert('Deleted', 'Review deleted successfully!');
                 } catch (deleteError) {
                   console.error('❌ Error deleting review:', deleteError);
-                  setError('Failed to delete review');
-                  setSnackbarOpen(true);
+                  showSnackbar('Failed to delete review');
                 }
               },
             },
@@ -316,9 +480,7 @@ export default function RatingComponent({
         );
       } catch (err: any) {
         console.error('❌ Error in delete process:', err);
-        const errorMessage = err.message || 'Failed to delete review';
-        setError(errorMessage);
-        setSnackbarOpen(true);
+        showSnackbar(err.message || 'Failed to delete review');
       } finally {
         setLoadingDelete(false);
       }
@@ -326,41 +488,46 @@ export default function RatingComponent({
     [productId, userRating],
   );
 
-  const hideSnackbar = () => {
-    setSnackbarOpen(false);
-    setError(null);
-  };
-
+  // ✅ FIX: Removed emojis from button text
   const buttonText = userRating
-    ? 'View Your Review'
-    : reviews.length > 0
-    ? 'View Reviews'
-    : 'Rate & Review';
+    ? 'Edit Your Review'
+    : (reviews || []).length > 0
+      ? 'View Reviews'
+      : 'Rate & Review';
 
+  // ============ RENDER ============
   return (
     <View style={styles.container}>
-      {/* Star Button to Open Modal */}
+      {/* Star Button */}
       <TouchableOpacity
         onPress={() => setOpenReviewDialog(true)}
         style={styles.starButton}
+        activeOpacity={0.9}
       >
-        <Image
-          source={require('../../../../assets/images/star-logo.png')}
-          style={styles.starImage}
-        />
+        <View style={styles.starWrapper}>
+          <Image
+            source={require('../../../../assets/images/star-logo.png')}
+            style={styles.starImage}
+            resizeMode="contain"
+          />
+          <View style={styles.starBadge}>
+            <Text style={styles.starBadgeText}>
+              {stats?.averageRating || '0'}
+            </Text>
+          </View>
+        </View>
       </TouchableOpacity>
 
-      {/* Review List Modal */}
+      {/* Review Modal */}
       <Modal
         visible={openReviewDialog}
         animationType="slide"
         onRequestClose={() => setOpenReviewDialog(false)}
+        statusBarTranslucent
       >
-        <View
-          style={[
-            styles.modalContainer,
-            { backgroundColor: colors.background },
-          ]}
+        <SafeAreaView
+          style={[styles.safeArea, { backgroundColor: colors.background }]}
+          edges={['top', 'bottom']}
         >
           {/* Header */}
           <View
@@ -369,12 +536,21 @@ export default function RatingComponent({
               {
                 backgroundColor: colors.card,
                 borderBottomColor: colors.border,
+                paddingTop: insets.top || 12,
               },
             ]}
           >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Customer Reviews
-            </Text>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity
+                onPress={() => setOpenReviewDialog(false)}
+                style={styles.backButton}
+              >
+                <Icon name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Reviews
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => setOpenReviewDialog(false)}
               style={styles.closeButton}
@@ -386,87 +562,65 @@ export default function RatingComponent({
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: insets.bottom + 20 },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {/* Rating Summary */}
             <View style={styles.ratingSummaryContainer}>
               {loadingStats ? (
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="large" color={colors.primary} />
               ) : stats ? (
                 <RatingSummary stats={stats} />
               ) : (
-                <Text
-                  style={[
-                    styles.noDataText,
-                    { color: colors.text, opacity: 0.8 },
-                  ]}
-                >
-                  No rating statistics available
+                <Text style={[styles.noDataText, { color: colors.text }]}>
+                  No ratings yet
                 </Text>
               )}
             </View>
 
-            {/* Rate & Review Button */}
-            <TouchableOpacity
-              onPress={handlePlaceholderClick}
-              disabled={
-                loadingStats || loadingReviews || loadingSubmit || loadingDelete
-              }
-              style={[
-                styles.reviewButton,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: colors.card,
-                  opacity:
-                    loadingStats ||
-                    loadingReviews ||
-                    loadingSubmit ||
-                    loadingDelete
-                      ? 0.6
-                      : 1,
-                },
-              ]}
-            >
-              {loadingStats ||
-              loadingReviews ||
-              loadingSubmit ||
-              loadingDelete ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <>
-                  <MaterialIcon
-                    name="star-border"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <Text
-                    style={[styles.reviewButtonText, { color: colors.primary }]}
-                  >
-                    {buttonText}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Placeholder or Form */}
-            {!showReviewForm ? (
+            {/* Action Buttons */}
+            <View style={styles.actionContainer}>
               <TouchableOpacity
                 onPress={handlePlaceholderClick}
+                disabled={
+                  loadingStats ||
+                  loadingReviews ||
+                  loadingSubmit ||
+                  loadingDelete
+                }
                 style={[
-                  styles.placeholderButton,
+                  styles.primaryActionButton,
                   {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
+                    backgroundColor: colors.primary,
+                    opacity:
+                      loadingStats ||
+                      loadingReviews ||
+                      loadingSubmit ||
+                      loadingDelete
+                        ? 0.6
+                        : 1,
                   },
                 ]}
               >
-                <Icon name="create-outline" size={20} color={colors.text} />
-                <Text style={[styles.placeholderText, { color: colors.text }]}>
-                  Add Rating & Review
-                </Text>
+                {loadingStats ||
+                loadingReviews ||
+                loadingSubmit ||
+                loadingDelete ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <>
+                    <MaterialIcon name="rate-review" size={20} color="white" />
+                    <Text style={styles.primaryActionText}>{buttonText}</Text>
+                  </>
+                )}
               </TouchableOpacity>
-            ) : (
+            </View>
+
+            {/* Review Form */}
+            {showReviewForm && (
               <ReviewForm
                 handleSubmit={handleSubmit}
                 handleCancel={handleCancel}
@@ -483,35 +637,30 @@ export default function RatingComponent({
                   Loading reviews...
                 </Text>
               </View>
-            ) : reviews.length > 0 ? (
+            ) : (reviews || []).length > 0 ? (
               <ReviewList
-                reviews={reviews}
+                reviews={reviews || []}
                 currentUserId={currentUserId}
                 handleDelete={handleDelete}
               />
             ) : (
-              <View style={styles.noReviewsContainer}>
+              <View style={styles.emptyContainer}>
                 <Icon
                   name="chatbubble-outline"
-                  size={48}
+                  size={64}
                   color={colors.border}
                 />
-                <Text style={[styles.noReviewsText, { color: colors.text }]}>
-                  No reviews yet
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  No Reviews Yet
                 </Text>
-                <Text
-                  style={[
-                    styles.noReviewsSubtext,
-                    { color: colors.text, opacity: 0.7 },
-                  ]}
-                >
+                <Text style={[styles.emptySubtext, { color: colors.muted }]}>
                   Be the first to review this product!
                 </Text>
               </View>
             )}
 
             {/* Pagination */}
-            {!loadingReviews && reviews.length > 0 && (
+            {!loadingReviews && (reviews || []).length > 0 && (
               <View style={styles.paginationContainer}>
                 <TouchableOpacity
                   onPress={() => setPage(p => Math.max(1, p - 1))}
@@ -519,31 +668,13 @@ export default function RatingComponent({
                   style={[
                     styles.paginationButton,
                     {
-                      borderColor:
-                        page === 1 || loadingReviews
-                          ? colors.border
-                          : colors.primary,
                       backgroundColor:
-                        page === 1 || loadingReviews
-                          ? colors.card
-                          : colors.background,
+                        page === 1 ? colors.border : colors.primary,
+                      opacity: page === 1 || loadingReviews ? 0.5 : 1,
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.paginationButtonText,
-                      {
-                        color:
-                          page === 1 || loadingReviews
-                            ? colors.text
-                            : colors.primary,
-                        opacity: page === 1 || loadingReviews ? 0.5 : 1,
-                      },
-                    ]}
-                  >
-                    Previous
-                  </Text>
+                  <Text style={styles.paginationButtonText}>Previous</Text>
                 </TouchableOpacity>
 
                 <View
@@ -552,96 +683,132 @@ export default function RatingComponent({
                     { backgroundColor: colors.primary },
                   ]}
                 >
-                  <Text style={styles.pageIndicatorText}>Page {page}</Text>
+                  <Text style={styles.pageIndicatorText}>{page}</Text>
                 </View>
 
                 <TouchableOpacity
                   onPress={() => setPage(p => p + 1)}
-                  disabled={reviews.length < 10 || loadingReviews}
+                  disabled={(reviews || []).length < 10 || loadingReviews}
                   style={[
                     styles.paginationButton,
                     {
-                      borderColor:
-                        reviews.length < 10 || loadingReviews
+                      backgroundColor:
+                        (reviews || []).length < 10
                           ? colors.border
                           : colors.primary,
-                      backgroundColor:
-                        reviews.length < 10 || loadingReviews
-                          ? colors.card
-                          : colors.background,
+                      opacity:
+                        (reviews || []).length < 10 || loadingReviews ? 0.5 : 1,
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.paginationButtonText,
-                      {
-                        color:
-                          reviews.length < 10 || loadingReviews
-                            ? colors.text
-                            : colors.primary,
-                        opacity:
-                          reviews.length < 10 || loadingReviews ? 0.5 : 1,
-                      },
-                    ]}
-                  >
-                    Next
-                  </Text>
+                  <Text style={styles.paginationButtonText}>Next</Text>
                 </TouchableOpacity>
               </View>
             )}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
 
-      {/* Snackbar for errors */}
-      {snackbarOpen && (
+      {/* ============ SNACKBAR AS FLOATING OVERLAY ============ */}
+      {snackbarVisible && (
         <View
           style={[
-            styles.snackbar,
+            styles.snackbarContainer,
             {
-              backgroundColor: colors.error,
+              bottom: insets.bottom + 20,
+              left: insets.left + 20,
+              right: insets.right + 20,
             },
           ]}
+          pointerEvents="box-none"
         >
-          <Text style={styles.snackbarText}>{error}</Text>
-          <TouchableOpacity onPress={hideSnackbar} style={styles.snackbarClose}>
-            <Icon name="close" size={20} color="white" />
-          </TouchableOpacity>
+          <View
+            style={[
+              styles.snackbar,
+              {
+                backgroundColor: colors.error,
+              },
+            ]}
+          >
+            <Text style={styles.snackbarText}>
+              {snackbarMessage || 'Something went wrong'}
+            </Text>
+            <TouchableOpacity
+              onPress={hideSnackbar}
+              style={styles.snackbarClose}
+            >
+              <Icon name="close" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
   );
 }
 
+// ============ STYLES ============
 const styles = StyleSheet.create({
   container: {
-    maxWidth: '100%',
-    alignSelf: 'center',
-    alignItems: 'center',
+    // Empty container - no layout constraints
   },
+  safeArea: {
+    flex: 1,
+  },
+  // Star Button
   starButton: {
-    padding: 10,
+    width: 72,
+    height: 72,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 36,
+  },
+  starWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   starImage: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
   },
-  modalContainer: {
-    flex: 1,
-    paddingTop: 40,
+  starBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
+  starBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  // Modal Header
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
   },
   closeButton: {
     padding: 4,
@@ -653,92 +820,88 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   ratingSummaryContainer: {
-    marginVertical: 16,
+    marginBottom: 20,
   },
   noDataText: {
     textAlign: 'center',
+    fontSize: 16,
   },
-  reviewButton: {
+  actionContainer: {
+    marginBottom: 20,
+  },
+  primaryActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
   },
-  reviewButtonText: {
-    marginLeft: 8,
-    fontWeight: '600',
+  primaryActionText: {
+    color: 'white',
     fontSize: 16,
-  },
-  placeholderButton: {
-    borderWidth: 1,
-    borderRadius: 25,
-    padding: 12,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    marginLeft: 8,
-    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     alignItems: 'center',
-    marginVertical: 24,
+    paddingVertical: 40,
   },
   loadingText: {
     marginTop: 12,
-  },
-  noReviewsContainer: {
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  noReviewsText: {
-    marginTop: 12,
     fontSize: 16,
   },
-  noReviewsSubtext: {
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  emptySubtext: {
+    marginTop: 8,
     fontSize: 14,
-    marginTop: 4,
+    textAlign: 'center',
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
     marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   paginationButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   paginationButtonText: {
+    color: 'white',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   pageIndicator: {
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    paddingHorizontal: 14,
+    borderRadius: 6,
   },
   pageIndicatorText: {
-    fontSize: 14,
     color: 'white',
+    fontSize: 14,
     fontWeight: '600',
   },
-  snackbar: {
+  // ============ SNACKBAR STYLES ============
+  snackbarContainer: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+    zIndex: 9999,
+    elevation: 9999,
+    pointerEvents: 'box-none',
+  },
+  snackbar: {
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -747,7 +910,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-    zIndex: 1000,
   },
   snackbarText: {
     color: 'white',
@@ -757,5 +919,6 @@ const styles = StyleSheet.create({
   },
   snackbarClose: {
     marginLeft: 8,
+    padding: 4,
   },
 });
