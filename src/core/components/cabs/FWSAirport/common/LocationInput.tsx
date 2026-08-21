@@ -13,30 +13,32 @@ import {
   StatusBar,
   ActivityIndicator,
   Animated,
+  Dimensions,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 import axios from 'axios';
 import { COLORS } from '../../../../../api/constants/FWSAirport';
 import { Suggestion } from '../../../../types/FWSAirportTypes';
 import { GOOGLE_API_KEY } from '../../../../../api/constants/mapConfig';
 import { AnimatedPressable } from '../AnimatedPressable';
-
-// ✅ IMPORT LOCATION HELPER
 import {
   requestLocationPermission,
   fetchCurrentLocation,
 } from '../../../../utils/cabs/locationHelper';
+
+const { width } = Dimensions.get('window');
 
 interface LocationInputScreenProps {
   navigation: any;
   route: any;
 }
 
-// ✅ NEW: Trip Type Options
 type TripTypeOption = 'AIRPORT_TO_LOCATION' | 'LOCATION_TO_AIRPORT' | null;
 
 const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
@@ -45,19 +47,21 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
 
-  // Get initial values from navigation params
   const initialPickupText = route.params?.pickupText || '';
   const initialDropText = route.params?.dropText || '';
   const initialPickup = route.params?.pickup || null;
   const initialDrop = route.params?.drop || null;
 
-  // Refs
   const pickupInputRef = useRef<TextInput>(null);
   const dropInputRef = useRef<TextInput>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const optionsFadeAnim = useRef(new Animated.Value(0)).current;
 
-  // States
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const optionsFadeAnim = useRef(new Animated.Value(0)).current;
+  const optionsSlideAnim = useRef(new Animated.Value(20)).current;
+  const searchButtonAnim = useRef(new Animated.Value(0)).current;
+
   const [pickupText, setPickupText] = useState<string>(initialPickupText);
   const [dropText, setDropText] = useState<string>(initialDropText);
   const [pickup, setPickup] = useState<any>(initialPickup);
@@ -69,40 +73,66 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [searchType, setSearchType] = useState<'pickup' | 'drop'>('pickup');
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
-
-  // ✅ NEW: Selected trip type option
   const [selectedOption, setSelectedOption] = useState<TripTypeOption>(null);
-
-  // ✅ Location fetch states
   const [fetchingLocation, setFetchingLocation] = useState<boolean>(true);
   const [isSearching, setIsSearching] = useState<boolean>(false);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: showSuggestions ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: showSuggestions ? 1 : 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: showSuggestions ? 0 : 30,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [showSuggestions]);
 
-  // ✅ NEW: Animate options when both pickup and drop are selected
   useEffect(() => {
     if (pickup && drop && !showSuggestions) {
-      Animated.timing(optionsFadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(optionsFadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(optionsSlideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(searchButtonAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(optionsFadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(optionsFadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(optionsSlideAnim, {
+          toValue: 20,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchButtonAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [pickup, drop, showSuggestions]);
 
-  // ✅ Reverse geocode function
   const reverseGeocode = async (
     latitude: number,
     longitude: number,
@@ -121,7 +151,6 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
     }
   };
 
-  // ✅ Fetch current location on mount
   useEffect(() => {
     initializeLocation();
   }, []);
@@ -178,7 +207,6 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       });
   };
 
-  // Search locations
   const searchLocations = async (text: string) => {
     if (!text || text.length < 2) {
       setSuggestions([]);
@@ -210,7 +238,6 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
     }
   };
 
-  // Select suggestion
   const selectSuggestion = async (suggestion: Suggestion) => {
     setShowSuggestions(false);
     setSuggestions([]);
@@ -235,19 +262,17 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           setPickupText(address);
           Keyboard.dismiss();
           pickupInputRef.current?.blur();
-          // ✅ auto-shift focus to drop field
           if (!dropText) {
             setTimeout(() => {
               setSearchType('drop');
               dropInputRef.current?.focus();
-            }, 200);
+            }, 300);
           }
         } else {
           setDrop(locationData);
           setDropText(address);
           Keyboard.dismiss();
           dropInputRef.current?.blur();
-          // ✅ NEW: Reset selected option when drop changes
           setSelectedOption(null);
         }
       }
@@ -256,12 +281,10 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
     }
   };
 
-  // ✅ NEW: Select trip type option
   const handleSelectOption = (option: TripTypeOption) => {
     setSelectedOption(option);
   };
 
-  // ✅ SEARCH BUTTON - Navigate to BookingScreen with selected option
   const handleSearch = () => {
     if (!pickup || !drop) {
       Alert.alert('Error', 'Please select both pickup and drop locations.');
@@ -275,19 +298,17 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
 
     setIsSearching(true);
 
-    // ✅ Navigate to BookingScreen with location data + selected option
     navigation.navigate('FWSAirport', {
       pickup,
       drop,
       pickupText,
       dropText,
-      selectedOption: selectedOption, // ✅ NEW: Pass selected option
+      selectedOption: selectedOption,
     });
 
     setIsSearching(false);
   };
 
-  // Swap locations
   const swapLocations = () => {
     if (pickup && drop) {
       const tempPickup = pickup;
@@ -296,11 +317,10 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       setPickupText(dropText);
       setDrop(tempPickup);
       setDropText(tempPickupText);
-      setSelectedOption(null); // ✅ Reset selection on swap
+      setSelectedOption(null);
     }
   };
 
-  // Clear functions
   const clearPickup = () => {
     setPickupText('');
     setPickup(null);
@@ -326,7 +346,7 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       activeOpacity={0.6}
     >
       <View style={styles.suggestionIconWrap}>
-        <Icon name="location-on" size={18} color={COLORS.textSecondary} />
+        <Ionicons name="location-outline" size={20} color="#6c757d" />
       </View>
       <View style={styles.suggestionTextWrap}>
         <Text style={styles.suggestionMain} numberOfLines={1}>
@@ -338,11 +358,10 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           </Text>
         )}
       </View>
-      <Icon name="north-west" size={16} color={COLORS.textMuted} />
+      <Ionicons name="chevron-forward" size={18} color="#ced4da" />
     </TouchableOpacity>
   );
 
-  // ✅ NEW: Render trip type options
   const renderTripOptions = () => {
     if (!pickup || !drop || showSuggestions) return null;
 
@@ -350,10 +369,18 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
       <Animated.View
         style={[
           styles.optionsContainer,
-          { opacity: optionsFadeAnim, transform: [{ scale: optionsFadeAnim }] },
+          {
+            opacity: optionsFadeAnim,
+            transform: [{ translateY: optionsSlideAnim }],
+          },
         ]}
       >
-        <Text style={styles.optionsTitle}>How would you like to travel?</Text>
+        <View style={styles.optionsHeader}>
+          <View style={styles.optionsTitleContainer}>
+            <Ionicons name="airplane-outline" size={20} color="#1a1a1a" />
+            <Text style={styles.optionsTitle}>Choose your journey type</Text>
+          </View>
+        </View>
 
         <View style={styles.optionsGrid}>
           {/* Option 1: Airport to Location */}
@@ -366,34 +393,48 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
             onPress={() => handleSelectOption('AIRPORT_TO_LOCATION')}
             activeOpacity={0.7}
           >
-            <View style={styles.optionIconWrap}>
-              <Icon
-                name="flight-takeoff"
+            <View
+              style={[
+                styles.optionIconWrap,
+                selectedOption === 'AIRPORT_TO_LOCATION' &&
+                  styles.optionIconWrapSelected,
+              ]}
+            >
+              <Ionicons
+                name="airplane"
                 size={24}
                 color={
                   selectedOption === 'AIRPORT_TO_LOCATION'
                     ? COLORS.green
-                    : COLORS.textSecondary
+                    : '#6c757d'
                 }
               />
             </View>
-            <Text
-              style={[
-                styles.optionTitle,
-                selectedOption === 'AIRPORT_TO_LOCATION' &&
-                  styles.optionTitleSelected,
-              ]}
-            >
-              Airport to Location
-            </Text>
-            <Text style={styles.optionSubtitle}>
-              From airport to your destination
-            </Text>
-            {selectedOption === 'AIRPORT_TO_LOCATION' && (
-              <View style={styles.checkmark}>
-                <Icon name="check-circle" size={20} color={COLORS.green} />
+            <View style={styles.optionContent}>
+              <View style={styles.optionTextContainer}>
+                <Text
+                  style={[
+                    styles.optionTitle,
+                    selectedOption === 'AIRPORT_TO_LOCATION' &&
+                      styles.optionTitleSelected,
+                  ]}
+                >
+                  Airport → Destination
+                </Text>
+                <Text style={styles.optionSubtitle}>
+                  From airport to your destination
+                </Text>
               </View>
-            )}
+              {selectedOption === 'AIRPORT_TO_LOCATION' && (
+                <View style={styles.checkmark}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={COLORS.green}
+                  />
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
 
           {/* Option 2: Location to Airport */}
@@ -406,34 +447,48 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
             onPress={() => handleSelectOption('LOCATION_TO_AIRPORT')}
             activeOpacity={0.7}
           >
-            <View style={styles.optionIconWrap}>
-              <Icon
-                name="flight-land"
+            <View
+              style={[
+                styles.optionIconWrap,
+                selectedOption === 'LOCATION_TO_AIRPORT' &&
+                  styles.optionIconWrapSelected,
+              ]}
+            >
+              <Ionicons
+                name="home-outline"
                 size={24}
                 color={
                   selectedOption === 'LOCATION_TO_AIRPORT'
                     ? COLORS.green
-                    : COLORS.textSecondary
+                    : '#6c757d'
                 }
               />
             </View>
-            <Text
-              style={[
-                styles.optionTitle,
-                selectedOption === 'LOCATION_TO_AIRPORT' &&
-                  styles.optionTitleSelected,
-              ]}
-            >
-              Location to Airport
-            </Text>
-            <Text style={styles.optionSubtitle}>
-              From your location to the airport
-            </Text>
-            {selectedOption === 'LOCATION_TO_AIRPORT' && (
-              <View style={styles.checkmark}>
-                <Icon name="check-circle" size={20} color={COLORS.green} />
+            <View style={styles.optionContent}>
+              <View style={styles.optionTextContainer}>
+                <Text
+                  style={[
+                    styles.optionTitle,
+                    selectedOption === 'LOCATION_TO_AIRPORT' &&
+                      styles.optionTitleSelected,
+                  ]}
+                >
+                  Destination → Airport
+                </Text>
+                <Text style={styles.optionSubtitle}>
+                  From your location to the airport
+                </Text>
               </View>
-            )}
+              {selectedOption === 'LOCATION_TO_AIRPORT' && (
+                <View style={styles.checkmark}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={COLORS.green}
+                  />
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -442,7 +497,7 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -453,172 +508,218 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
           }
           activeOpacity={0.7}
         >
-          <Icon
+          <Ionicons
             name={showSuggestions ? 'close' : 'arrow-back'}
-            size={22}
-            color={COLORS.ink}
+            size={24}
+            color="#1a1a1a"
           />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {showSuggestions
             ? searchType === 'pickup'
-              ? 'Set pickup'
-              : 'Set drop'
+              ? 'Choose pickup'
+              : 'Choose drop-off'
             : 'Where to?'}
         </Text>
         <View style={styles.headerRight} />
       </View>
 
-      {/* Location Card */}
+      {/* Main Content */}
       <View style={styles.inputContainer}>
         {fetchingLocation ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.green} />
-            <Text style={styles.loadingText}>Finding your location…</Text>
-            <Text style={styles.loadingSubText}>
-              Please make sure GPS is enabled
-            </Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                setFetchingLocation(true);
-                setTimeout(() => getCurrentUserLocation(), 500);
-              }}
-            >
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color={COLORS.green} />
+              <Text style={styles.loadingText}>Finding your location…</Text>
+              <Text style={styles.loadingSubText}>
+                Please make sure GPS is enabled
+              </Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  setFetchingLocation(true);
+                  setTimeout(() => getCurrentUserLocation(), 500);
+                }}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
-          <View style={{ flex: 1 }}>
+          <Animated.View
+            style={[
+              styles.contentWrapper,
+              {
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            {/* Location Search Card - No gray background in inputs */}
             <View style={styles.card}>
               {/* Pickup */}
-              <View
-                style={[
-                  styles.locationRow,
-                  focusedField === 'pickup' && styles.locationRowFocused,
-                ]}
-              >
+              <View style={styles.locationRow}>
                 <View style={styles.railWrap}>
-                  <View style={styles.dotPickup} />
+                  <View style={[styles.dot, styles.dotPickup]} />
                   <View style={styles.railLine} />
                 </View>
-                <TextInput
-                  ref={pickupInputRef}
-                  style={styles.locationInput}
-                  placeholder="Pickup location"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={pickupText}
-                  onChangeText={text => {
-                    setPickupText(text);
-                    searchLocations(text);
-                    if (text.length === 0) {
-                      setSuggestions([]);
-                      setShowSuggestions(false);
-                    }
-                  }}
-                  onFocus={() => {
-                    setSearchType('pickup');
-                    setFocusedField('pickup');
-                    if (pickupText.length > 0) searchLocations(pickupText);
-                  }}
-                />
-                {pickupText.length > 0 && (
-                  <TouchableOpacity
-                    onPress={clearPickup}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Icon name="close" size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
-                )}
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="location"
+                    size={20}
+                    color={COLORS.green}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={pickupInputRef}
+                    style={styles.locationInput}
+                    placeholder="Pickup location"
+                    placeholderTextColor="#adb5bd"
+                    value={pickupText}
+                    onChangeText={text => {
+                      setPickupText(text);
+                      searchLocations(text);
+                      if (text.length === 0) {
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      setSearchType('pickup');
+                      setFocusedField('pickup');
+                      if (pickupText.length > 0) searchLocations(pickupText);
+                    }}
+                  />
+                  {pickupText.length > 0 && (
+                    <TouchableOpacity
+                      onPress={clearPickup}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={styles.clearButton}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#adb5bd" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
+              {/* Divider between pickup and drop */}
               <View style={styles.divider} />
 
-              {/* Drop */}
-              <View
-                style={[
-                  styles.locationRow,
-                  focusedField === 'drop' && styles.locationRowFocused,
-                ]}
-              >
-                <View style={styles.railWrap}>
-                  <View style={styles.dotDrop} />
-                </View>
-                <TextInput
-                  ref={dropInputRef}
-                  style={styles.locationInput}
-                  placeholder="Where to?"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={dropText}
-                  onChangeText={text => {
-                    setDropText(text);
-                    searchLocations(text);
-                    if (text.length === 0) {
-                      setSuggestions([]);
-                      setShowSuggestions(false);
-                    }
-                  }}
-                  onFocus={() => {
-                    setSearchType('drop');
-                    setFocusedField('drop');
-                    if (dropText.length > 0) searchLocations(dropText);
-                  }}
-                />
-                {dropText.length > 0 && (
-                  <TouchableOpacity
-                    onPress={clearDrop}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Icon name="close" size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Swap Button */}
-              <AnimatedPressable
+              {/* Swap Button - On the right side */}
+              <TouchableOpacity
                 style={styles.swapButton}
                 onPress={swapLocations}
-                scaleTo={0.85}
+                activeOpacity={0.7}
               >
-                <Icon name="swap-vert" size={18} color={COLORS.ink} />
-              </AnimatedPressable>
+                <View style={styles.swapGradient}>
+                  <MaterialCommunityIcons name="swap-vertical" size={22} color="#495057" />
+                </View>
+              </TouchableOpacity>
+
+              {/* Drop */}
+              <View style={styles.locationRow}>
+                <View style={styles.railWrap}>
+                  <View style={[styles.dot, styles.dotDrop]} />
+                </View>
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="navigate"
+                    size={20}
+                    color="#495057"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={dropInputRef}
+                    style={styles.locationInput}
+                    placeholder="Where to?"
+                    placeholderTextColor="#adb5bd"
+                    value={dropText}
+                    onChangeText={text => {
+                      setDropText(text);
+                      searchLocations(text);
+                      if (text.length === 0) {
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      setSearchType('drop');
+                      setFocusedField('drop');
+                      if (dropText.length > 0) searchLocations(dropText);
+                    }}
+                  />
+                  {dropText.length > 0 && (
+                    <TouchableOpacity
+                      onPress={clearDrop}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={styles.clearButton}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#adb5bd" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
             </View>
 
-            {/* ✅ NEW: Trip Type Options */}
+            {/* Trip Type Options */}
             {renderTripOptions()}
 
-            {/* ✅ SEARCH BUTTON - hidden while suggestion sheet is open */}
+            {/* Search Button */}
             {!showSuggestions && (
-              <AnimatedPressable
-                style={[
-                  styles.searchButton,
-                  (!pickup || !drop || !selectedOption || isSearching) &&
-                    styles.searchButtonDisabled,
-                ]}
-                onPress={handleSearch}
-                disabled={!pickup || !drop || !selectedOption || isSearching}
-                scaleTo={0.95}
+              <Animated.View
+                style={{
+                  opacity: searchButtonAnim,
+                  transform: [{ scale: searchButtonAnim }],
+                }}
               >
-                {isSearching ? (
-                  <ActivityIndicator color={COLORS.white} size="small" />
-                ) : (
-                  <>
-                    <Text style={styles.searchButtonText}>Search Rides</Text>
-                    <Icon name="arrow-forward" size={20} color={COLORS.white} />
-                  </>
-                )}
-              </AnimatedPressable>
+                <TouchableOpacity
+                  style={[
+                    styles.searchButton,
+                    (!pickup || !drop || !selectedOption || isSearching) &&
+                      styles.searchButtonDisabled,
+                  ]}
+                  onPress={handleSearch}
+                  disabled={!pickup || !drop || !selectedOption || isSearching}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={
+                      !pickup || !drop || !selectedOption || isSearching
+                        ? ['#ced4da', '#dee2e6']
+                        : [COLORS.green, '#34c759']
+                    }
+                    style={styles.searchGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    {isSearching ? (
+                      <ActivityIndicator color="#ffffff" size="small" />
+                    ) : (
+                      <View style={styles.searchButtonContent}>
+                        <Text style={styles.searchButtonText}>Find Rides</Text>
+                        <Ionicons
+                          name="arrow-forward"
+                          size={22}
+                          color="#ffffff"
+                        />
+                      </View>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             )}
 
-            {/* ✅ Full-screen immersive suggestions sheet */}
+            {/* Suggestions Sheet */}
             {showSuggestions && (
               <Animated.View
                 style={[styles.suggestionsSheet, { opacity: fadeAnim }]}
               >
                 <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsHeaderText}>
-                    {searchLoading ? 'SEARCHING…' : 'SUGGESTIONS'}
-                  </Text>
+                  <View style={styles.suggestionsHeaderLeft}>
+                    <Ionicons name="search" size={16} color="#868e96" />
+                    <Text style={styles.suggestionsHeaderText}>
+                      {searchLoading ? 'Searching...' : 'Places'}
+                    </Text>
+                  </View>
                   {searchLoading && (
                     <ActivityIndicator size="small" color={COLORS.green} />
                   )}
@@ -639,20 +740,25 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
                 ) : (
                   !searchLoading && (
                     <View style={styles.emptyState}>
-                      <Icon
-                        name="search-off"
-                        size={28}
-                        color={COLORS.textMuted}
-                      />
+                      <View style={styles.emptyStateIcon}>
+                        <Ionicons
+                          name="search-outline"
+                          size={40}
+                          color="#ced4da"
+                        />
+                      </View>
+                      <Text style={styles.emptyStateTitle}>
+                        No results found
+                      </Text>
                       <Text style={styles.emptyStateText}>
-                        Keep typing to find a place
+                        Try searching with a different location
                       </Text>
                     </View>
                   )
                 )}
               </Animated.View>
             )}
-          </View>
+          </Animated.View>
         )}
       </View>
     </SafeAreaView>
@@ -662,235 +768,313 @@ const LocationInputScreen: React.FC<LocationInputScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8f9fa',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.hairline,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#f8f9fa',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceSunken,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: COLORS.ink,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: -0.5,
   },
   headerRight: {
-    width: 40,
+    width: 44,
   },
   inputContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  contentWrapper: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.canvas,
-    borderRadius: 16,
+  },
+  loadingCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: width * 0.85,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
+    marginTop: 16,
+    fontSize: 16,
+    color: '#1a1a1a',
+    fontWeight: '600',
   },
   loadingSubText: {
-    marginTop: 4,
-    fontSize: 11,
-    color: COLORS.textMuted,
+    marginTop: 6,
+    fontSize: 13,
+    color: '#868e96',
   },
   retryButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    marginTop: 20,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: COLORS.green,
   },
   retryButtonText: {
-    color: COLORS.white,
-    fontSize: 13,
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: COLORS.bg,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 16,
     paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
     position: 'relative',
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-  },
-  locationRowFocused: {},
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.hairline,
-    marginLeft: 24,
+    paddingVertical: 12,
   },
   railWrap: {
-    width: 12,
+    width: 20,
     alignItems: 'center',
     marginRight: 12,
   },
   railLine: {
     width: 2,
     height: 24,
-    backgroundColor: COLORS.borderStrong,
+    backgroundColor: '#dee2e6',
     marginTop: 4,
     borderRadius: 1,
   },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
   dotPickup: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
     backgroundColor: COLORS.green,
   },
   dotDrop: {
-    width: 9,
-    height: 9,
     borderRadius: 2,
-    backgroundColor: COLORS.ink,
+    backgroundColor: '#495057',
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  inputIcon: {
+    marginRight: 10,
   },
   locationInput: {
     flex: 1,
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: '500',
-    color: COLORS.ink,
-    padding: 0,
+    color: '#1a1a1a',
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e9ecef',
+    marginLeft: 32,
+    marginRight: 56,
   },
   swapButton: {
     position: 'absolute',
-    right: 14,
+    right: 12,
     top: '50%',
-    marginTop: -14,
-    backgroundColor: COLORS.surfaceSunken,
-    borderRadius: 11,
-    padding: 7,
-    zIndex: 5,
+    marginTop: -20,
+    zIndex: 10,
   },
-  // ✅ NEW: Options Styles
+  swapGradient: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   optionsContainer: {
     marginTop: 20,
-    backgroundColor: COLORS.canvas,
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  optionsHeader: {
+    marginBottom: 14,
+  },
+  optionsTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   optionsTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.ink,
-    marginBottom: 14,
-    textAlign: 'center',
+    color: '#1a1a1a',
+    letterSpacing: -0.3,
   },
   optionsGrid: {
-    gap: 12,
+    gap: 10,
   },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8f9fa',
     borderRadius: 14,
     padding: 14,
     borderWidth: 2,
-    borderColor: COLORS.border,
-    position: 'relative',
+    borderColor: 'transparent',
   },
   optionCardSelected: {
     borderColor: COLORS.green,
-    backgroundColor: COLORS.greenMuted,
+    backgroundColor: '#f0fdf4',
   },
   optionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: COLORS.surfaceSunken,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  optionIconWrapSelected: {
+    backgroundColor: '#d4edda',
+  },
+  optionContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionTextContainer: {
+    flex: 1,
   },
   optionTitle: {
-    flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.ink,
+    color: '#1a1a1a',
+    letterSpacing: -0.3,
   },
   optionTitleSelected: {
     color: COLORS.green,
   },
   optionSubtitle: {
-    fontSize: 12,
-    color: COLORS.textMuted,
+    fontSize: 10,
+    color: '#868e96',
     marginTop: 2,
+    fontWeight: '300',
   },
   checkmark: {
-    position: 'absolute',
-    right: 12,
-    top: 12,
+    marginLeft: 8,
   },
-  // ✅ SEARCH BUTTON
   searchButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.green,
-    paddingVertical: 16,
-    borderRadius: 14,
     marginTop: 20,
-    gap: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: COLORS.green,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   searchButtonDisabled: {
-    backgroundColor: COLORS.border,
     shadowOpacity: 0,
     elevation: 0,
   },
+  searchGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  searchButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   searchButtonText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.white,
+    color: '#ffffff',
     letterSpacing: 0.5,
   },
-  // ✅ Suggestions Sheet
   suggestionsSheet: {
     flex: 1,
-    marginTop: 14,
-    backgroundColor: COLORS.bg,
+    marginTop: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   suggestionsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingBottom: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f5',
+  },
+  suggestionsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   suggestionsHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 1.2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#868e96',
+    letterSpacing: 0.5,
   },
   suggestionsList: {
     flex: 1,
@@ -901,41 +1085,56 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   suggestionIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.surfaceSunken,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   suggestionTextWrap: {
     flex: 1,
   },
   suggestionMain: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.ink,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1a1a1a',
   },
   suggestionSecondary: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 2,
+    fontSize: 13,
+    color: '#868e96',
+    marginTop: 1,
   },
   suggestionSeparator: {
     height: 1,
-    backgroundColor: COLORS.hairline,
-    marginLeft: 46,
+    backgroundColor: '#f1f3f5',
+    marginLeft: 54,
   },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 60,
+    paddingVertical: 40,
+  },
+  emptyStateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 6,
   },
   emptyStateText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: COLORS.textMuted,
+    fontSize: 14,
+    color: '#868e96',
   },
 });
 

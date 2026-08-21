@@ -1,4 +1,4 @@
-// components/SearchBar.tsx - FINAL COMPLETE VERSION
+// components/SearchBar.tsx - MIGRATED TO BUILT-IN ANIMATED
 import React, { JSX, useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -15,6 +15,7 @@ import {
   Dimensions,
   Platform,
   TouchableWithoutFeedback,
+  Animated, // ✅ Built-in Animated from react-native
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -30,15 +31,6 @@ import {
 import FilterDropdown from './common/FilterDropDownHome';
 import CartButton from './CartButtonHome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-  withDelay,
-  Easing,
-  runOnJS,
-} from 'react-native-reanimated';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CARD_GAP = 12;
@@ -110,7 +102,7 @@ const usePlaceholderAnimation = (isActive: boolean) => {
   };
 };
 
-// Animated Word Component - NO EXTRA CURSOR, only natural text cursor
+// Animated Word Component - Using built-in Animated API
 const AnimatedWord: React.FC<{
   word: string;
   isAnimating: boolean;
@@ -128,50 +120,60 @@ const AnimatedWord: React.FC<{
   setWord,
   nextWord,
 }) => {
-  const translateY = useSharedValue(0);
-  const opacity = useSharedValue(1);
+  // Use built-in Animated.Value
+  const translateY = new Animated.Value(0);
+  const opacity = new Animated.Value(1);
 
   useEffect(() => {
     if (isAnimating) {
-      translateY.value = withSequence(
-        withTiming(-40, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-        withDelay(100, withTiming(0, { duration: 0 })),
-      );
-
-      opacity.value = withSequence(
-        withTiming(0, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-        withDelay(100, withTiming(0, { duration: 0 })),
-      );
-
-      setTimeout(() => {
-        runOnJS(setWord)(nextWord);
-      }, 350);
-
-      setTimeout(() => {
-        translateY.value = withTiming(0, {
+      // First animation: slide up and fade out
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: -40,
           duration: 300,
-          easing: Easing.inOut(Easing.ease),
-        });
-        opacity.value = withTiming(1, {
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
           duration: 300,
-          easing: Easing.inOut(Easing.ease),
-        });
-      }, 450);
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Change word after animation completes
+        setWord(nextWord);
 
-      setTimeout(() => {
-        runOnJS(onAnimationComplete)();
-      }, 800);
+        // Second animation: slide down and fade in
+        Animated.parallel([
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          onAnimationComplete();
+        });
+      });
     }
   }, [isAnimating]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
-
   return (
     <View style={containerStyle}>
-      <Animated.Text style={[textStyle, animatedStyle]}>{word}</Animated.Text>
+      <Animated.Text
+        style={[
+          textStyle,
+          {
+            transform: [{ translateY }],
+            opacity,
+          },
+        ]}
+      >
+        {word}
+      </Animated.Text>
     </View>
   );
 };
@@ -209,7 +211,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   // Modal placeholder animation
   const modalPlaceholder = usePlaceholderAnimation(modalVisible);
 
-  const modalInputRef = useRef<TextInput>(null);
+  const modalInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
 
   const {
     searchResults,

@@ -74,8 +74,8 @@ const darkColors = {
 const fixUrl = (url: string) => {
   if (!url) return 'https://via.placeholder.com/48x48?text=U';
   if (url.startsWith('http') || url.startsWith('https')) return url;
-  if (url.startsWith('/')) return `http://10.141.253.121:5000${url}`;
-  return `http://10.141.253.121:5000/${url}`;
+  if (url.startsWith('/')) return `http://10.133.59.121:5000${url}`;
+  return `http://10.133.59.121:5000/${url}`;
 };
 
 export default function ReviewItem({
@@ -110,7 +110,7 @@ export default function ReviewItem({
       {
         text: 'Report',
         onPress: () => {
-          const reportUrl = `http://10.141.253.121:5000/report/${reviewUserId}/users`;
+          const reportUrl = `http://10.133.59.121:5000/report/${reviewUserId}/users`;
           Linking.openURL(reportUrl).catch(() =>
             Alert.alert('Error', 'Could not open report page'),
           );

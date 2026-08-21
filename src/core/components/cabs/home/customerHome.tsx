@@ -20,7 +20,8 @@ type RootStackParamList = {
   Profile: undefined;
   Search: undefined;
   FWSRideOptions: undefined;
-  LocationInput: undefined;
+  LocalRideLocationInput: undefined;
+  AirportLocationInput: undefined;
   [key: string]: any;
 };
 

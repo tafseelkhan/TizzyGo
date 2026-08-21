@@ -3,6 +3,8 @@
 // ============================================================
 // ✅ FIXED: Navigation to OrderConfirmation after payment
 // ✅ FIXED: Success alert removed, only notification shown
+// ✅ MIGRATED: Removed react-native-reanimated, using built-in Animated
+// ✅ FIXED: Removed backgroundColor prop from StatusBar (not supported)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -22,6 +24,7 @@ import {
   Dimensions,
   Platform,
   PermissionsAndroid,
+  Animated, // ✅ Built-in Animated from react-native
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,14 +38,6 @@ import notifee, {
   EventType,
   AuthorizationStatus,
 } from '@notifee/react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  withRepeat,
-  interpolate,
-} from 'react-native-reanimated';
 
 import CartAPI from '../../../../api/features/private/cartPrivateSlice';
 import * as PaymentAPI from '../../../../api/features/private/cartpaymentPrivateSlice';
@@ -101,25 +96,36 @@ const EmptyCart = () => (
   </View>
 );
 
-// ✅ Button Shimmer Overlay
+// ✅ Button Shimmer Overlay - Migrated to built-in Animated
 const ButtonShimmerOverlay = () => {
-  const shimmerTranslate = useSharedValue(0);
+  // Use built-in Animated.Value instead of useSharedValue
+  const shimmerValue = new Animated.Value(0);
 
   useEffect(() => {
-    shimmerTranslate.value = withRepeat(
-      withTiming(1, { duration: 1500 }),
-      -1,
-      true,
+    // Create the animation loop: 0 -> 1 -> 0 continuously
+    const animation = Animated.loop(
+      Animated.timing(shimmerValue, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: true,
+      }),
     );
-  }, []);
+    animation.start();
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(shimmerTranslate.value, [0, 1], [-200, 200]),
-      },
-    ],
-  }));
+    return () => {
+      animation.stop();
+    };
+  }, [shimmerValue]);
+
+  // Interpolate the value to translateX
+  const translateX = shimmerValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-200, 200],
+  });
+
+  const animatedStyle = {
+    transform: [{ translateX }],
+  };
 
   return (
     <Animated.View style={[styles.shimmerOverlay, animatedStyle]}>
@@ -191,43 +197,58 @@ const InvoiceRow = ({
   </View>
 );
 
-// ✅ Animated Collapsible Item
+// ✅ Animated Collapsible Item - Migrated to built-in Animated
 const CollapsibleItem: React.FC<{
   item: CartItem;
   index: number;
   isCollapsed: boolean;
   onToggle: () => void;
 }> = ({ item, index, isCollapsed, onToggle }) => {
-  const height = useSharedValue(isCollapsed ? 0 : 1);
-  const rotation = useSharedValue(isCollapsed ? 0 : 1);
+  // Use built-in Animated.Value for height
+  const heightAnim = new Animated.Value(isCollapsed ? 0 : 1);
+  // Use built-in Animated.Value for rotation
+  const rotationAnim = new Animated.Value(isCollapsed ? 0 : 1);
 
+  // Animate height and rotation when isCollapsed changes
   useEffect(() => {
-    height.value = withSpring(isCollapsed ? 0 : 1, {
-      damping: 15,
-      stiffness: 100,
-    });
-    rotation.value = withSpring(isCollapsed ? 0 : 1, {
-      damping: 15,
-      stiffness: 100,
-    });
+    // Animate height (layout property - no native driver)
+    Animated.timing(heightAnim, {
+      toValue: isCollapsed ? 0 : 1,
+      duration: 300, // Spring-like effect with duration
+      useNativeDriver: false, // height is a layout property
+    }).start();
+
+    // Animate rotation (transform - can use native driver)
+    Animated.timing(rotationAnim, {
+      toValue: isCollapsed ? 0 : 1,
+      duration: 300, // Spring-like effect with duration
+      useNativeDriver: true,
+    }).start();
   }, [isCollapsed]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      maxHeight: interpolate(height.value, [0, 1], [0, 500]),
-      opacity: height.value,
-      transform: [{ scale: interpolate(height.value, [0, 1], [0.8, 1]) }],
-    };
+  // Interpolate height: 0 -> 500, 1 -> 500 (full height)
+  // Note: With built-in Animated, we interpolate the value to control maxHeight
+  const maxHeight = heightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 500],
   });
 
-  const arrowStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          rotate: `${interpolate(rotation.value, [0, 1], [0, 180])}deg`,
-        },
-      ],
-    };
+  // Interpolate opacity
+  const opacity = heightAnim.interpolate({
+    inputRange: [0, 0.1, 1],
+    outputRange: [0, 0.5, 1],
+  });
+
+  // Interpolate scale
+  const scale = heightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.8, 1],
+  });
+
+  // Interpolate rotation
+  const rotate = rotationAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
   });
 
   // ✅ Get first image from variantImages
@@ -248,12 +269,21 @@ const CollapsibleItem: React.FC<{
         <Text style={styles.productSummaryTitle}>
           {index + 1}. {item.name}
         </Text>
-        <Animated.View style={arrowStyle}>
+        <Animated.View style={{ transform: [{ rotate }] }}>
           <MaterialIcons name="keyboard-arrow-down" size={24} color="#888888" />
         </Animated.View>
       </TouchableOpacity>
 
-      <Animated.View style={[styles.itemCardWrapper, animatedStyle]}>
+      <Animated.View
+        style={[
+          styles.itemCardWrapper,
+          {
+            maxHeight,
+            opacity,
+            transform: [{ scale }],
+          },
+        ]}
+      >
         <View style={styles.itemCard}>
           <View style={styles.imageContainer}>
             <ProductImage
@@ -948,7 +978,7 @@ export const CartScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF8F5" />
+        <StatusBar barStyle="dark-content" />
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -968,7 +998,7 @@ export const CartScreen: React.FC = () => {
   if (!hasLocation) {
     return (
       <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF8F5" />
+        <StatusBar barStyle="dark-content" />
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -999,7 +1029,7 @@ export const CartScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF8F5" />
+      <StatusBar barStyle="dark-content" />
 
       <View style={styles.header}>
         <TouchableOpacity
