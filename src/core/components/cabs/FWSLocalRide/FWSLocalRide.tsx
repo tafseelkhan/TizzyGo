@@ -20,7 +20,11 @@ import {
   Image,
   TouchableOpacity,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import {
+  MapView as GoogleMapView,
+  MapViewController,
+  MapViewType,
+} from '@googlemaps/react-native-navigation-sdk';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
@@ -57,7 +61,7 @@ import {
   requestLocationPermission,
   fetchCurrentLocation,
 } from '../../../utils/cabs/locationHelper';
-import { RootStackParamList } from './RootStackParamList';
+import { RootStackParamList } from '../../../../navigations/RootStackParamList';
 
 const { height, width } = Dimensions.get('window');
 
@@ -65,16 +69,13 @@ const { height, width } = Dimensions.get('window');
 // ✅ MAP MARKER IMAGES (assets/map/) - Driver location ke liye
 // =====================================================
 const MAP_MARKERS = {
-  // Cars - All car types use car marker
   Hatchback: require('../../../../assets/map/driver-car.png'),
   Sedan: require('../../../../assets/map/driver-car.png'),
   SUV: require('../../../../assets/map/driver-car.png'),
   MPV: require('../../../../assets/map/driver-car.png'),
   'Luxury Sedan': require('../../../../assets/map/driver-car.png'),
   'Luxury SUV': require('../../../../assets/map/driver-car.png'),
-  // Auto
   Auto: require('../../../../assets/map/driver-auto.png'),
-  // Bike
   Bike: require('../../../../assets/map/driver-bike.png'),
   Scooter: require('../../../../assets/map/driver-scooter.png'),
 };
@@ -99,47 +100,6 @@ type BookingScreenNavigationProp = StackNavigationProp<
   'FWSLocalRide'
 >;
 type BookingScreenRouteProp = RouteProp<RootStackParamList, 'FWSLocalRide'>;
-
-const LIGHT_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#F6F6F8' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#F6F6F8' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#3A3B44' }] },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#3A3B44' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#8E8F99' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#E7EDE6' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#FFFFFF' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#E2E2E8' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#FFFFFF' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#E1EAF2' }],
-  },
-];
 
 // =====================================================
 // ✅ VEHICLE CATEGORY MAPPING
@@ -176,20 +136,12 @@ const getVehicleTypeLabel = (vehicleType: string) => {
   }
 };
 
-// ✅ Get map marker image (for map) - EXACT MATCH FIRST
 const getMapMarkerImage = (vehicleType: string) => {
   const type = vehicleType?.trim() || '';
-  console.log('🗺️ [getMapMarkerImage] Looking for:', type);
-
-  // ✅ First try exact match
   if (MAP_MARKERS[type as keyof typeof MAP_MARKERS]) {
-    console.log('🗺️ [getMapMarkerImage] Found exact match:', type);
     return MAP_MARKERS[type as keyof typeof MAP_MARKERS];
   }
-
-  // ✅ Fallback by category
   const category = getVehicleCategory(type);
-  console.log('🗺️ [getMapMarkerImage] Category:', category);
   switch (category) {
     case 'BIKE':
       return MAP_MARKERS.Bike;
@@ -201,20 +153,12 @@ const getMapMarkerImage = (vehicleType: string) => {
   }
 };
 
-// ✅ Get cab icon image (for modal/bottom sheet) - EXACT MATCH FIRST
 const getCabIconImage = (vehicleType: string) => {
   const type = vehicleType?.trim() || '';
-  console.log('🚗 [getCabIconImage] Looking for:', type);
-
-  // ✅ First try exact match
   if (CAB_ICONS[type as keyof typeof CAB_ICONS]) {
-    console.log('🚗 [getCabIconImage] Found exact match:', type);
     return CAB_ICONS[type as keyof typeof CAB_ICONS];
   }
-
-  // ✅ Fallback by category
   const category = getVehicleCategory(type);
-  console.log('🚗 [getCabIconImage] Category:', category);
   switch (category) {
     case 'BIKE':
       return CAB_ICONS.Bike;
@@ -235,11 +179,13 @@ const DriverMarker = memo(
     liveLocation,
     isTrackingLive,
     vehicleType,
+    mapViewController,
   }: {
     driver: any;
     liveLocation: any;
     isTrackingLive: boolean;
     vehicleType: string;
+    mapViewController?: MapViewController | null;
   }) => {
     const location = liveLocation || {
       latitude: driver?.latestLatitude ?? 0,
@@ -250,60 +196,59 @@ const DriverMarker = memo(
     const markerImage = getMapMarkerImage(vehicleType);
     const vehicleLabel = getVehicleTypeLabel(vehicleType);
 
-    console.log(
-      '🗺️ [DriverMarker] vehicleType:',
-      vehicleType,
-      'image:',
-      !!markerImage,
-    );
+    useEffect(() => {
+      if (!mapViewController || !markerImage) return;
+      const imageUri = Image.resolveAssetSource(markerImage);
+      if (!imageUri) return;
 
-    return (
-      <Marker
-        coordinate={{
-          latitude: location.latitude,
-          longitude: location.longitude,
-        }}
-        title={`${vehicleLabel} Driver`}
-        description={`${driver?.driverCode ?? 'Driver'} • ${isTrackingLive ? '🟢 Live' : '📍 Initial'}`}
-        anchor={{ x: 0.5, y: 0.5 }}
-        rotation={location.heading ?? 0}
-      >
-        {isTrackingLive && (
-          <View style={styles.liveIndicator}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        )}
-        <Image
-          source={markerImage}
-          style={{ width: 40, height: 40, resizeMode: 'contain' }}
-        />
-      </Marker>
-    );
+      mapViewController.addMarker({
+        id: 'driver-marker',
+        position: { lat: location.latitude, lng: location.longitude },
+        title: `${vehicleLabel} Driver`,
+        snippet: `${driver?.driverCode ?? 'Driver'} • ${isTrackingLive ? '🟢 Live' : '📍 Initial'}`,
+        imgPath: imageUri.uri,
+        rotation: location.heading ?? 0,
+        draggable: false,
+      });
+    }, [
+      location.latitude,
+      location.longitude,
+      location.heading,
+      mapViewController,
+      markerImage,
+      vehicleLabel,
+      driver?.driverCode,
+      isTrackingLive,
+    ]);
+
+    return null;
   },
 );
 
 // =====================================================
 // ✅ DROP MARKER
 // =====================================================
-const DropMarker = memo(({ drop }: { drop: Location | null }) => {
-  if (!drop) return null;
-  return (
-    <Marker
-      coordinate={{
-        latitude: drop.latitude,
-        longitude: drop.longitude,
-      }}
-      title="Drop"
-      description={drop.address}
-      anchor={{ x: 0.5, y: 1 }}
-    >
-      <View style={styles.markerDrop}>
-        <Icon name="flag" size={12} color={COLORS.white} />
-      </View>
-    </Marker>
-  );
-});
+const DropMarker = memo(
+  ({
+    drop,
+    mapViewController,
+  }: {
+    drop: Location | null;
+    mapViewController?: MapViewController | null;
+  }) => {
+    useEffect(() => {
+      if (!drop || !mapViewController) return;
+      mapViewController.addMarker({
+        id: 'drop-marker',
+        position: { lat: drop.latitude, lng: drop.longitude },
+        title: 'Drop',
+        snippet: drop.address,
+        draggable: false,
+      });
+    }, [drop, mapViewController]);
+    return null;
+  },
+);
 
 // =====================================================
 // ✅ MAIN BOOKING SCREEN
@@ -313,7 +258,7 @@ const BookingScreen: React.FC = () => {
   const route = useRoute<BookingScreenRouteProp>();
   const insets = useSafeAreaInsets();
 
-  const mapRef = useRef<MapView>(null);
+  const mapViewControllerRef = useRef<MapViewController | null>(null);
   const bottomSheetAnim = useRef(new Animated.Value(height)).current;
   const isMounted = useRef(true);
 
@@ -339,8 +284,6 @@ const BookingScreen: React.FC = () => {
     () => ({
       latitude: routeParams.pickup?.latitude ?? 28.6139,
       longitude: routeParams.pickup?.longitude ?? 77.209,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
     }),
     [routeParams.pickup],
   );
@@ -379,6 +322,65 @@ const BookingScreen: React.FC = () => {
     useState<string>('Sedan');
   const { user } = useAuth();
 
+  const driver = useMemo(() => {
+    return selectedRideTypeGroup ? getFirstDriver(selectedRideTypeGroup) : null;
+  }, [selectedRideTypeGroup]);
+
+  const getDriverVehicleType = useCallback(() => {
+    if (driver) {
+      return driver.vehicleType || driver.vehicle || 'Sedan';
+    }
+    return selectedVehicleType || 'Sedan';
+  }, [driver, selectedVehicleType]);
+
+  // ============================================================
+  //  ✅ MAP VIEW CONTROLLER CALLBACK
+  //  ============================================================
+  const onMapViewControllerCreated = useCallback(
+    (controller: MapViewController) => {
+      mapViewControllerRef.current = controller;
+      console.log('Map controller ready');
+
+      if (drop) {
+        controller.addMarker({
+          id: 'drop-marker',
+          position: { lat: drop.latitude, lng: drop.longitude },
+          title: 'Drop',
+          snippet: drop.address,
+          draggable: false,
+        });
+      }
+
+      const currentDriver = driver;
+      if (currentDriver) {
+        const location = liveDriverLocation || {
+          latitude: currentDriver?.latestLatitude ?? 0,
+          longitude: currentDriver?.latestLongitude ?? 0,
+          heading: currentDriver?.heading ?? 0,
+        };
+        const vehicleType = getDriverVehicleType();
+        const markerImage = getMapMarkerImage(vehicleType);
+        const vehicleLabel = getVehicleTypeLabel(vehicleType);
+
+        if (markerImage) {
+          const imageUri = Image.resolveAssetSource(markerImage);
+          if (imageUri) {
+            controller.addMarker({
+              id: 'driver-marker',
+              position: { lat: location.latitude, lng: location.longitude },
+              title: `${vehicleLabel} Driver`,
+              snippet: `${currentDriver?.driverCode ?? 'Driver'} ${isTrackingLive ? '🟢 Live' : '📍 Initial'}`,
+              imgPath: imageUri.uri,
+              rotation: location.heading ?? 0,
+              draggable: false,
+            });
+          }
+        }
+      }
+    },
+    [drop, driver, liveDriverLocation, isTrackingLive, getDriverVehicleType],
+  );
+
   // ============================================================
   //  ✅ REVERSE GEOCODE
   //  ============================================================
@@ -407,11 +409,20 @@ const BookingScreen: React.FC = () => {
     [],
   );
 
+  // ✅ FIX: Simple async function without debounce
   const reverseGeocode = useCallback(
-    debounce(reverseGeocodeFn, 300, { leading: false, trailing: true }) as (
+    async (
       latitude: number,
       longitude: number,
-    ) => Promise<{ address: string; placeId: string }>,
+    ): Promise<{ address: string; placeId: string }> => {
+      try {
+        const result = await reverseGeocodeFn(latitude, longitude);
+        return result;
+      } catch (error) {
+        console.error('Reverse geocode error:', error);
+        return { address: 'Selected Location', placeId: '' };
+      }
+    },
     [reverseGeocodeFn],
   );
 
@@ -453,19 +464,23 @@ const BookingScreen: React.FC = () => {
           setSelectedRideTypeGroup(groups[0]);
         }
 
-        const allCoords = [
-          ...routeForward.current,
-          pickup
-            ? { latitude: pickup.latitude, longitude: pickup.longitude }
-            : null,
-          drop ? { latitude: drop.latitude, longitude: drop.longitude } : null,
-        ].filter(Boolean) as RouteCoordinate[];
+        // ✅ CHECK IF MAP IS READY BEFORE MOVING CAMERA
+        if (mapViewControllerRef.current) {
+          const allCoords = [
+            pickup ? { lat: pickup.latitude, lng: pickup.longitude } : null,
+            drop ? { lat: drop.latitude, lng: drop.longitude } : null,
+          ].filter(Boolean) as { lat: number; lng: number }[];
 
-        if (allCoords.length > 0 && mapRef.current) {
-          mapRef.current.fitToCoordinates(allCoords, {
-            edgePadding: { top: 120, right: 60, bottom: 340, left: 60 },
-            animated: true,
-          });
+          if (allCoords.length > 0) {
+            const avgLat =
+              allCoords.reduce((sum, c) => sum + c.lat, 0) / allCoords.length;
+            const avgLng =
+              allCoords.reduce((sum, c) => sum + c.lng, 0) / allCoords.length;
+            mapViewControllerRef.current.moveCamera({
+              target: { lat: avgLat, lng: avgLng },
+              zoom: 13,
+            });
+          }
         }
         if (groups.length > 0) setShowRideModal(true);
       } else {
@@ -497,9 +512,6 @@ const BookingScreen: React.FC = () => {
     }
   }, [pickup, drop]);
 
-  // ============================================================
-  //  ✅ UPDATE VEHICLE TYPE ON SELECTION
-  //  ============================================================
   useEffect(() => {
     if (selectedRideTypeGroup) {
       const firstDriver = getFirstDriver(selectedRideTypeGroup);
@@ -529,26 +541,21 @@ const BookingScreen: React.FC = () => {
   // ============================================================
   //  ✅ MAP FUNCTIONS
   //  ============================================================
-  const onMapPress = useCallback(
-    (event: any) => {
-      const coordinate = event?.nativeEvent?.coordinate;
-      if (
-        !coordinate ||
-        coordinate.latitude == null ||
-        coordinate.longitude == null
-      ) {
+  const onMapClick = useCallback(
+    (latLng: { lat: number; lng: number }) => {
+      if (!latLng || latLng.lat == null || latLng.lng == null) {
         return;
       }
 
-      const { latitude, longitude } = coordinate;
+      const { lat, lng } = latLng;
 
-      reverseGeocode(latitude, longitude)
+      reverseGeocode(lat, lng)
         .then(({ address, placeId }) => {
           if (!isMounted.current) return;
 
           setSelectedLocation({
-            latitude,
-            longitude,
+            latitude: lat,
+            longitude: lng,
             address: address || 'Selected Location',
             googlePlaceId: placeId || '',
           });
@@ -562,11 +569,12 @@ const BookingScreen: React.FC = () => {
 
           setShowBottomSheet(true);
         })
-        .catch(() => {
+        .catch(error => {
+          console.error('Reverse geocode error in onMapClick:', error);
           if (!isMounted.current) return;
           setSelectedLocation({
-            latitude,
-            longitude,
+            latitude: lat,
+            longitude: lng,
             address: 'Selected Location',
             googlePlaceId: '',
           });
@@ -604,27 +612,23 @@ const BookingScreen: React.FC = () => {
         setPickupText(
           address || selectedLocation.address || 'Selected Location',
         );
-        mapRef.current?.animateToRegion(
-          {
-            latitude: locationData.latitude,
-            longitude: locationData.longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
-          },
-          500,
-        );
+        // ✅ CHECK IF MAP IS READY
+        if (mapViewControllerRef.current) {
+          mapViewControllerRef.current.moveCamera({
+            target: { lat: locationData.latitude, lng: locationData.longitude },
+            zoom: 15,
+          });
+        }
       } else {
         setDrop(locationData);
         setDropText(address || selectedLocation.address || 'Selected Location');
-        mapRef.current?.animateToRegion(
-          {
-            latitude: locationData.latitude,
-            longitude: locationData.longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
-          },
-          500,
-        );
+        // ✅ CHECK IF MAP IS READY
+        if (mapViewControllerRef.current) {
+          mapViewControllerRef.current.moveCamera({
+            target: { lat: locationData.latitude, lng: locationData.longitude },
+            zoom: 15,
+          });
+        }
       }
 
       Animated.spring(bottomSheetAnim, {
@@ -765,6 +769,27 @@ const BookingScreen: React.FC = () => {
             heading: data.heading || 0,
             speed: data.speed || 0,
           });
+
+          // ✅ CHECK IF MAP IS READY
+          if (mapViewControllerRef.current) {
+            const vehicleType = getDriverVehicleType();
+            const markerImage = getMapMarkerImage(vehicleType);
+            const vehicleLabel = getVehicleTypeLabel(vehicleType);
+            if (markerImage) {
+              const imageUri = Image.resolveAssetSource(markerImage);
+              if (imageUri) {
+                mapViewControllerRef.current.addMarker({
+                  id: 'driver-marker',
+                  position: { lat: data.latitude, lng: data.longitude },
+                  title: `${vehicleLabel} Driver`,
+                  snippet: 'Live tracking',
+                  imgPath: imageUri.uri,
+                  rotation: data.heading || 0,
+                  draggable: false,
+                });
+              }
+            }
+          }
         });
 
         liveTracking.onStatus((data: any) => {
@@ -784,7 +809,7 @@ const BookingScreen: React.FC = () => {
         );
       }
     },
-    [liveTracking],
+    [liveTracking, getDriverVehicleType],
   );
 
   const stopLiveTracking = useCallback(() => {
@@ -874,16 +899,11 @@ const BookingScreen: React.FC = () => {
       }
 
       const location = await fetchCurrentLocation();
-      if (location && mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
-          },
-          500,
-        );
+      if (location && mapViewControllerRef.current) {
+        mapViewControllerRef.current.moveCamera({
+          target: { lat: location.latitude, lng: location.longitude },
+          zoom: 15,
+        });
       }
     } catch (error) {
       console.error('Error getting location:', error);
@@ -891,66 +911,34 @@ const BookingScreen: React.FC = () => {
     }
   }, []);
 
-  const driver = selectedRideTypeGroup
-    ? getFirstDriver(selectedRideTypeGroup)
-    : null;
-
-  const getDriverVehicleType = () => {
-    if (driver) {
-      return driver.vehicleType || driver.vehicle || 'Sedan';
-    }
-    return selectedVehicleType || 'Sedan';
-  };
-
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
+      <StatusBar barStyle="dark-content" />
 
       <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+        <GoogleMapView
           style={styles.map}
-          initialRegion={initialRegion}
-          customMapStyle={LIGHT_MAP_STYLE}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          zoomEnabled={true}
-          zoomControlEnabled={false}
-          onPress={onMapPress}
-          moveOnMarkerPress={false}
-          scrollEnabled={true}
-          zoomTapEnabled={true}
-          pitchEnabled={false}
-          rotateEnabled={false}
-          loadingEnabled={false}
-          minZoomLevel={10}
-          maxZoomLevel={20}
-          mapPadding={{ top: 80, right: 0, bottom: 200, left: 0 }}
-          onMapReady={() => {
-            console.log('Map ready');
+          initialCameraPosition={{
+            target: {
+              lat: initialRegion.latitude,
+              lng: initialRegion.longitude,
+            },
+            zoom: 13,
           }}
-        >
-          {routeCoordinates.length > 0 && (
-            <AnimatedRoute
-              coordinates={routeCoordinates}
-              strokeWidth={5}
-              color={COLORS.green}
-              visible={true}
-            />
-          )}
-
-          {driver && (
-            <DriverMarker
-              driver={driver}
-              liveLocation={liveDriverLocation}
-              isTrackingLive={isTrackingLive}
-              vehicleType={getDriverVehicleType()}
-            />
-          )}
-
-          <DropMarker drop={drop} />
-        </MapView>
+          mapType={MapViewType.MAP}
+          scrollGesturesEnabled={true}
+          zoomGesturesEnabled={true}
+          rotateGesturesEnabled={false}
+          tiltGesturesEnabled={false}
+          myLocationEnabled={true}
+          myLocationButtonEnabled={false}
+          compassEnabled={false}
+          trafficEnabled={false}
+          indoorEnabled={false}
+          buildingsEnabled={false}
+          onMapViewControllerCreated={onMapViewControllerCreated}
+          onMapClick={onMapClick}
+        />
 
         <TouchableOpacity
           style={styles.changeLocationButton}

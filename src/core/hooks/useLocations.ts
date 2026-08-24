@@ -1,11 +1,11 @@
 // src/hooks/useLocation.ts
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { Region } from 'react-native-maps';
 import locationService from '../services/buyers/shop/locationService';
 import { createMapRegion, isValidCoordinates, getDefaultRegion } from '../utils/buyers/shop/locationUtils';
 import { THROTTLE_DELAY } from '../../api/constants/mapConfig';
 import { throttle } from '../utils/buyers/shop/throttle';
+import { LocationRegion } from '../types/LocationTypes';
 
 interface UseLocationProps {
   initialLatitude?: number | null;
@@ -27,7 +27,7 @@ export const useLocation = ({
 }: UseLocationProps = {}) => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
-  const [mapRegion, setMapRegion] = useState<Region>(getDefaultRegion());
+  const [mapRegion, setMapRegion] = useState<LocationRegion>(getDefaultRegion());
 
   // Initialize with existing address if available
   useEffect(() => {
@@ -113,7 +113,7 @@ export const useLocation = ({
    * Throttled map region change handler
    */
   const handleRegionChange = useCallback(
-    throttle((region: Region) => {
+    throttle((region: LocationRegion) => {
       setMapRegion(region);
     }, THROTTLE_DELAY),
     []

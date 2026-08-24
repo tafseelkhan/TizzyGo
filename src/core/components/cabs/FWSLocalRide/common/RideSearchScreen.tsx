@@ -20,8 +20,12 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
-import { RootStackParamList } from '../RootStackParamList';
+import {
+  MapView as GoogleMapView,
+  MapViewController,
+  MapViewType,
+} from '@googlemaps/react-native-navigation-sdk';
+import { RootStackParamList } from '../../../../../navigations/RootStackParamList';
 import { COLORS } from '../../../../../api/constants/FWSLocalRideColor';
 import { rideBooking } from '../../../../../api/features/private/rideBookingPrivateSlice';
 import { AnimatedPressable } from '../AnimatedPressable';
@@ -91,9 +95,10 @@ const RideSearchScreen: React.FC = () => {
     polyline: initialPolyline,
   } = route.params || {};
 
-  const mapRef = useRef<MapView>(null);
+  const mapViewControllerRef = useRef<MapViewController | null>(null);
   const pollingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPolling = useRef<boolean>(true);
+  const markerIdsRef = useRef<{ drop?: any; polyline?: any }>({});
 
   // States
   const [searchStatus, setSearchStatus] = useState<string>('searching');
@@ -125,6 +130,79 @@ const RideSearchScreen: React.FC = () => {
   const dragStartProgress = useRef(0);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // =====================================================
+  // ✅ MAP VIEW CONTROLLER CALLBACK
+  // =====================================================
+  const onMapViewControllerCreated = async (controller: MapViewController) => {
+    mapViewControllerRef.current = controller;
+    console.log('Map controller ready');
+
+    // Add drop marker
+    if (drop) {
+      const markerId = await controller.addMarker({
+        id: 'drop-marker',
+        position: { lat: drop.latitude, lng: drop.longitude },
+        title: 'Drop',
+        snippet: drop.address || 'Drop Location',
+        draggable: false,
+      });
+      markerIdsRef.current.drop = markerId;
+    }
+
+    // Add polyline if route coordinates exist
+    if (routeCoordinates.length > 0) {
+      const points = routeCoordinates.map(coord => ({
+        lat: coord.latitude,
+        lng: coord.longitude,
+      }));
+      const polylineId = await controller.addPolyline({
+        id: 'route-polyline',
+        points: points,
+        color: COLORS.green,
+        width: 5,
+      });
+      markerIdsRef.current.polyline = polylineId;
+    }
+  };
+
+  // =====================================================
+  // ✅ DECODE POLYLINE
+  // =====================================================
+
+  useEffect(() => {
+    if (initialPolyline) {
+      console.log('🗺️ [FRONTEND] Decoding polyline...');
+      const decoded = decodePolyline(initialPolyline);
+      setRouteCoordinates(decoded);
+      console.log(`🗺️ [FRONTEND] Polyline decoded: ${decoded.length} points`);
+
+      if (decoded.length > 0 && mapViewControllerRef.current) {
+        const points = decoded.map((p: any) => ({
+          lat: p.latitude,
+          lng: p.longitude,
+        }));
+
+        // Add polyline to map
+        mapViewControllerRef.current.addPolyline({
+          id: 'route-polyline',
+          points: points,
+          color: COLORS.green,
+          width: 5,
+        });
+
+        // Fit camera to route
+        const avgLat =
+          points.reduce((sum, p) => sum + p.lat, 0) / points.length;
+        const avgLng =
+          points.reduce((sum, p) => sum + p.lng, 0) / points.length;
+        mapViewControllerRef.current.moveCamera({
+          target: { lat: avgLat, lng: avgLng },
+          zoom: 13,
+        });
+      }
+    }
+  }, [initialPolyline]);
 
   // =====================================================
   // ✅ PULSE ANIMATION
@@ -203,35 +281,6 @@ const RideSearchScreen: React.FC = () => {
     inputRange: [0, 1],
     outputRange: ['0deg', '180deg'],
   });
-
-  // =====================================================
-  // ✅ DECODE POLYLINE
-  // =====================================================
-
-  useEffect(() => {
-    if (initialPolyline) {
-      console.log('🗺️ [FRONTEND] Decoding polyline...');
-      const decoded = decodePolyline(initialPolyline);
-      setRouteCoordinates(decoded);
-      console.log(`🗺️ [FRONTEND] Polyline decoded: ${decoded.length} points`);
-
-      if (decoded.length > 0 && mapRef.current) {
-        const coordinates = decoded.map((p: any) => ({
-          latitude: p.latitude,
-          longitude: p.longitude,
-        }));
-        mapRef.current.fitToCoordinates(coordinates, {
-          edgePadding: {
-            top: insets.top + 80,
-            right: 60,
-            bottom: 320,
-            left: 60,
-          },
-          animated: true,
-        });
-      }
-    }
-  }, [initialPolyline]);
 
   // =====================================================
   // ✅ EVENT LOG HELPER
@@ -405,15 +454,12 @@ const RideSearchScreen: React.FC = () => {
     );
   };
 
-  // ✅ ONLY retryCount increment from socket
   const handleRetryStarted = (data: any) => {
     console.log('🔄 [FRONTEND] Retry started:', data);
     setSearchStatus('searching');
     setStatusMessage(data.message || 'Retrying with increased fare');
     setIsLoading(false);
     setIsRetrying(false);
-
-    // ✅ ✅ ✅ ONLY PLACE where retryCount increments
     setRetryCount(prev => prev + 1);
 
     if (data.newFare) setCurrentFare(data.newFare);
@@ -525,7 +571,7 @@ const RideSearchScreen: React.FC = () => {
   };
 
   // =====================================================
-  // ✅ FALLBACK: Polling API - NO retryCount update
+  // ✅ FALLBACK: Polling API
   // =====================================================
 
   const fetchSearchStatus = async () => {
@@ -541,9 +587,6 @@ const RideSearchScreen: React.FC = () => {
         setElapsedSeconds(data.elapsedSeconds || 0);
         if (data.fare) setCurrentFare(data.fare);
         if (data.originalFare) setOriginalFare(data.originalFare);
-
-        // ✅ ✅ ✅ REMOVED - retryCount only from socket
-        // setRetryCount(data.retryAttempts || 0);  // ❌ REMOVED
 
         if (data.status === 'accepted') {
           stopPolling();
@@ -822,58 +865,31 @@ const RideSearchScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar
         barStyle="dark-content"
-        translucent
-        backgroundColor="transparent"
       />
 
       <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+        <GoogleMapView
           style={styles.map}
-          initialRegion={{
-            latitude: pickup?.latitude || 28.6139,
-            longitude: pickup?.longitude || 77.209,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
+          initialCameraPosition={{
+            target: {
+              lat: pickup?.latitude || 28.6139,
+              lng: pickup?.longitude || 77.209,
+            },
+            zoom: 13,
           }}
-          showsUserLocation
-          zoomEnabled
-          zoomControlEnabled={false}
-          pitchEnabled={false}
-          rotateEnabled={false}
-          userLocationPriority="high"
-          userLocationUpdateInterval={5000}
-          userLocationFastestInterval={3000}
-          showsMyLocationButton={false}
-        >
-          {drop && (
-            <Marker
-              coordinate={{
-                latitude: drop.latitude,
-                longitude: drop.longitude,
-              }}
-              title="Drop"
-            >
-              <View style={styles.dropMarkerRing}>
-                <View style={styles.dropMarker}>
-                  <Icon name="flag" size={16} color={COLORS.white} />
-                </View>
-              </View>
-            </Marker>
-          )}
-
-          {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor={COLORS.green}
-              strokeWidth={5}
-              geodesic
-              lineJoin="round"
-              lineCap="round"
-            />
-          )}
-        </MapView>
+          mapType={MapViewType.MAP}
+          scrollGesturesEnabled={true}
+          zoomGesturesEnabled={true}
+          rotateGesturesEnabled={false}
+          tiltGesturesEnabled={false}
+          myLocationEnabled={true}
+          myLocationButtonEnabled={false}
+          compassEnabled={false}
+          trafficEnabled={false}
+          indoorEnabled={false}
+          buildingsEnabled={false}
+          onMapViewControllerCreated={onMapViewControllerCreated}
+        />
 
         <View
           style={[styles.topScrim, { height: insets.top + 56 }]}
@@ -994,10 +1010,6 @@ const RideSearchScreen: React.FC = () => {
           </AnimatedPressable>
         )}
 
-        {/* ============================================================ */}
-        {/* ✅ FIXED: No-driver actions — stacked hero Retry + ghost Cancel */}
-        {/* No more side-by-side flex/gap fight → no overlap, no squeeze */}
-        {/* ============================================================ */}
         {searchStatus === 'no_driver_found' && (
           <View style={styles.noDriverActions}>
             <AnimatedPressable
@@ -1275,9 +1287,6 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: { fontSize: 15, fontWeight: '700', color: COLORS.danger },
 
-  // ============================================================
-  // ✅ NEW: no-driver-found actions — stacked, full-width, no overlap
-  // ============================================================
   noDriverActions: {
     width: '100%',
   },

@@ -1,4 +1,21 @@
 export type RootStackParamList = {
+  Splash: undefined;
+  Login: undefined;
+  Signup: undefined;
+  Profile: undefined;
+  EditProfile: undefined;
+
+  // Buyers Screens
+  CustomerShop: undefined;
+  Settings: undefined;
+  ProductDetail: { productId: string };
+  OrderSuccessScreen: undefined;
+  YourOrders: undefined;
+  CheckOutScreen: { productId: string; variantId?: string | null };
+  CartScreen: undefined;
+  OrderConfirmation: { checkoutSessionId: string };
+  OrderTracking: { orderId: string };
+
   // Cabs Screens
   CustomerCab: undefined;
   FWSRideOptions: undefined;
@@ -35,7 +52,23 @@ export type RootStackParamList = {
     dropText?: string;
     selectedOption?: string;
   };
-  LocationInput: {
+  AirportLocationInput: {
+    pickupText?: string;
+    dropText?: string;
+    pickup?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+    drop?: {
+      latitude: number;
+      longitude: number;
+      address: string;
+      googlePlaceId: string;
+    };
+  };
+  LocalRideLocationInput: {
     pickupText?: string;
     dropText?: string;
     pickup?: {

@@ -1,9 +1,9 @@
 // src/utils/mapUtils.ts
 import { Platform } from 'react-native';
-import { Region } from 'react-native-maps';
 import { VIEW_MAP_DEFAULTS, DEFAULT_LOCATION } from '../../../../api/constants/mapConfig';
+import { LocationRegion } from '../../../types/LocationTypes';
 
-export interface MapRegion extends Region {}
+export interface MapRegion extends LocationRegion {}
 
 /**
  * Format coordinate for display

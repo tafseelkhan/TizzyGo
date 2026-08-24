@@ -1,7 +1,7 @@
-// src/hooks/useMapView.ts - Alternative version
+// src/hooks/useMapView.ts
 import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
-import MapView from 'react-native-maps';
+import { MapViewController } from '@googlemaps/react-native-navigation-sdk';
 import mapsService from '../services/buyers/shop/mapsService';
 import { getMapRegion, hasValidCoordinates } from '../utils/buyers/shop/mapUtils';
 import { ShippingAddress } from '../types/ShopTypes';
@@ -13,11 +13,16 @@ interface UseMapViewProps {
 
 interface UseMapViewReturn {
   isMapReady: boolean;
-  // ✅ Option 2: Use MutableRefObject for non-null assertion
-  mapRef: React.MutableRefObject<MapView | null>;
+  mapControllerRef: React.MutableRefObject<MapViewController | null>;
   hasCoordinates: boolean;
-  mapRegion: ReturnType<typeof getMapRegion>;
-  handleMapReady: () => void;
+  cameraPosition: {
+    target: {
+      lat: number;
+      lng: number;
+    };
+    zoom: number;
+  };
+  handleMapReady: (controller: MapViewController) => void;
   handleClose: () => void;
   openInGoogleMaps: () => Promise<void>;
   formatCoordinate: (value: number | null) => string;
@@ -28,22 +33,39 @@ export const useMapView = ({
   onClose,
 }: UseMapViewProps): UseMapViewReturn => {
   const [isMapReady, setIsMapReady] = useState(false);
-  // ✅ This returns MutableRefObject<MapView | null>
-  const mapRef = useRef<MapView | null>(null);
+  const mapControllerRef = useRef<MapViewController | null>(null);
 
   const hasCoordinates = hasValidCoordinates(
     shippingAddress.latitude,
     shippingAddress.longitude,
   );
 
-  const mapRegion = getMapRegion(
-    shippingAddress.latitude,
-    shippingAddress.longitude,
-  );
+  const cameraPosition = {
+    target: {
+      lat: shippingAddress.latitude ?? 28.6139,
+      lng: shippingAddress.longitude ?? 77.209,
+    },
+    zoom: 15,
+  };
 
-  const handleMapReady = useCallback(() => {
+  const handleMapReady = useCallback((controller: MapViewController) => {
+    mapControllerRef.current = controller;
     setIsMapReady(true);
-  }, []);
+    
+    // Add marker at the location if coordinates exist
+    if (hasCoordinates && shippingAddress.latitude && shippingAddress.longitude) {
+      controller.addMarker({
+        id: 'location-marker',
+        position: {
+          lat: shippingAddress.latitude,
+          lng: shippingAddress.longitude,
+        },
+        title: 'Location',
+        snippet: shippingAddress.address || 'Selected Location',
+        draggable: false,
+      });
+    }
+  }, [hasCoordinates, shippingAddress]);
 
   const handleClose = useCallback(() => {
     onClose?.();
@@ -69,9 +91,9 @@ export const useMapView = ({
 
   return {
     isMapReady,
-    mapRef,
+    mapControllerRef,
     hasCoordinates,
-    mapRegion,
+    cameraPosition,
     handleMapReady,
     handleClose,
     openInGoogleMaps,

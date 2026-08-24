@@ -1,8 +1,8 @@
 // src/utils/locationUtils.ts
-import { Region } from 'react-native-maps';
 import { DEFAULT_LOCATION } from '../../../../api/constants/mapConfig';
+import { LocationRegion } from '../../../types/LocationTypes';
 
-export interface MapRegion extends Region {}
+export interface MapRegion extends LocationRegion {}
 
 /**
  * Get default map region

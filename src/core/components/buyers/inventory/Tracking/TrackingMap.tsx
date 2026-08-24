@@ -6,8 +6,13 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
+import {
+  MapView as GoogleMapView,
+  MapViewController,
+  MapViewType,
+  LatLng,
+} from '@googlemaps/react-native-navigation-sdk';
 
 const { width } = Dimensions.get('window');
 
@@ -50,7 +55,8 @@ export const TrackingMap = forwardRef((props: TrackingMapProps, ref) => {
     eta,
   } = props;
 
-  const mapRef = useRef<MapView>(null);
+  const mapControllerRef = useRef<MapViewController | null>(null);
+  const markerIdsRef = useRef<{ seller?: any; buyer?: any; rider?: any }>({});
 
   useImperativeHandle(ref, () => ({
     fitToCoordinates: () => {
@@ -59,42 +65,107 @@ export const TrackingMap = forwardRef((props: TrackingMapProps, ref) => {
   }));
 
   const fitAllMarkers = () => {
-    const coordinates: any[] = [];
+    const coordinates: LatLng[] = [];
 
     if (sellerLocation && sellerLocation.latitude && sellerLocation.longitude) {
       coordinates.push({
-        latitude: sellerLocation.latitude,
-        longitude: sellerLocation.longitude,
+        lat: sellerLocation.latitude,
+        lng: sellerLocation.longitude,
       });
     }
 
     if (buyerLocation && buyerLocation.latitude && buyerLocation.longitude) {
       coordinates.push({
-        latitude: buyerLocation.latitude,
-        longitude: buyerLocation.longitude,
+        lat: buyerLocation.latitude,
+        lng: buyerLocation.longitude,
       });
     }
 
     if (isRiderActive && riderLocation) {
       coordinates.push({
-        latitude: riderLocation.latitude,
-        longitude: riderLocation.longitude,
+        lat: riderLocation.latitude,
+        lng: riderLocation.longitude,
       });
     }
 
-    if (coordinates.length > 0 && mapRef.current) {
-      mapRef.current.fitToCoordinates(coordinates, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
+    if (coordinates.length > 0 && mapControllerRef.current) {
+      const avgLat =
+        coordinates.reduce((sum, c) => sum + c.lat, 0) / coordinates.length;
+      const avgLng =
+        coordinates.reduce((sum, c) => sum + c.lng, 0) / coordinates.length;
+
+      mapControllerRef.current.moveCamera({
+        target: { lat: avgLat, lng: avgLng },
+        zoom: 13,
       });
     }
   };
 
-  useEffect(() => {
-    fitAllMarkers();
-  }, [sellerLocation, buyerLocation, riderLocation, isRiderActive]);
+  const updateMarkers = async () => {
+    const mapController = mapControllerRef.current;
+    if (!mapController) return;
 
-  const getPolyline = () => {
+    // Clear existing markers
+    if (markerIdsRef.current.seller) {
+      mapController.removeMarker(markerIdsRef.current.seller);
+      markerIdsRef.current.seller = undefined;
+    }
+    if (markerIdsRef.current.buyer) {
+      mapController.removeMarker(markerIdsRef.current.buyer);
+      markerIdsRef.current.buyer = undefined;
+    }
+    if (markerIdsRef.current.rider) {
+      mapController.removeMarker(markerIdsRef.current.rider);
+      markerIdsRef.current.rider = undefined;
+    }
+
+    // Add seller marker
+    if (sellerLocation && sellerLocation.latitude && sellerLocation.longitude) {
+      const markerId = await mapController.addMarker({
+        id: 'seller-marker',
+        position: {
+          lat: sellerLocation.latitude,
+          lng: sellerLocation.longitude,
+        },
+        title: 'Seller',
+        snippet: sellerLocation.address || 'Seller Location',
+        alpha: 1,
+      });
+      markerIdsRef.current.seller = markerId;
+    }
+
+    // Add buyer marker
+    if (buyerLocation && buyerLocation.latitude && buyerLocation.longitude) {
+      const markerId = await mapController.addMarker({
+        id: 'buyer-marker',
+        position: { lat: buyerLocation.latitude, lng: buyerLocation.longitude },
+        title: 'Your Location',
+        snippet: buyerLocation.address || 'Buyer Location',
+        alpha: 1,
+      });
+      markerIdsRef.current.buyer = markerId;
+    }
+
+    // Add rider marker
+    if (isRiderActive && riderLocation) {
+      const markerId = await mapController.addMarker({
+        id: 'rider-marker',
+        position: { lat: riderLocation.latitude, lng: riderLocation.longitude },
+        title: 'Rider',
+        snippet: 'Rider is on the way',
+        alpha: 1,
+      });
+      markerIdsRef.current.rider = markerId;
+    }
+  };
+
+  const updatePolyline = async () => {
+    const mapController = mapControllerRef.current;
+    if (!mapController) return;
+
+    // Clear existing polylines (we'll use a fixed ID)
+    mapController.removePolyline('tracking-polyline');
+
     const points = [];
 
     if (isRiderActive && riderLocation && buyerLocation) {
@@ -105,12 +176,12 @@ export const TrackingMap = forwardRef((props: TrackingMapProps, ref) => {
         buyerLocation.longitude
       ) {
         points.push({
-          latitude: riderLocation.latitude,
-          longitude: riderLocation.longitude,
+          lat: riderLocation.latitude,
+          lng: riderLocation.longitude,
         });
         points.push({
-          latitude: buyerLocation.latitude,
-          longitude: buyerLocation.longitude,
+          lat: buyerLocation.latitude,
+          lng: buyerLocation.longitude,
         });
       }
     } else if (sellerLocation && buyerLocation) {
@@ -121,18 +192,44 @@ export const TrackingMap = forwardRef((props: TrackingMapProps, ref) => {
         buyerLocation.longitude
       ) {
         points.push({
-          latitude: sellerLocation.latitude,
-          longitude: sellerLocation.longitude,
+          lat: sellerLocation.latitude,
+          lng: sellerLocation.longitude,
         });
         points.push({
-          latitude: buyerLocation.latitude,
-          longitude: buyerLocation.longitude,
+          lat: buyerLocation.latitude,
+          lng: buyerLocation.longitude,
         });
       }
     }
 
-    return points;
+    if (points.length > 0) {
+      await mapController.addPolyline({
+        id: 'tracking-polyline',
+        points: points,
+        color: COLORS.primary,
+        width: 3,
+      });
+    }
   };
+
+  // Update markers and polyline when map is ready
+  const onMapViewControllerCreated = (mapViewController: MapViewController) => {
+    mapControllerRef.current = mapViewController;
+    setTimeout(() => {
+      updateMarkers();
+      updatePolyline();
+      setTimeout(() => fitAllMarkers(), 500);
+    }, 100);
+  };
+
+  // Update when props change
+  useEffect(() => {
+    if (mapControllerRef.current) {
+      updateMarkers();
+      updatePolyline();
+      fitAllMarkers();
+    }
+  }, [sellerLocation, buyerLocation, riderLocation, isRiderActive]);
 
   const initialLat =
     sellerLocation?.latitude || buyerLocation?.latitude || 28.6139;
@@ -141,68 +238,28 @@ export const TrackingMap = forwardRef((props: TrackingMapProps, ref) => {
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+      <GoogleMapView
         style={styles.map}
-        initialRegion={{
-          latitude: initialLat,
-          longitude: initialLng,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
+        initialCameraPosition={{
+          target: {
+            lat: initialLat,
+            lng: initialLng,
+          },
+          zoom: 13,
         }}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsTraffic={false}
-        showsIndoors={false}
-        zoomEnabled
-        scrollEnabled
-        rotateEnabled
-      >
-        {sellerLocation &&
-          sellerLocation.latitude &&
-          sellerLocation.longitude && (
-            <Marker
-              coordinate={{
-                latitude: sellerLocation.latitude,
-                longitude: sellerLocation.longitude,
-              }}
-              title="Seller"
-              pinColor={COLORS.primary}
-            />
-          )}
-
-        {buyerLocation && buyerLocation.latitude && buyerLocation.longitude && (
-          <Marker
-            coordinate={{
-              latitude: buyerLocation.latitude,
-              longitude: buyerLocation.longitude,
-            }}
-            title="Your Location"
-            pinColor={COLORS.text}
-          />
-        )}
-
-        {isRiderActive && riderLocation && (
-          <Marker
-            coordinate={{
-              latitude: riderLocation.latitude,
-              longitude: riderLocation.longitude,
-            }}
-            title="Rider"
-            pinColor={COLORS.accent}
-          />
-        )}
-
-        {getPolyline().length > 0 && (
-          <Polyline
-            coordinates={getPolyline()}
-            strokeColor={COLORS.primary}
-            strokeWidth={3}
-            lineDashPattern={[5, 5]}
-          />
-        )}
-      </MapView>
+        mapType={MapViewType.MAP}
+        scrollGesturesEnabled={true}
+        zoomGesturesEnabled={true}
+        rotateGesturesEnabled={true}
+        tiltGesturesEnabled={true}
+        myLocationEnabled={false}
+        myLocationButtonEnabled={false}
+        compassEnabled={false}
+        trafficEnabled={false}
+        indoorEnabled={false}
+        buildingsEnabled={false}
+        onMapViewControllerCreated={onMapViewControllerCreated}
+      />
 
       {(distance || eta) && (
         <View style={styles.infoOverlay}>
