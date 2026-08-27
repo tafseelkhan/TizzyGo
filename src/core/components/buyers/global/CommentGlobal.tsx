@@ -173,7 +173,7 @@ const CommentComponent: React.FC<{ productId: string }> = ({ productId }) => {
     if (!image) return 'https://via.placeholder.com/40';
     return image.startsWith('http')
       ? image
-      : `http://10.207.117.121:5000${image}`;
+      : `http://10.194.138.121:5000${image}`;
   };
 
   const formatDate = (dateString: string) => {

@@ -134,7 +134,7 @@ export default function TizzyGo() {
               },
             ]}
           >
-            Tap anywhere to start
+            Tap anywhere
           </Animated.Text>
 
           <Animated.Text
