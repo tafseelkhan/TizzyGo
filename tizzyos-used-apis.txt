@@ -1,0 +1,8 @@
+/api/v0
+/api/v0/orders
+/api/v0/orders/tracking
+/api/v0/ride
+/api/v0/seller/forms/categories
+/api/v0/stories
+/api/v0/user
+/api/v0/user/address

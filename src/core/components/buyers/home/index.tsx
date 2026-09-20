@@ -48,7 +48,7 @@ import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../../colors/styles';
 
 // API Base URL
-const API_BASE_URL = 'http://10.194.138.121:5000';
+const API_BASE_URL = 'http://10.47.33.121:1000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -671,7 +671,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.194.138.121:5000/api/v0/seller/forms/categories',
+        'http://10.47.33.121:2000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -720,7 +720,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.194.138.121:5000/api/v0/seller/forms/categories',
+        'http://10.47.33.121:2000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
       if (data.products && Array.isArray(data.products)) {
@@ -776,8 +776,6 @@ const HomeScreen: React.FC = () => {
     <>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor="transparent"
-        translucent={true}
       />
 
       <LinearGradient

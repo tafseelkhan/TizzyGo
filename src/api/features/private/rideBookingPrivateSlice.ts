@@ -4,7 +4,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -221,7 +221,7 @@ class RideBooking {
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_OPTIONS}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_OPTIONS}`,
         {
           method: 'POST',
           headers: await this.getHeaders(),
@@ -261,7 +261,7 @@ getAirportRideOptions = async (
 
   try {
     const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.AIRPORT_OPTIONS}`,  // ✅ /api/ride/airport/options
+      `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.AIRPORT_OPTIONS}`,  // ✅ /api/ride/airport/options
       {
         method: 'POST',
         headers: await this.getHeaders(),
@@ -312,7 +312,7 @@ getAirportRideOptions = async (
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_BOOK}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOK}`,
         {
           method: 'POST',
           headers: await this.getHeaders(),
@@ -361,7 +361,7 @@ getAirportRideOptions = async (
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${bookingId}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${bookingId}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),
@@ -402,7 +402,7 @@ getAirportRideOptions = async (
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_RETRY}/${bookingId}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_RETRY}/${bookingId}`,
         {
           method: 'POST',
           headers: await this.getHeaders(),
@@ -447,7 +447,7 @@ getAirportRideOptions = async (
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_CANCEL}/${bookingId}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_CANCEL}/${bookingId}`,
         {
           method: 'POST',
           headers: await this.getHeaders(),
@@ -491,7 +491,7 @@ getAirportRideOptions = async (
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_BOOKING}/${bookingId}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOKING}/${bookingId}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),
@@ -524,7 +524,7 @@ getAirportRideOptions = async (
   getCustomerBookings = async (): Promise<any> => {
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),
@@ -553,7 +553,7 @@ getAirportRideOptions = async (
   getDriverBookings = async (): Promise<any> => {
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.RIDE_DRIVER_BOOKINGS}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_DRIVER_BOOKINGS}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),

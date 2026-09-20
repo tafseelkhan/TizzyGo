@@ -35,7 +35,7 @@ const getImageUrl = (image?: string): string => {
   if (!image) return '';
   if (image.startsWith('http')) return image;
   if (image.startsWith('/uploads')) {
-    return `http://your-server-url:5000${image}`;
+    return `http://your-server-url:1000${image}`;
   }
   return image;
 };

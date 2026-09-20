@@ -2,7 +2,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -69,7 +69,7 @@ class StoriesApi {
   fetchStories = async (): Promise<ApiStory[]> => {
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.FETCH_STORIES}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.FETCH_STORIES}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),
@@ -109,7 +109,7 @@ class StoriesApi {
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.MARK_STORY_VIEWED}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.MARK_STORY_VIEWED}`,
         {
           method: 'POST',
           headers: await this.getHeaders(),
@@ -140,7 +140,7 @@ class StoriesApi {
   fetchViewedStories = async (): Promise<string[]> => {
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.FETCH_VIEWED_STORIES}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.FETCH_VIEWED_STORIES}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),

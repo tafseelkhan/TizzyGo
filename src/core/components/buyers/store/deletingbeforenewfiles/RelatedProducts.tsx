@@ -103,7 +103,7 @@ const RelatedProducts: React.FC<Props> = ({ userId }) => {
         setError(null);
 
         // Slot = 1
-        const url = `http://10.194.138.121:5000/api/public/related/${id}?slot=1`;
+        const url = `http://10.47.33.121:1000/api/public/related/${id}?slot=1`;
         console.log('Fetching related products from URL:', url);
         const response = await fetch(url);
 

@@ -23,7 +23,8 @@ import { Config } from 'react-native-config';
  * import axios from 'axios';
  */
 
-export const API_BASE_URL = Config.API_AXIOS_BASE_URL;
+export const TIZZYGO_API_BASE_URL = Config.TIZZYGO_API_AXIOS_BASE_URL;
+export const TIZZYOS_API_BASE_URL = Config.TIZZYOS_API_AXIOS_BASE_URL;
 
 /**
  * @description The `API_BASE_URL` constant is set to the value of `API_AXIOS_BASE_URL` from the configuration. This allows for flexibility in changing the API endpoint without modifying the codebase, as the value can be set in environment variables or configuration files. It is essential for ensuring that API requests are directed to the correct server, especially when deploying the application across different environments.

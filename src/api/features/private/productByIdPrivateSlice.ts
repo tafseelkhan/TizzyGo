@@ -1,7 +1,7 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -82,11 +82,11 @@ export interface Product {
 export const fetchProduct = async (productId: string): Promise<Product> => {
   console.log(
     'Fetching product:',
-    `${API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
+    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
   );
 
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
+    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
     {
       method: 'GET',
     },
@@ -107,7 +107,7 @@ export const fetchProduct = async (productId: string): Promise<Product> => {
 
 export const fetchProductRaw = async (productId: string) => {
   return await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
+    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
     {
       method: 'GET',
     },

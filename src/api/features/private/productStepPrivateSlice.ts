@@ -1,7 +1,7 @@
 // api/features/private/productStepPrivateSlice.ts
 
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
 // ================================
@@ -77,7 +77,7 @@ export const fetchProduct = async (
   productId: string,
   variantId: string,
 ): Promise<Product> => {
-  const url = `${API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
+  const url = `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
 
   console.log('Fetching Product:', url);
 
@@ -110,7 +110,7 @@ export const fetchProduct = async (
 // ================================
 
 export const fetchProductRaw = async (productId: string, variantId: string) => {
-  const url = `${API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
+  const url = `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
 
   const response = await fetchHandler(url, {
     method: 'GET',

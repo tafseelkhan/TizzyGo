@@ -5,7 +5,7 @@ import Config from 'react-native-config';
 
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { getToken } from '../../connections/token/tokenSlice';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 export interface LiveDeliveryData {
   success: boolean;
@@ -57,7 +57,7 @@ export const ordersApi = {
     }
 
     const response = await axios.get(
-      `${API_BASE_URL}${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`,
+      `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -82,7 +82,7 @@ export const ordersApi = {
     }
 
     const response = await axios.get(
-      `${API_BASE_URL}${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`,
+      `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

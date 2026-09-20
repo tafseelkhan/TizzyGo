@@ -3,7 +3,7 @@ import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
 import { getToken } from '../../connections/token/tokenSlice';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 export const ordersApi = {
   // ================================
@@ -19,7 +19,7 @@ export const ordersApi = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.MY_ORDERS}`,
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.MY_ORDERS}`,
         {
           method: 'GET',
           headers: {
