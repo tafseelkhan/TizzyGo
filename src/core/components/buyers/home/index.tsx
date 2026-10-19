@@ -48,7 +48,7 @@ import { useTheme } from '../../../contexts/theme/ThemeContext';
 import { getColorHexValues, getPrimaryColor } from '../../../colors/styles';
 
 // API Base URL
-const TIZZYGO_API_BASE_URL = 'http://10.45.220.121:1000';
+const TIZZYGO_API_BASE_URL = 'http://10.210.13.121:1000';
 
 // Helper function to get gradient colors based on user's favorite color AND theme
 const getColorGradient = (
@@ -671,7 +671,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.45.220.121:2000/api/v0/seller/forms/categories',
+        'http://10.210.13.121:2000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
 
@@ -720,7 +720,7 @@ const HomeScreen: React.FC = () => {
 
       setIsLoading(true);
       const response = await fetch(
-        'http://10.45.220.121:2000/api/v0/seller/forms/categories',
+        'http://10.210.13.121:2000/api/v0/seller/forms/categories',
       );
       const data = await response.json();
       if (data.products && Array.isArray(data.products)) {

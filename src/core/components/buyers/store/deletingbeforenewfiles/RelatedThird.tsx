@@ -88,7 +88,7 @@ const RelatedThird: React.FC<Props> = ({ userId }) => {
         setError(null);
 
         // Slot = 3 for RelatedThird
-        const url = `http://10.45.220.121:1000/api/public/related/${id}?slot=3`;
+        const url = `http://10.210.13.121:1000/api/public/related/${id}?slot=3`;
         console.log('Fetching related products from URL:', url);
         const response = await fetch(url);
 

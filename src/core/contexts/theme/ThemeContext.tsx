@@ -32,7 +32,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // API URL - Change this to your actual API URL
-const API_URL = 'http://10.45.220.121:1000'; // or use env variables
+const API_URL = 'http://10.210.13.121:1000'; // or use env variables
 
 // For Android navigation bar color - we'll use a simple approach
 const setAndroidNavigationBar = async (isDark: boolean) => {
