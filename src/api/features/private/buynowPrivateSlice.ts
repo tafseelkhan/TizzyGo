@@ -7,7 +7,7 @@ import {
   SelectedVariant,
   ProductData,
 } from '../../../core/types/BuyNowTypes';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -32,11 +32,11 @@ export const fetchProductVariantsAPI = async (
 
     console.log(
       'Fetching variants:',
-      `${API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
     );
 
     const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
       {
         method: 'GET',
         headers: {
@@ -66,7 +66,7 @@ export const clearBuyNowCartAPI = async (
       return false;
     }
 
-    await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.CLEAR_BUY_NOW}`, {
+    await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_BUY_NOW}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -121,7 +121,7 @@ export const processBuyNowAPI = async (
       requestBody.selectedVariant = variantToSend;
     }
 
-    const data = await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.BUY_NOW}`, {
+    const data = await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUY_NOW}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

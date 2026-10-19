@@ -1,7 +1,7 @@
 // utils/socket/socketRideSearching.ts
 
 import io, { Socket } from 'socket.io-client';
-import { API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
 import { getToken } from '../../../api/connections/token/tokenSlice';
 
 let socket: Socket | null = null;
@@ -34,12 +34,12 @@ export const connectSocket = async (): Promise<Socket> => {
   }
 
   isConnecting = true;
-  console.log('🔌 [SOCKET] Connecting to:', API_BASE_URL);
+  console.log('🔌 [SOCKET] Connecting to:', TIZZYGO_API_BASE_URL);
 
   const token = await getToken();
   console.log('🔑 [SOCKET] Token:', token ? '✅ Available' : '❌ Missing');
 
-  socket = io(API_BASE_URL, {
+  socket = io(TIZZYGO_API_BASE_URL, {
     transports: ['websocket', 'polling'],
     auth: { token },
     reconnection: true,

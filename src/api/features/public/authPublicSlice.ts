@@ -1,7 +1,7 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { setToken } from '../../connections/token/tokenSlice';
 
 // ================================
@@ -40,8 +40,8 @@ const formatIdentifier = (identifier: string) => {
 // ================================
 
 export const signup = async ({ identifier }: AuthPayload) => {
-  console.log("Sending signup request to:", `${API_BASE_URL}${API_ENDPOINTS.SIGNUP}`);
-  return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.SIGNUP}`, {
+  console.log("Sending signup request to:", `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SIGNUP}`);
+  return await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SIGNUP}`, {
     method: 'POST',
     body: JSON.stringify({
       identifier: formatIdentifier(identifier),
@@ -68,7 +68,7 @@ export const verifySignup = async ({
   name,
 }: VerifySignupPayload) => {
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.VERIFY_SIGNUP}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.VERIFY_SIGNUP}`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -97,8 +97,8 @@ export const verifySignup = async ({
 // ================================
 
 export const login = async ({ identifier }: AuthPayload) => {
-    console.log("Sending login request to:", `${API_BASE_URL}${API_ENDPOINTS.LOGIN}`);
-  return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.LOGIN}`, {
+    console.log("Sending login request to:", `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.LOGIN}`);
+  return await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.LOGIN}`, {
     method: 'POST',
     body: JSON.stringify({
       identifier: formatIdentifier(identifier),
@@ -119,7 +119,7 @@ console.log("API_ENDPOINTS:", API_ENDPOINTS.LOGIN);
 
 export const verifyLogin = async ({ identifier, otp }: VerifyLoginPayload) => {
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.VERIFY_LOGIN}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.VERIFY_LOGIN}`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -147,7 +147,7 @@ export const verifyLogin = async ({ identifier, otp }: VerifyLoginPayload) => {
 // ================================
 
 export const resendOtp = async ({ identifier }: AuthPayload) => {
-  return await fetchHandler(`${API_BASE_URL}${API_ENDPOINTS.RESEND_OTP}`, {
+  return await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RESEND_OTP}`, {
     method: 'POST',
     body: JSON.stringify({
       identifier: formatIdentifier(identifier),

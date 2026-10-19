@@ -2,7 +2,7 @@
 
 import { getToken } from '../../connections/token/tokenSlice';
 import { Alert } from 'react-native';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
 export interface ShareResponse {
@@ -34,7 +34,7 @@ export const shareService = {
         return null;
       }
 
-      const url = `${API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`;
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`;
       const body = JSON.stringify({
         productId,
         productType,

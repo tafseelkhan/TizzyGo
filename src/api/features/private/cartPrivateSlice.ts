@@ -3,7 +3,7 @@
 import Config from 'react-native-config';
 import { Alert } from 'react-native';
 
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 
@@ -53,8 +53,8 @@ export const CartAPI = {
       }
 
       const url = couponCode
-        ? `${API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}?couponCode=${couponCode}`
-        : `${API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}`;
+        ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}?couponCode=${couponCode}`
+        : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}`;
 
       console.log('🛒 [CartAPI] Fetching cart checkout...');
       console.log('  - URL:', url);
@@ -90,7 +90,7 @@ export const CartAPI = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT_LOCATION}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT_LOCATION}`,
         {
           method: 'POST',
           headers: {

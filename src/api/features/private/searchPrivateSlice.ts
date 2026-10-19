@@ -4,7 +4,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -90,7 +90,7 @@ class SearchApi {
     console.log('🔍 [SearchApi] searchProductsAPI CALLED');
     console.log('========================================');
     console.log('🔍 Query:', query);
-    console.log('🔍 API_BASE_URL:', API_BASE_URL);
+    console.log('🔍 TIZZYGO_API_BASE_URL:', TIZZYGO_API_BASE_URL);
     console.log(
       '🔍 API_ENDPOINTS.SEARCH_PRODUCTS:',
       API_ENDPOINTS.SEARCH_PRODUCTS,
@@ -102,8 +102,8 @@ class SearchApi {
     }
 
     try {
-      // ✅ Build URL - API_BASE_URL already has /api/v0
-      const url = `${API_BASE_URL}${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`;
+      // ✅ Build URL - TIZZYGO_API_BASE_URL already has /api/v0
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`;
       console.log('🔍 [SearchApi] FULL URL:', url);
 
       const headers = await this.getHeaders();
@@ -204,7 +204,7 @@ class SearchApi {
     console.log('📝 [SearchApi] getRecentSearchesAPI STARTED');
 
     try {
-      const url = `${API_BASE_URL}${API_ENDPOINTS.RECENT_SEARCHES}`;
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RECENT_SEARCHES}`;
       console.log('📝 [SearchApi] URL:', url);
 
       const headers = await this.getHeaders();
@@ -257,7 +257,7 @@ class SearchApi {
     console.log('📊 [SearchApi] getPopularSearchesAPI STARTED');
 
     try {
-      const url = `${API_BASE_URL}${API_ENDPOINTS.POPULAR_SEARCHES}`;
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POPULAR_SEARCHES}`;
       console.log('📊 [SearchApi] URL:', url);
 
       const headers = await this.getHeaders();
@@ -317,7 +317,7 @@ class SearchApi {
     }
 
     try {
-      const url = `${API_BASE_URL}${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`;
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`;
       console.log('🗑️ [SearchApi] URL:', url);
 
       const headers = await this.getHeaders();
@@ -350,7 +350,7 @@ class SearchApi {
     console.log('🗑️ [SearchApi] clearAllRecentSearchesAPI STARTED');
 
     try {
-      const url = `${API_BASE_URL}${API_ENDPOINTS.CLEAR_RECENT_SEARCHES}`;
+      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_RECENT_SEARCHES}`;
       console.log('🗑️ [SearchApi] URL:', url);
 
       const headers = await this.getHeaders();

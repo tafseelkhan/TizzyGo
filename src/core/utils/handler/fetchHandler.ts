@@ -1,4 +1,7 @@
-export const fetchHandler = async (url: string, options: RequestInit) => {
+export const fetchHandler = async (
+  url: string,
+  options: RequestInit = {},
+) => {
   try {
     const response = await fetch(url, {
       headers: {
@@ -8,15 +11,27 @@ export const fetchHandler = async (url: string, options: RequestInit) => {
       ...options,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+
+    let data: any;
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error('Invalid JSON response from server');
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || 'Something went wrong');
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          `Request failed with status ${response.status}`,
+      );
     }
 
     return data;
   } catch (error: any) {
-    console.log('❌ Fetch Error:', error.message);
+    console.log('❌ Fetch Error:', error?.message || error);
     throw error;
   }
 };

@@ -2,7 +2,7 @@
 
 import io, { Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
-import { API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
 import { getToken } from '../../../api/connections/token/tokenSlice';
 import { decode as base64Decode } from 'base-64';
 
@@ -82,7 +82,7 @@ class SocketLiveTracking {
         throw new Error('Failed to extract userId from token');
       }
 
-      let baseUrl = API_BASE_URL || 'http://10.47.33.121:1000';
+      let baseUrl = TIZZYGO_API_BASE_URL || 'http://10.45.220.121:1000';
       if (baseUrl.endsWith('/')) {
         baseUrl = baseUrl.slice(0, -1);
       }

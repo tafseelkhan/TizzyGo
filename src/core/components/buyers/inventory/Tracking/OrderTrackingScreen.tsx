@@ -178,8 +178,6 @@ export const OrderTrackingScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <StatusBar
           barStyle="light-content"
-          backgroundColor="transparent"
-          translucent
         />
         {/* ✅ Gradient Header with SafeArea padding */}
         <LinearGradient
@@ -387,8 +385,6 @@ export const OrderTrackingScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar
         barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
       />
       <ScrollView
         showsVerticalScrollIndicator={false}

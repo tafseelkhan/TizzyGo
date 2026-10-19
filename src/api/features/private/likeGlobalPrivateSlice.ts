@@ -3,7 +3,7 @@ import Config from 'react-native-config';
 
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TOKEN HELPER
@@ -35,7 +35,7 @@ export const fetchLikeStatusAPI = async (
   productId: string,
 ): Promise<LikeStatusResponse> => {
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.FETCH_LIKE_STATUS}/${productId}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.FETCH_LIKE_STATUS}/${productId}`,
     {
       method: 'GET',
       headers: await getHeaders(),
@@ -56,7 +56,7 @@ export const toggleLikeAPI = async (
   productId: string,
 ): Promise<LikeStatusResponse> => {
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`,
     {
       method: 'POST',
       headers: await getHeaders(),

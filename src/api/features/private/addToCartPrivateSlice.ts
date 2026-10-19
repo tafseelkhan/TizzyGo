@@ -5,7 +5,7 @@ import {
   CartItemParams,
   CartStatusResponse,
 } from '../../../core/types/CartTypes';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
@@ -18,7 +18,7 @@ export const CartAPI = {
   async fetchProductVariants(productId: string): Promise<any[]> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`,
       );
 
       if (!response.ok) {
@@ -65,7 +65,7 @@ export const CartAPI = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.ADD_TO_CART}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ADD_TO_CART}`,
         {
           method: 'POST',
           headers: {
@@ -117,7 +117,7 @@ export const CartAPI = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.UPDATE_CART}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.UPDATE_CART}`,
         {
           method: 'PUT',
           headers: {
@@ -156,7 +156,7 @@ export const CartAPI = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.REMOVE_FROM_CART}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_FROM_CART}`,
         {
           method: 'DELETE',
           headers: {
@@ -194,7 +194,7 @@ export const CartAPI = {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.CHECK_CART}?productId=${productId}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CHECK_CART}?productId=${productId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

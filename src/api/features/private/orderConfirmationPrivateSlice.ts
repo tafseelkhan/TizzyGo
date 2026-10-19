@@ -6,7 +6,7 @@
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ============================================================
 // TYPES
@@ -134,7 +134,7 @@ export const getOrderConfirmation = async (
 
   try {
     const headers = await getHeaders();
-    const url = `${API_BASE_URL}${API_ENDPOINTS.ORDER_CONFIRMATION}/${checkoutSessionId}`;
+    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ORDER_CONFIRMATION}/${checkoutSessionId}`;
 
     console.log(`📤 URL: ${url}`);
     console.log(`📤 Headers:`, JSON.stringify(headers, null, 2));

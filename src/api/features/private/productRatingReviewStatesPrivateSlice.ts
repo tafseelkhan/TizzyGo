@@ -2,7 +2,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -75,7 +75,7 @@ class RatingAPI {
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.GET_RATING_STATS}/${productId}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_RATING_STATS}/${productId}`,
         {
           method: 'GET',
         },
@@ -107,7 +107,7 @@ class RatingAPI {
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.GET_REVIEWS}/${productId}?limit=${limit}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_REVIEWS}/${productId}?limit=${limit}`,
         {
           method: 'GET',
         },
@@ -136,7 +136,7 @@ class RatingAPI {
 
     try {
       const data = await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.GET_USER_REVIEW}/${productId}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_USER_REVIEW}/${productId}`,
         {
           method: 'GET',
           headers: await this.getHeaders(),
@@ -175,8 +175,8 @@ class RatingAPI {
 
     try {
       const endpoint = reviewId
-        ? `${API_BASE_URL}${API_ENDPOINTS.UPDATE_REVIEW}/${reviewId}`
-        : `${API_BASE_URL}${API_ENDPOINTS.CREATE_REVIEW}`;
+        ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.UPDATE_REVIEW}/${reviewId}`
+        : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_REVIEW}`;
 
       const data = await fetchHandler(endpoint, {
         method: reviewId ? 'PUT' : 'POST',
@@ -208,7 +208,7 @@ class RatingAPI {
 
     try {
       await fetchHandler(
-        `${API_BASE_URL}${API_ENDPOINTS.DELETE_REVIEW}/${reviewId}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.DELETE_REVIEW}/${reviewId}`,
         {
           method: 'DELETE',
           headers: await this.getHeaders(),

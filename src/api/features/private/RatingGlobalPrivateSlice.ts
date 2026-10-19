@@ -8,7 +8,7 @@ import { jwtDecode } from 'jwt-decode';
 import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -96,7 +96,7 @@ export const fetchRatingStatsAPI = async (
     console.log('📊 fetchRatingStatsAPI called with productId:', productId);
 
     // ✅ FIXED: Correct URL format
-    const url = `${API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`;
+    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`;
     console.log('📤 URL:', url);
 
     const data = await fetchHandler(url, {
@@ -146,7 +146,7 @@ export const fetchReviewsWithUserDataAPI = async (
     );
 
     // ✅ FIXED: Correct URL format
-    const url = `${API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`;
+    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`;
     console.log('📤 URL:', url);
 
     const data = await fetchHandler(url, {
@@ -176,8 +176,8 @@ export const submitReviewAPI = async (submitData: any, reviewId?: string) => {
 
     // ✅ FIXED: Correct URL format
     const endpoint = reviewId
-      ? `${API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}` // PUT for update
-      : `${API_BASE_URL}${API_ENDPOINTS.REVIEW}`; // POST for create
+      ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}` // PUT for update
+      : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW}`; // POST for create
 
     console.log('📤 URL:', endpoint);
 
@@ -212,7 +212,7 @@ export const deleteReviewAPI = async (reviewId: string): Promise<void> => {
     console.log('🗑️ deleteReviewAPI called with reviewId:', reviewId);
 
     // ✅ FIXED: Correct URL format
-    const url = `${API_BASE_URL}${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`;
+    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`;
     console.log('📤 URL:', url);
 
     await fetchHandler(url, {
@@ -237,7 +237,7 @@ export const fetchUserRatingAPI = async (productId: string) => {
     console.log('👤 fetchUserRatingAPI called with productId:', productId);
 
     // ✅ FIXED: Correct URL format
-    const url = `${API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`;
+    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`;
     console.log('📤 URL:', url);
 
     const data = await fetchHandler(url, {

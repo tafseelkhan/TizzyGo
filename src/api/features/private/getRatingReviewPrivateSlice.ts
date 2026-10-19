@@ -1,7 +1,7 @@
 import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -41,11 +41,11 @@ export const fetchRatingStats = async (
   try {
     console.log(
       '📡 Fetching rating stats:',
-      `${API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
     );
 
     const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
       {
         method: 'GET',
       },
@@ -77,11 +77,11 @@ export const fetchReviews = async (
   try {
     console.log(
       '📡 Fetching reviews:',
-      `${API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
     );
 
     const data = await fetchHandler(
-      `${API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
       {
         method: 'GET',
       },

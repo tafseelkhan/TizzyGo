@@ -1,5 +1,5 @@
 // src/api/locationApi.ts - FINAL COMPLETE VERSION
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { getToken } from '../../connections/token/tokenSlice';
 
@@ -34,7 +34,7 @@ export const locationApi = {
     try {
       const token = await getToken();
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.GET_FULL_LOCATION}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_FULL_LOCATION}`,
         {
           method: 'GET',
           headers: {
@@ -86,7 +86,7 @@ export const locationApi = {
       console.log('📤 Saving location:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.POST_LOCATION_ADDRESS}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_LOCATION_ADDRESS}`,
         {
           method: 'POST',
           headers: {
@@ -118,7 +118,7 @@ export const locationApi = {
     try {
       const token = await getToken();
       const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.POST_GPS_TRACKING_ENABLED}`,
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_GPS_TRACKING_ENABLED}`,
         {
           method: 'POST',
           headers: {

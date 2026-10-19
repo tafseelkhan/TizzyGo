@@ -3,7 +3,7 @@ import Config from 'react-native-config';
 import { getToken } from '../../connections/token/tokenSlice';
 import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 
 // ================================
 // TYPES
@@ -71,7 +71,7 @@ export const createPaymentIntentAPI = async (
   console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
 
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.CREATE_PAYMENT_INTENT}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_PAYMENT_INTENT}`,
     {
       method: 'POST',
       headers: await getHeaders(),
@@ -116,7 +116,7 @@ export const processPaymentAPI = async (
   console.log('📤 Sending to backend:', JSON.stringify(requestBody, null, 2));
 
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.PROCESS_PAYMENT}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PROCESS_PAYMENT}`,
     {
       method: 'POST',
       headers: await getHeaders(),
@@ -137,7 +137,7 @@ export const confirmCODAPI = async (checkoutSessionId: string) => {
   console.log('📋 Checkout Session ID:', checkoutSessionId);
 
   const data = await fetchHandler(
-    `${API_BASE_URL}${API_ENDPOINTS.CONFIRM_COD}`,
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CONFIRM_COD}`,
     {
       method: 'POST',
       headers: await getHeaders(),
@@ -165,7 +165,7 @@ export const getSessionStatusAPI = async (
     const endpoint = `${API_ENDPOINTS.GET_SESSION_STATUS}/${checkoutSessionId}`;
     console.log('📍 Endpoint:', endpoint);
 
-    const data = await fetchHandler(`${API_BASE_URL}${endpoint}`, {
+    const data = await fetchHandler(`${TIZZYGO_API_BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: await getHeaders(),
     });

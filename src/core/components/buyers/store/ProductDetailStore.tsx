@@ -370,7 +370,7 @@ export const ProductDetailsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ECECEC" />
+      <StatusBar barStyle="dark-content" />
 
       {/* SafeArea with Gray Background */}
       <View style={[styles.safeAreaTop, { paddingTop: insets.top }]} />
