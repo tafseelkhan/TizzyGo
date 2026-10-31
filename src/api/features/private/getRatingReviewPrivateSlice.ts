@@ -1,7 +1,17 @@
-import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { apiRequest } from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 // ================================
 // TYPES
@@ -32,22 +42,18 @@ export interface Review {
 }
 
 // ================================
-// GET RATING STATS
+// GET RATING STATS — public (no auth needed)
 // ================================
 
 export const fetchRatingStats = async (
   productId: string,
 ): Promise<RatingStats | null> => {
   try {
-    console.log(
-      '📡 Fetching rating stats:',
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
-    );
-
-    const data = await fetchHandler(
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
+    const data = await apiRequest<any>(
+      apiUrl(`${API_ENDPOINTS.RATING_STATS}/${productId}`),
       {
-        method: 'GET',
+        auth: false,
+        retryOnUnauthorized: false,
       },
     );
 
@@ -67,7 +73,7 @@ export const fetchRatingStats = async (
 };
 
 // ================================
-// GET REVIEWS
+// GET REVIEWS — public (no auth needed)
 // ================================
 
 export const fetchReviews = async (
@@ -75,15 +81,11 @@ export const fetchReviews = async (
   limit: number = 10,
 ): Promise<Review[]> => {
   try {
-    console.log(
-      '📡 Fetching reviews:',
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
-    );
-
-    const data = await fetchHandler(
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
+    const data = await apiRequest<any>(
+      apiUrl(`${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`),
       {
-        method: 'GET',
+        auth: false,
+        retryOnUnauthorized: false,
       },
     );
 

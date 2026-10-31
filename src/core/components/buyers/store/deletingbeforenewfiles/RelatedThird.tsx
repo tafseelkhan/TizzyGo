@@ -16,6 +16,12 @@ import {
 import LikeComponent from '../../global/LikeGlobal';
 import AddToCart from '../AddToCart';
 
+// ✅ NEW import — API slice
+import {
+  fetchRelatedProducts,
+  RelatedProduct,
+} from '../../../../../api/features/private/relatedProductsSlice';
+
 const { width: screenWidth } = Dimensions.get('window');
 
 // Define navigation param list
@@ -24,7 +30,6 @@ type RootStackParamList = {
     id: string;
     category?: string;
   };
-  // Add other routes as needed
 };
 
 type ProductDetailRouteProp = {
@@ -42,26 +47,8 @@ interface Props {
   userId?: string;
 }
 
-interface Product {
-  _id: string;
-  id?: string;
-  title: string;
-  description: string;
-  category?: string;
-  images?: any[];
-  videos?: any[];
-  originalPrice?: number;
-  price?: number;
-  FinalPrice?: number;
-  Discount?: number;
-  Offer?: number;
-  brand?: string;
-  rating?: number;
-  model?: string;
-  averageRating?: number;
-  reviewCount?: number;
-  stock?: number;
-}
+// ✅ Local alias — shape slice ke RelatedProduct se match karta hai
+type Product = RelatedProduct;
 
 // Get Media URL function
 const getMediaUrl = (item: string | { url: string }): string => {
@@ -80,51 +67,28 @@ const RelatedThird: React.FC<Props> = ({ userId }) => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   useEffect(() => {
-    const fetchRelated = async () => {
-      try {
-        if (!id) throw new Error('Product ID is missing.');
+    const load = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
+      try {
         setLoading(true);
         setError(null);
 
-        // Slot = 3 for RelatedThird
-        const url = `http://10.210.13.121:1000/api/public/related/${id}?slot=3`;
-        console.log('Fetching related products from URL:', url);
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Failed to fetch related products:', errorText);
-          throw new Error('Failed to fetch related products.');
-        }
-
-        const raw = await response.json();
-
-        let data: Product[] = Array.isArray(raw)
-          ? raw
-          : raw.products
-          ? raw.products
-          : raw.data
-          ? raw.data
-          : [];
-
-        if (!Array.isArray(data)) data = [];
-
-        // Exclude current product
-        const related = data.filter(p => p._id !== id);
-
+        // ✅ API call — slot = 3
+        const related = await fetchRelatedProducts(id, 3);
         setProducts(related);
-      } catch (error: any) {
-        setError(error.message || 'Failed to load related products.');
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load related products.');
         setProducts([]);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchRelated();
-    }
+    load();
   }, [id]);
 
   const navigateToProduct = (product: Product) => {
@@ -183,7 +147,7 @@ const RelatedThird: React.FC<Props> = ({ userId }) => {
   );
 };
 
-// Similar Product Card Component - EXACT DESIGN LIKE IMAGE
+// Similar Product Card Component
 interface SimilarProductCardProps {
   product: Product;
   onPress: () => void;
@@ -203,27 +167,23 @@ const SimilarProductCard: React.FC<SimilarProductCardProps> = ({
     ...(product.videos || []).map(getMediaUrl),
   ].filter(url => url !== '');
 
-  // Calculate pricing
   useEffect(() => {
-    const calculatePricing = () => {
-      const origPrice = product.originalPrice || product.price || 0;
-      setOriginalPrice(origPrice);
+    const origPrice = product.originalPrice || product.price || 0;
+    setOriginalPrice(origPrice);
 
-      const finPrice = product.FinalPrice || product.price || 0;
-      setFinalPrice(finPrice);
+    const finPrice = product.FinalPrice || product.price || 0;
+    setFinalPrice(finPrice);
 
-      if (product.Discount) {
-        setDiscount(product.Discount);
-      } else if (origPrice > finPrice && origPrice > 0) {
-        const discountPercent = Math.round(
-          ((origPrice - finPrice) / origPrice) * 100,
-        );
-        setDiscount(discountPercent);
-      } else {
-        setDiscount(0);
-      }
-    };
-    calculatePricing();
+    if (product.Discount) {
+      setDiscount(product.Discount);
+    } else if (origPrice > finPrice && origPrice > 0) {
+      const discountPercent = Math.round(
+        ((origPrice - finPrice) / origPrice) * 100,
+      );
+      setDiscount(discountPercent);
+    } else {
+      setDiscount(0);
+    }
   }, [
     product.price,
     product.FinalPrice,
@@ -231,7 +191,6 @@ const SimilarProductCard: React.FC<SimilarProductCardProps> = ({
     product.Discount,
   ]);
 
-  // Shorten title for display
   const getShortTitle = (title: string) => {
     return title.length > 25 ? title.substring(0, 25) + '...' : title;
   };
@@ -242,7 +201,6 @@ const SimilarProductCard: React.FC<SimilarProductCardProps> = ({
 
   return (
     <View style={styles.productCard}>
-      {/* Image Section */}
       <TouchableOpacity onPress={onPress}>
         <View style={styles.imageContainer}>
           {media.length > 0 && !imageError ? (
@@ -258,33 +216,27 @@ const SimilarProductCard: React.FC<SimilarProductCardProps> = ({
             </View>
           )}
 
-          {/* Rating Badge - TOP LEFT */}
           <View style={styles.ratingContainer}>
             <Text style={styles.ratingText}>
               ★ {product.rating?.toFixed(1) || '4.2'}
             </Text>
           </View>
 
-          {/* Like Button - TOP RIGHT */}
           <View style={styles.likeButtonContainer}>
             <LikeComponent productId={product._id} size={'18'} />
           </View>
         </View>
       </TouchableOpacity>
 
-      {/* Product Info Section */}
       <View style={styles.productInfo}>
-        {/* Brand Name */}
         <Text style={styles.brandText}>
           {getShortBrand(product.brand || 'Brand')}
         </Text>
 
-        {/* Product Title */}
         <Text style={styles.productTitle} numberOfLines={2}>
           {getShortTitle(product.title)}
         </Text>
 
-        {/* Price Section */}
         <View style={styles.priceContainer}>
           {discount > 0 ? (
             <>
@@ -297,7 +249,6 @@ const SimilarProductCard: React.FC<SimilarProductCardProps> = ({
           )}
         </View>
 
-        {/* Add to Cart Component - Only pass required props */}
         <AddToCart
           productId={product._id}
           productData={product}
@@ -322,7 +273,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontFamily: 'System',
   },
-  // Products Container
   productsContainer: {
     gap: 16,
   },
@@ -374,7 +324,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 6,
   },
-  // Product Card Styles
   productCard: {
     width: 160,
     backgroundColor: '#FFFFFF',
@@ -408,7 +357,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 12,
   },
-  // Rating Badge
   ratingContainer: {
     position: 'absolute',
     top: 8,
@@ -425,7 +373,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000000',
   },
-  // Like Button
   likeButtonContainer: {
     position: 'absolute',
     top: 8,
@@ -433,7 +380,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 4,
   },
-  // Product Info Section
   productInfo: {
     padding: 12,
     gap: 6,

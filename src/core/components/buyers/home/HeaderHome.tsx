@@ -1,4 +1,4 @@
-// src/components/Header.tsx - FINAL WITH VALIDATION FIX
+// src/core/components/buyers/home/HeaderHome.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -25,11 +25,7 @@ import { useTheme } from '../../../contexts/theme/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Fontisto from 'react-native-vector-icons/Fontisto';
 import LinearGradient from 'react-native-linear-gradient';
-
-// Import components
 import SearchBar from './SearchBarHome';
-
-// Import services and utils
 import { locationApi } from '../../../../api/features/private/locationPrivateSlice';
 import {
   googlePlacesService,
@@ -42,18 +38,6 @@ import {
   hasLocationChangedSignificantly,
 } from '../../../utils/home/locationUtils';
 
-interface SearchResult {
-  category: string;
-  products: Array<{
-    _id: string;
-    title: string;
-    description: string;
-    price: number;
-    category: string;
-    images: string[];
-  }>;
-}
-
 interface HeaderProps {
   location: string;
   setLocation: (location: string) => void;
@@ -61,7 +45,7 @@ interface HeaderProps {
   setSearchQuery: (query: string) => void;
   selectedCategory: string;
   handleCategoryClick: (category: string) => void;
-  onSearchResults?: (results: SearchResult[]) => void;
+  onSearchResults?: (results: any[]) => void;
   onRefresh?: () => Promise<void>;
   userId?: string;
   disableScrollEffect?: boolean;
@@ -70,9 +54,10 @@ interface HeaderProps {
   hasSearchResults?: boolean;
   scrollY: Animated.Value;
   isDark?: boolean;
+  hideFilterButton?: boolean;
+  tintColors?: string[]; // ✅ Yeh line add karein
 }
 
-// Shimmer animation value
 const shimmerAnim = new Animated.Value(0);
 
 const Header: React.FC<HeaderProps> = ({
@@ -91,10 +76,9 @@ const Header: React.FC<HeaderProps> = ({
   hasSearchResults = false,
   scrollY,
   isDark: parentIsDark,
+  hideFilterButton = false,
+  tintColors = [],
 }) => {
-  // State
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isSearchActive, setIsSearchActive] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [searchLocationQuery, setSearchLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<
@@ -113,40 +97,29 @@ const Header: React.FC<HeaderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  // Refs
   const navigation = useNavigation<any>();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
 
-  // Theme
   const themeContext = useTheme();
   const isDark =
     parentIsDark !== undefined ? parentIsDark : themeContext?.isDark || false;
 
-  // Keyboard listeners
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-      },
+    const showSub = Keyboard.addListener('keyboardDidShow', () =>
+      setKeyboardVisible(true),
     );
-    const keyboardDidHideListener = Keyboard.addListener(
-      'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-      },
+    const hideSub = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardVisible(false),
     );
-
     return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
-  // Start shimmer animation
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -164,14 +137,11 @@ const Header: React.FC<HeaderProps> = ({
     ).start();
   }, []);
 
-  // PanResponder for draggable modal
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        setIsDragging(true);
-      },
+      onPanResponderGrant: () => setIsDragging(true),
       onPanResponderMove: (_, gestureState) => {
         const newHeight = Math.max(
           300,
@@ -206,23 +176,20 @@ const Header: React.FC<HeaderProps> = ({
   ).current;
 
   const getThemeColors = () => ({
-    headerBg: isDark ? '#00000000' : '#00000000',
     textColor: isDark ? '#F1F5F9' : '#374151',
-    locationBarBg: isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(0, 0, 0, 0)',
+    locationBarBg: 'transparent',
     locationTextColor: isDark ? '#F1F5F9' : '#374151',
     modalBg: isDark ? '#1F2937' : '#FFFFFF',
     inputBg: isDark ? '#374151' : '#F9FAFB',
     inputBorder: isDark ? '#4B5563' : '#E5E7EB',
     suggestionText: isDark ? '#F1F5F9' : '#374151',
     suggestionSecondaryText: isDark ? '#9CA3AF' : '#6B7280',
-    switchTrackColor: isDark ? '#4B5563' : '#E5E7EB',
     cardBg: isDark ? '#1F2937' : '#FFFFFF',
     borderColor: isDark ? '#374151' : '#E5E7EB',
   });
 
   const themeColors = getThemeColors();
 
-  // Shimmer interpolation for gradient
   const shimmerTranslate = shimmerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-200, 200],
@@ -241,37 +208,19 @@ const Header: React.FC<HeaderProps> = ({
   });
 
   useEffect(() => {
-    setIsSearchActive(searchQuery.length > 0 && hasSearchResults);
-  }, [searchQuery, hasSearchResults]);
-
-  useEffect(() => {
-    if (disableScrollEffect) return;
-    const listener = scrollY.addListener(({ value }) =>
-      setIsScrolled(value > 20),
-    );
-    return () => scrollY.removeListener(listener);
-  }, [scrollY, disableScrollEffect]);
-
-  useEffect(() => {
     loadDataFromBackend();
   }, [userId]);
 
   useEffect(() => {
-    if (isGpsTrackingEnabled) {
-      startGpsTracking();
-    } else {
-      stopGpsTracking();
-    }
+    if (isGpsTrackingEnabled) startGpsTracking();
+    else stopGpsTracking();
     return () => stopGpsTracking();
   }, [isGpsTrackingEnabled]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchLocationQuery) {
-        searchPlacesDebounced(searchLocationQuery);
-      } else {
-        setLocationSuggestions([]);
-      }
+      if (searchLocationQuery) searchPlacesDebounced(searchLocationQuery);
+      else setLocationSuggestions([]);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchLocationQuery]);
@@ -279,10 +228,7 @@ const Header: React.FC<HeaderProps> = ({
   const loadDataFromBackend = async () => {
     try {
       const result = await locationApi.getLocation();
-      if (!result.success || !result.data) {
-        console.log('No location found. User needs to set location first.');
-        return;
-      }
+      if (!result.success || !result.data) return;
       if (result.data.gpsTrackingEnabled !== undefined) {
         setIsGpsTrackingEnabled(result.data.gpsTrackingEnabled);
       }
@@ -292,15 +238,14 @@ const Header: React.FC<HeaderProps> = ({
         );
         if (coords) {
           setCurrentCoordinates(coords);
-          if (result.data.location.address) {
-            setLocation(result.data.location.address);
-          } else {
-            setLocation(formatCoordinates(coords.lat, coords.lng));
-          }
+          setLocation(
+            result.data.location.address ||
+              formatCoordinates(coords.lat, coords.lng),
+          );
         }
       }
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch {
+      // no-op
     }
   };
 
@@ -316,23 +261,15 @@ const Header: React.FC<HeaderProps> = ({
       Alert.alert('Error', 'Invalid location selected. Please try again.');
       return;
     }
-
     setSavingLocation(true);
     try {
       const details = await googlePlacesService.getPlaceDetails(
         selectedLocation.place_id,
       );
-
       if (!details) {
-        Alert.alert(
-          'Error',
-          'Could not fetch location details. Please try again.',
-        );
-        setSavingLocation(false);
+        Alert.alert('Error', 'Could not fetch location details.');
         return;
       }
-
-      // Validate required fields with fallback values
       const locationData = {
         lat: details.lat || 0,
         lng: details.lng || 0,
@@ -344,17 +281,10 @@ const Header: React.FC<HeaderProps> = ({
         pinCode: details.pinCode || '000000',
         placeId: selectedLocation.place_id || '',
       };
-
-      // Validate coordinates
       if (locationData.lat === 0 && locationData.lng === 0) {
-        Alert.alert(
-          'Error',
-          'Invalid coordinates for this location. Please try another.',
-        );
-        setSavingLocation(false);
+        Alert.alert('Error', 'Invalid coordinates.');
         return;
       }
-
       const result = await locationApi.saveLocation(
         locationData.lat,
         locationData.lng,
@@ -365,26 +295,17 @@ const Header: React.FC<HeaderProps> = ({
         locationData.pinCode,
         locationData.placeId,
       );
-
       if (result.success) {
         setLocation(locationData.address);
         setLocationModalVisible(false);
         setSearchLocationQuery('');
         setLocationSuggestions([]);
-        Alert.alert('Success', 'Location saved successfully!');
         await loadDataFromBackend();
       } else {
-        Alert.alert(
-          'Error',
-          result.message || 'Failed to save location. Please try again.',
-        );
+        Alert.alert('Error', result.message || 'Failed to save location.');
       }
     } catch (error: any) {
-      console.error('Error saving location:', error);
-      Alert.alert(
-        'Error',
-        error?.message || 'Failed to save location. Please try again.',
-      );
+      Alert.alert('Error', error?.message || 'Failed to save location.');
     } finally {
       setSavingLocation(false);
     }
@@ -395,24 +316,22 @@ const Header: React.FC<HeaderProps> = ({
     setUpdatingGpsStatus(true);
     try {
       const result = await locationApi.updateGpsTracking(newState);
-      if (result.success) {
-        setIsGpsTrackingEnabled(newState);
-      } else if (
+      if (result.success) setIsGpsTrackingEnabled(newState);
+      else if (
         result.message?.includes('Please save your delivery location first')
       ) {
         Alert.alert(
           'Location Required',
-          'Please set your delivery location first before enabling GPS tracking.',
+          'Please set your delivery location first.',
           [{ text: 'OK', onPress: () => setLocationModalVisible(true) }],
         );
       } else {
         Alert.alert(
           'Error',
-          result.message || 'Failed to update GPS tracking preference.',
+          result.message || 'Failed to update GPS preference.',
         );
       }
-    } catch (error) {
-      console.error('Toggle GPS error:', error);
+    } catch {
       Alert.alert('Error', 'Failed to update GPS tracking preference.');
     } finally {
       setUpdatingGpsStatus(false);
@@ -428,48 +347,37 @@ const Header: React.FC<HeaderProps> = ({
         locationIntervalRef.current = null;
       }
       const gpsLocation = await getCurrentGpsLocation();
-      if (gpsLocation) {
-        setCurrentCoordinates(gpsLocation);
-        const addressInfo = await googlePlacesService.reverseGeocode(
-          gpsLocation.lat,
-          gpsLocation.lng,
-        );
-        if (addressInfo) {
-          setLocation(addressInfo.address);
-          const result = await locationApi.saveLocation(
-            gpsLocation.lat,
-            gpsLocation.lng,
-            addressInfo.address,
-            addressInfo.city || 'Unknown',
-            addressInfo.state || 'Unknown',
-            addressInfo.country || 'India',
-            addressInfo.pinCode || '000000',
-            '',
-          );
-          if (result.success) {
-            Alert.alert(
-              'Location Updated',
-              `Your location has been set to: ${addressInfo.address}`,
-            );
-            setLocationModalVisible(false);
-            await loadDataFromBackend();
-          } else {
-            Alert.alert('Error', result.message || 'Failed to save location');
-          }
-        } else {
-          Alert.alert(
-            'Location Error',
-            'Unable to get address. Please try searching instead.',
-          );
-        }
-      } else {
-        Alert.alert(
-          'Location Error',
-          'Unable to get current location. Please check your GPS.',
-        );
+      if (!gpsLocation) {
+        Alert.alert('Location Error', 'Unable to get current location.');
+        return;
       }
-    } catch (error) {
-      console.error('Manual location update error:', error);
+      setCurrentCoordinates(gpsLocation);
+      const addressInfo = await googlePlacesService.reverseGeocode(
+        gpsLocation.lat,
+        gpsLocation.lng,
+      );
+      if (!addressInfo) {
+        Alert.alert('Location Error', 'Unable to get address.');
+        return;
+      }
+      setLocation(addressInfo.address);
+      const result = await locationApi.saveLocation(
+        gpsLocation.lat,
+        gpsLocation.lng,
+        addressInfo.address,
+        addressInfo.city || 'Unknown',
+        addressInfo.state || 'Unknown',
+        addressInfo.country || 'India',
+        addressInfo.pinCode || '000000',
+        '',
+      );
+      if (result.success) {
+        setLocationModalVisible(false);
+        await loadDataFromBackend();
+      } else {
+        Alert.alert('Error', result.message || 'Failed to save location');
+      }
+    } catch {
       Alert.alert('Error', 'Failed to get current location.');
     } finally {
       setIsGettingGpsLocation(false);
@@ -481,45 +389,43 @@ const Header: React.FC<HeaderProps> = ({
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     locationIntervalRef.current = setInterval(async () => {
       if (isGettingGpsLocation) return;
-      if (isGpsTrackingEnabled) {
-        const gpsLocation = await getCurrentGpsLocation();
-        if (gpsLocation) {
-          setCurrentCoordinates(gpsLocation);
-          if (
-            currentCoordinates &&
-            hasLocationChangedSignificantly(
-              currentCoordinates.lat,
-              currentCoordinates.lng,
-              gpsLocation.lat,
-              gpsLocation.lng,
-              50,
-            )
-          ) {
-            await locationApi.saveLocation(
-              gpsLocation.lat,
-              gpsLocation.lng,
-              formatCoordinates(gpsLocation.lat, gpsLocation.lng),
-              'Unknown',
-              'Unknown',
-              'India',
-              '000000',
-              '',
-            );
-            setLocation(formatCoordinates(gpsLocation.lat, gpsLocation.lng));
-          } else if (!currentCoordinates) {
-            await locationApi.saveLocation(
-              gpsLocation.lat,
-              gpsLocation.lng,
-              formatCoordinates(gpsLocation.lat, gpsLocation.lng),
-              'Unknown',
-              'Unknown',
-              'India',
-              '000000',
-              '',
-            );
-            setLocation(formatCoordinates(gpsLocation.lat, gpsLocation.lng));
-          }
-        }
+      if (!isGpsTrackingEnabled) return;
+      const gpsLocation = await getCurrentGpsLocation();
+      if (!gpsLocation) return;
+      setCurrentCoordinates(gpsLocation);
+      if (
+        currentCoordinates &&
+        hasLocationChangedSignificantly(
+          currentCoordinates.lat,
+          currentCoordinates.lng,
+          gpsLocation.lat,
+          gpsLocation.lng,
+          50,
+        )
+      ) {
+        await locationApi.saveLocation(
+          gpsLocation.lat,
+          gpsLocation.lng,
+          formatCoordinates(gpsLocation.lat, gpsLocation.lng),
+          'Unknown',
+          'Unknown',
+          'India',
+          '000000',
+          '',
+        );
+        setLocation(formatCoordinates(gpsLocation.lat, gpsLocation.lng));
+      } else if (!currentCoordinates) {
+        await locationApi.saveLocation(
+          gpsLocation.lat,
+          gpsLocation.lng,
+          formatCoordinates(gpsLocation.lat, gpsLocation.lng),
+          'Unknown',
+          'Unknown',
+          'India',
+          '000000',
+          '',
+        );
+        setLocation(formatCoordinates(gpsLocation.lat, gpsLocation.lng));
       }
     }, 30000);
   };
@@ -531,20 +437,13 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const handleUpdateLocation = async () => {
-    await getCurrentLocationAndUpdate();
-  };
-
   const { width } = Dimensions.get('window');
 
-  // Shimmer effect component
   const ShimmerOverlay = () => (
     <Animated.View
       style={[
         styles.shimmerOverlay,
-        {
-          transform: [{ translateX: shimmerTranslate }],
-        },
+        { transform: [{ translateX: shimmerTranslate }] },
       ]}
     >
       <LinearGradient
@@ -568,18 +467,12 @@ const Header: React.FC<HeaderProps> = ({
           },
         ]}
       >
-        {/* Status Bar Background */}
         {Platform.OS !== 'web' && width < 1024 && (
-          <View style={[styles.statusBarBackground]}>
-            <StatusBar
-              barStyle={isDark ? 'light-content' : 'dark-content'}
-              translucent
-              backgroundColor="transparent"
-            />
+          <View style={styles.statusBarBackground}>
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
           </View>
         )}
 
-        {/* Location Bar - OUTER UI */}
         <TouchableOpacity
           onPress={() => setLocationModalVisible(true)}
           activeOpacity={0.8}
@@ -600,7 +493,7 @@ const Header: React.FC<HeaderProps> = ({
             <Icon
               name="my-location"
               size={15}
-              color={isDark ? '#F1F5F9' : '#374151'}
+              color={themeColors.locationTextColor}
             />
             <View style={styles.locationTextContainer}>
               <Text
@@ -624,7 +517,7 @@ const Header: React.FC<HeaderProps> = ({
             <Icon
               name="chevron-right"
               size={20}
-              color={isDark ? '#F1F5F9' : '#374151'}
+              color={themeColors.locationTextColor}
             />
           </View>
         </TouchableOpacity>
@@ -638,11 +531,12 @@ const Header: React.FC<HeaderProps> = ({
             handleCategoryClick={handleCategoryClick}
             isMobile={true}
             isDark={isDark}
+            hideFilterButton={hideFilterButton}
+            selectedCategory={selectedCategory} // ✅ Yeh add karein
           />
         </View>
       </Animated.View>
 
-      {/* Draggable Half-Screen Modal with Keyboard Fix & Safe Area */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -666,9 +560,7 @@ const Header: React.FC<HeaderProps> = ({
                 },
               ]}
             >
-              {/* Safe Area View for proper spacing */}
               <SafeAreaView style={styles.safeAreaContainer} edges={['top']}>
-                {/* Draggable Handle */}
                 {!keyboardVisible && (
                   <View
                     {...panResponder.panHandlers}
@@ -685,8 +577,6 @@ const Header: React.FC<HeaderProps> = ({
                     </Text>
                   </View>
                 )}
-
-                {/* Modal Header */}
                 <View style={styles.modalHeader}>
                   <Text
                     style={[
@@ -711,12 +601,9 @@ const Header: React.FC<HeaderProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {/* Scrollable Content with SafeArea bottom padding */}
                 <View style={styles.contentContainer}>
-                  {/* Content - Hide GPS and other sections when keyboard is visible to show suggestions properly */}
                   {!keyboardVisible && (
                     <>
-                      {/* GPS Tracking Section */}
                       <View
                         style={[
                           styles.sectionCard,
@@ -746,7 +633,6 @@ const Header: React.FC<HeaderProps> = ({
                             Location Tracking
                           </Text>
                         </View>
-
                         <View style={styles.gpsToggleContainer}>
                           <View style={styles.gpsToggleLeft}>
                             <Text
@@ -774,7 +660,6 @@ const Header: React.FC<HeaderProps> = ({
                             thumbColor="#FFFFFF"
                           />
                         </View>
-
                         {isGpsTrackingEnabled && (
                           <View style={styles.infoBadge}>
                             <Icon name="info" size={14} color="#4F46E5" />
@@ -785,7 +670,6 @@ const Header: React.FC<HeaderProps> = ({
                         )}
                       </View>
 
-                      {/* Current Location Section */}
                       {currentCoordinates && (
                         <View
                           style={[
@@ -827,10 +711,9 @@ const Header: React.FC<HeaderProps> = ({
                         </View>
                       )}
 
-                      {/* Update Location Button with Shimmer Effect */}
                       <TouchableOpacity
                         style={styles.updateLocationButton}
-                        onPress={handleUpdateLocation}
+                        onPress={getCurrentLocationAndUpdate}
                         disabled={isGettingGpsLocation}
                         activeOpacity={0.9}
                       >
@@ -858,7 +741,6 @@ const Header: React.FC<HeaderProps> = ({
                         <ShimmerOverlay />
                       </TouchableOpacity>
 
-                      {/* Divider */}
                       <View style={styles.dividerContainer}>
                         <View style={styles.dividerLine} />
                         <Text
@@ -874,7 +756,6 @@ const Header: React.FC<HeaderProps> = ({
                     </>
                   )}
 
-                  {/* Search Section - Always visible */}
                   <View
                     style={[
                       styles.sectionCard,
@@ -900,7 +781,6 @@ const Header: React.FC<HeaderProps> = ({
                         Search Address
                       </Text>
                     </View>
-
                     <View
                       style={[
                         styles.searchInputContainer,
@@ -944,7 +824,6 @@ const Header: React.FC<HeaderProps> = ({
                     </View>
                   </View>
 
-                  {/* Suggestions List - Always visible and scrollable */}
                   {loadingLocations ? (
                     <View style={[styles.loadingContainer, { flex: 1 }]}>
                       <ActivityIndicator size="large" color="#4F46E5" />
@@ -1040,7 +919,7 @@ const Header: React.FC<HeaderProps> = ({
                               Try searching with a different term
                             </Text>
                           </View>
-                        ) : null
+                        ) : undefined
                       }
                     />
                   )}
@@ -1063,8 +942,6 @@ const Header: React.FC<HeaderProps> = ({
   );
 };
 
-const { width, height } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   header: {
     position: 'absolute',
@@ -1073,7 +950,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
     backgroundColor: 'transparent',
-    height: 950,
+    height: 260,
     overflow: 'hidden',
   },
   statusBarBackground: {
@@ -1086,34 +963,17 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 9999,
   },
-  locationBar: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  locationBarContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  locationBar: { paddingVertical: 8, paddingHorizontal: 16 },
+  locationBarContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   locationTextContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  locationLabel: {
-    fontSize: 13,
-    fontWeight: '300',
-  },
-  locationAddress: {
-    fontSize: 13,
-    fontWeight: '300',
-    flex: 1,
-  },
-  mobileSearchContainer: {
-    paddingBottom: 8,
-    marginBottom: 180,
-  },
+  locationLabel: { fontSize: 13, fontWeight: '300' },
+  locationAddress: { fontSize: 13, fontWeight: '300', flex: 1 },
+  mobileSearchContainer: { paddingBottom: 8 },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1124,18 +984,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     overflow: 'hidden',
   },
-  safeAreaContainer: {
-    flex: 1,
-  },
-  contentContainer: {
-    flex: 1,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-  },
-  modalDragHandle: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
+  safeAreaContainer: { flex: 1 },
+  contentContainer: { flex: 1, paddingBottom: Platform.OS === 'ios' ? 20 : 10 },
+  modalDragHandle: { alignItems: 'center', paddingTop: 12, paddingBottom: 8 },
   dragIndicator: {
     width: 40,
     height: 4,
@@ -1143,9 +994,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: 8,
   },
-  dragText: {
-    fontSize: 12,
-  },
+  dragText: { fontSize: 12 },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1155,24 +1004,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 4,
-  },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  closeButton: { padding: 4 },
   sectionCard: {
     marginHorizontal: 16,
     marginBottom: 16,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1187,27 +1026,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: '600', flex: 1 },
   gpsToggleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  gpsToggleLeft: {
-    flex: 1,
-  },
-  gpsToggleText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  gpsToggleSubtext: {
-    fontSize: 12,
-    marginTop: 2,
-  },
+  gpsToggleLeft: { flex: 1 },
+  gpsToggleText: { fontSize: 15, fontWeight: '500' },
+  gpsToggleSubtext: { fontSize: 12, marginTop: 2 },
   infoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1217,10 +1044,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E7EB',
     gap: 6,
   },
-  infoBadgeText: {
-    fontSize: 11,
-    color: '#4F46E5',
-  },
+  infoBadgeText: { fontSize: 11, color: '#4F46E5' },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1230,17 +1054,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 4,
   },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#10B981',
-  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
+  liveText: { fontSize: 10, fontWeight: '700', color: '#10B981' },
   coordinatesText: {
     fontSize: 13,
     color: '#6B7280',
@@ -1260,11 +1075,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 10,
   },
-  updateLocationButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
+  updateLocationButtonText: { fontSize: 16, fontWeight: '600', color: 'white' },
   shimmerOverlay: {
     position: 'absolute',
     top: 0,
@@ -1273,25 +1084,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     overflow: 'hidden',
   },
-  shimmerGradient: {
-    width: '100%',
-    height: '100%',
-  },
+  shimmerGradient: { width: '100%', height: '100%' },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
     marginVertical: 12,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    fontSize: 12,
-  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  dividerText: { marginHorizontal: 10, fontSize: 12 },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1306,15 +1107,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     fontSize: 13,
   },
-  clearButton: {
-    padding: 4,
-  },
-  suggestionsListContainer: {
-    flex: 1,
-  },
-  suggestionsList: {
-    paddingBottom: 20,
-  },
+  clearButton: { padding: 4 },
+  suggestionsListContainer: { flex: 1 },
+  suggestionsList: { paddingBottom: 20 },
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1331,39 +1126,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  suggestionTextContainer: {
-    flex: 1,
-  },
-  suggestionMainText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  suggestionSecondaryText: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  loadingContainer: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    padding: 48,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  suggestionTextContainer: { flex: 1 },
+  suggestionMainText: { fontSize: 15, fontWeight: '500' },
+  suggestionSecondaryText: { fontSize: 13, marginTop: 2 },
+  loadingContainer: { padding: 32, alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14 },
+  emptyContainer: { padding: 48, alignItems: 'center', gap: 12 },
+  emptyText: { fontSize: 16, fontWeight: '500', textAlign: 'center' },
+  emptySubtext: { fontSize: 14, textAlign: 'center' },
   savingOverlay: {
     position: 'absolute',
     top: 0,
@@ -1375,11 +1145,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 24,
   },
-  savingText: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '500',
-  },
+  savingText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
 });
 
 export default Header;

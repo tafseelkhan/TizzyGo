@@ -1,22 +1,29 @@
-// src/api/features/private/paymentPrivateSlice.ts - COMPLETE FIXED VERSION
-import Config from 'react-native-config';
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+// src/api/features/private/paymentPrivateSlice.ts
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
 
-// ================================
-// TOKEN HEADERS
-// ================================
+// ============================================================
+// SAFE URL JOINER — guards against undefined base URL
+// ============================================================
 
-const getHeaders = async () => {
-  const token = await getToken();
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
 
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 };
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 // ================================
 // 1. CREATE PAYMENT INTENT
@@ -27,15 +34,10 @@ export const createPaymentIntentAPI = async (
   paymentMethod: 'online' | 'cod',
   idempotencyKey?: string,
 ) => {
-  console.log('🚀 [paymentPrivateSlice] createPaymentIntentAPI CALLED');
-  console.log('📋 Payment Method:', paymentMethod);
-  console.log('🔑 Idempotency Key:', idempotencyKey);
-
-  const data = await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_PAYMENT_INTENT}`,
+  const data = await apiRequest(
+    apiUrl(API_ENDPOINTS.CREATE_PAYMENT_INTENT),
     {
       method: 'POST',
-      headers: await getHeaders(),
       body: JSON.stringify({
         address,
         paymentMethod,
@@ -44,16 +46,11 @@ export const createPaymentIntentAPI = async (
     },
   );
 
-  console.log(
-    '📥 createPaymentIntentAPI Response:',
-    JSON.stringify(data, null, 2),
-  );
   return data;
 };
 
 // ================================
 // 2. PROCESS PAYMENT (Razorpay / Online)
-// ✅ FIXED: Now accepts razorpay_order_id, razorpay_payment_id, razorpay_signature
 // ================================
 
 export const processPaymentAPI = async (
@@ -62,16 +59,6 @@ export const processPaymentAPI = async (
   razorpay_payment_id: string,
   razorpay_signature: string,
 ) => {
-  console.log('💳 [paymentPrivateSlice] processPaymentAPI CALLED');
-  console.log('📋 Checkout Session ID:', checkoutSessionId);
-  console.log('📋 Razorpay Order ID:', razorpay_order_id);
-  console.log('📋 Razorpay Payment ID:', razorpay_payment_id);
-  console.log(
-    '📋 Razorpay Signature:',
-    razorpay_signature ? 'PROVIDED' : 'NOT PROVIDED',
-  );
-
-  // ✅ CORRECT REQUEST BODY - Backend expects these exact fields
   const requestBody = {
     checkoutSessionId,
     paymentType: 'normal',
@@ -80,18 +67,11 @@ export const processPaymentAPI = async (
     razorpay_signature,
   };
 
-  console.log('📤 Sending to backend:', JSON.stringify(requestBody, null, 2));
+  const data = await apiRequest(apiUrl(API_ENDPOINTS.PROCESS_PAYMENT), {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
 
-  const data = await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PROCESS_PAYMENT}`,
-    {
-      method: 'POST',
-      headers: await getHeaders(),
-      body: JSON.stringify(requestBody),
-    },
-  );
-
-  console.log('📥 processPaymentAPI Response:', JSON.stringify(data, null, 2));
   return data;
 };
 
@@ -100,21 +80,11 @@ export const processPaymentAPI = async (
 // ================================
 
 export const confirmCODAPI = async (checkoutSessionId: string) => {
-  console.log('📦 [paymentPrivateSlice] confirmCODAPI CALLED');
-  console.log('📋 Checkout Session ID:', checkoutSessionId);
+  const data = await apiRequest(apiUrl(API_ENDPOINTS.CONFIRM_COD), {
+    method: 'POST',
+    body: JSON.stringify({ checkoutSessionId }),
+  });
 
-  const data = await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CONFIRM_COD}`,
-    {
-      method: 'POST',
-      headers: await getHeaders(),
-      body: JSON.stringify({
-        checkoutSessionId,
-      }),
-    },
-  );
-
-  console.log('📥 confirmCODAPI Response:', JSON.stringify(data, null, 2));
   return data;
 };
 
@@ -125,28 +95,26 @@ export const confirmCODAPI = async (checkoutSessionId: string) => {
 export const getSessionStatusAPI = async (
   checkoutSessionId: string,
 ): Promise<any> => {
-  console.log('🔍 [paymentPrivateSlice] getSessionStatusAPI CALLED');
-  console.log('📋 Checkout Session ID:', checkoutSessionId);
-
   try {
-    const endpoint = `${API_ENDPOINTS.GET_SESSION_STATUS}/${checkoutSessionId}`;
-    console.log('📍 Endpoint:', endpoint);
-
-    const data = await fetchHandler(`${TIZZYGO_API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: await getHeaders(),
-    });
-
-    console.log(
-      '📥 getSessionStatusAPI Response:',
-      JSON.stringify(data, null, 2),
+    const data = await apiRequest(
+      apiUrl(`${API_ENDPOINTS.GET_SESSION_STATUS}/${checkoutSessionId}`),
     );
+
     return data;
-  } catch (error: any) {
-    console.error('❌ getSessionStatusAPI Error:', error.message);
+  } catch (error) {
+    if (isAuthError(error)) {
+      return {
+        success: false,
+        error: 'Please login again.',
+      };
+    }
+
     return {
       success: false,
-      error: error?.message || 'Failed to get session status',
+      error:
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to get session status',
     };
   }
 };
@@ -158,8 +126,5 @@ export const getSessionStatusAPI = async (
 export const getOrderDetailsAPI = async (
   checkoutSessionId: string,
 ): Promise<any> => {
-  console.log('📋 [paymentPrivateSlice] getOrderDetailsAPI CALLED');
-  console.log('📋 Checkout Session ID:', checkoutSessionId);
-
-  return await getSessionStatusAPI(checkoutSessionId);
+  return getSessionStatusAPI(checkoutSessionId);
 };

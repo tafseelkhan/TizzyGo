@@ -1,11 +1,34 @@
 // api/ordersApi.ts
 
-import axios from 'axios';
-import Config from 'react-native-config';
-
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { getToken } from '../../connections/token/tokenSlice';
 import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER — TIZZYOS base
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYOS_API_BASE_URL) {
+    throw new Error('TIZZYOS_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export type DeliveryStatus =
+  | 'waiting_for_seller'
+  | 'pending_rider_accept'
+  | 'assigned'
+  | 'waiting_for_rider'
+  | 'picked_up'
+  | 'delivered';
 
 export interface LiveDeliveryData {
   success: boolean;
@@ -36,13 +59,9 @@ export interface LiveDeliveryData {
   };
 }
 
-export type DeliveryStatus =
-  | 'waiting_for_seller'
-  | 'pending_rider_accept'
-  | 'assigned'
-  | 'waiting_for_rider'
-  | 'picked_up'
-  | 'delivered';
+// ============================================================
+// ORDERS API
+// ============================================================
 
 export const ordersApi = {
   // ==========================================
@@ -50,48 +69,34 @@ export const ordersApi = {
   // ==========================================
 
   fetchOrderDetails: async (orderId: string) => {
-    const token = await getToken();
-
-    if (!token) {
-      throw new Error('Authentication required - No token found');
+    try {
+      return await apiRequest(
+        apiUrl(`${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        throw new Error('Authentication required - Please login');
+      }
+      throw error;
     }
-
-    const response = await axios.get(
-      `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      },
-    );
-
-    return response.data;
   },
 
   // ==========================================
   // LIVE DELIVERY TRACKING
   // ==========================================
 
-  fetchLiveDeliveryData: async (orderId: string): Promise<LiveDeliveryData> => {
-    const token = await getToken();
-
-    if (!token) {
-      throw new Error('Authentication required - No token found');
+  fetchLiveDeliveryData: async (
+    orderId: string,
+  ): Promise<LiveDeliveryData> => {
+    try {
+      return await apiRequest<LiveDeliveryData>(
+        apiUrl(`${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        throw new Error('Authentication required - Please login');
+      }
+      throw error;
     }
-
-    const response = await axios.get(
-      `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      },
-    );
-
-    return response.data;
   },
 };

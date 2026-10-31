@@ -1,9 +1,34 @@
-// api/features/private/shareGlobalPrivateSlice.ts - FIXED
+// api/features/private/shareGlobalPrivateSlice.ts
 
-import { getToken } from '../../connections/token/tokenSlice';
 import { Alert } from 'react-native';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+// ================================
+// TYPES
+// ================================
 
 export interface ShareResponse {
   share: {
@@ -16,9 +41,13 @@ export interface ShareResponse {
   message?: string;
 }
 
+// ================================
+// SHARE SERVICE
+// ================================
+
 export const shareService = {
   /**
-   * Create Share - FIXED
+   * Create Share — authenticated
    */
   createShare: async (
     productId: string,
@@ -26,50 +55,26 @@ export const shareService = {
     platform: string = 'all',
   ): Promise<ShareResponse | null> => {
     try {
-      const token = await getToken();
+      const data = await apiRequest<ShareResponse>(
+        apiUrl(API_ENDPOINTS.CREATE_SHARE),
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            productId,
+            productType,
+            platform,
+          }),
+        },
+      );
 
-      if (!token) {
-        console.warn('⚠️ No token found, user not logged in');
+      return data;
+    } catch (error) {
+      if (isAuthError(error)) {
         Alert.alert('Error', 'Please login to share products');
         return null;
       }
 
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`;
-      const body = JSON.stringify({
-        productId,
-        productType,
-        platform,
-      });
-
-      console.log('📤 Creating Share URL:', url);
-      console.log('📤 Request Body:', body);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: body, // ✅ Body properly stringified
-      });
-
-      console.log('📥 Response Status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Server Error:', errorData);
-        throw new Error(
-          errorData.message || `Server error: ${response.status}`,
-        );
-      }
-
-      const data = await response.json();
-      console.log('✅ Share created:', data);
-
-      return data;
-    } catch (error: any) {
       console.error('❌ Share API Error:', error);
-      // ✅ Don't show Alert here - let component handle it
       return null;
     }
   },

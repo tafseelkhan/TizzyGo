@@ -1,10 +1,35 @@
 // services/api/rideApi.ts
 
-import Config from 'react-native-config';
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { TIZZYOS_TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER — combined base
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYOS_API_BASE_URL) {
+    throw new Error('TIZZYOS_TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return fallback;
+};
 
 // ================================
 // TYPES
@@ -17,7 +42,6 @@ export interface Location {
   googlePlaceId: string;
 }
 
-// ✅ Driver Option Type
 export interface DriverOption {
   driverId: string;
   driverCode: string;
@@ -54,17 +78,13 @@ export interface DriverOption {
   }>;
 }
 
-// ✅ VehicleOption with full backend data
 export interface VehicleOption {
-  // Ride type fields (backward compatibility)
   rideTypeCode: string;
   rideTypeName: string;
   rideTypeDescription: string;
   isFastest: boolean;
   driverEtaMinutes: number;
   driverCount: number;
-
-  // Vehicle fields
   vehicleType: string;
   vehicleClass: string;
   maxPassengers: number;
@@ -73,7 +93,6 @@ export interface VehicleOption {
   handBagCapacity: number;
   seatCapacity: number;
   passengerCapacity: number;
-
   categoryCode: string;
   companyCode: string;
   modelCode: string;
@@ -87,8 +106,6 @@ export interface VehicleOption {
   eta: number;
   estimatedDriverArrival: number;
   quoteId: string;
-
-  // ✅ NEW: Backend se aane wale fields
   driverOption?: DriverOption;
   fastestRideType?: {
     code: string;
@@ -115,7 +132,7 @@ export interface RideOptionsResponse {
 
 export interface BookingRequest {
   quoteId: string;
-  serviceType: 'LOCAL_RIDE' | 'AIRPORT'; // ✅ ADD THIS
+  serviceType: 'LOCAL_RIDE' | 'AIRPORT';
   paymentMethod: 'COC' | 'ONLINE';
 }
 
@@ -172,42 +189,9 @@ export interface RetryResponse {
 
 class RideBooking {
   // ================================
-  // TOKEN HEADERS
-  // ================================
-
-  private getHeaders = async (): Promise<Record<string, string>> => {
-    try {
-      const token = await getToken();
-
-      return {
-        'Content-Type': 'application/json',
-        ...(token && {
-          Authorization: `Bearer ${token}`,
-        }),
-      };
-    } catch (error) {
-      console.error('Error getting headers:', error);
-      return {
-        'Content-Type': 'application/json',
-      };
-    }
-  };
-
-  // ================================
   // 1. GET RIDE OPTIONS (QUOTE)
   // ================================
 
-  /**
-   * Get all available vehicle options for selected pickup and drop location.
-   *
-   * @param pickup - Pickup location { latitude, longitude, address, googlePlaceId }
-   * @param drop - Drop location { latitude, longitude, address, googlePlaceId }
-   * @returns RideOptionsResponse with vehicle options
-   *
-   * @example
-   * const options = await rideApi.getRideOptions(pickup, drop);
-   * // options.data.options = [Mini, Sedan, SUV] with fare, ETA, polyline
-   */
   getRideOptions = async (
     pickup: Location,
     drop: Location,
@@ -220,87 +204,81 @@ class RideBooking {
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_OPTIONS}`,
+      const data = await apiRequest<RideOptionsResponse>(
+        apiUrl(API_ENDPOINTS.RIDE_OPTIONS),
         {
           method: 'POST',
-          headers: await this.getHeaders(),
           body: JSON.stringify({ pickup, drop }),
         },
       );
 
       return data || { success: false, message: 'Failed to get ride options' };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
       console.error('Get ride options API error:', error);
       return {
         success: false,
-        message:
-          error instanceof Error ? error.message : 'Failed to get ride options',
+        message: getErrorMessage(error, 'Failed to get ride options'),
       };
     }
   };
 
-getAirportRideOptions = async (
-  pickup: Location,
-  drop: Location,
-  tripType: "AIRPORT_TO_LOCATION" | "LOCATION_TO_AIRPORT",
-): Promise<RideOptionsResponse> => {
-  if (!pickup || !drop) {
-    return {
-      success: false,
-      message: 'Pickup and drop locations are required',
-    };
-  }
+  getAirportRideOptions = async (
+    pickup: Location,
+    drop: Location,
+    tripType: 'AIRPORT_TO_LOCATION' | 'LOCATION_TO_AIRPORT',
+  ): Promise<RideOptionsResponse> => {
+    if (!pickup || !drop) {
+      return {
+        success: false,
+        message: 'Pickup and drop locations are required',
+      };
+    }
 
-  if (!tripType || !["AIRPORT_TO_LOCATION", "LOCATION_TO_AIRPORT"].includes(tripType)) {
-    return {
-      success: false,
-      message: 'Valid tripType is required: AIRPORT_TO_LOCATION or LOCATION_TO_AIRPORT',
-    };
-  }
+    if (
+      !tripType ||
+      !['AIRPORT_TO_LOCATION', 'LOCATION_TO_AIRPORT'].includes(tripType)
+    ) {
+      return {
+        success: false,
+        message:
+          'Valid tripType is required: AIRPORT_TO_LOCATION or LOCATION_TO_AIRPORT',
+      };
+    }
 
-  try {
-    const data = await fetchHandler(
-      `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.AIRPORT_OPTIONS}`,  // ✅ /api/ride/airport/options
-      {
-        method: 'POST',
-        headers: await this.getHeaders(),
-        body: JSON.stringify({ pickup, drop, tripType }),
-      },
-    );
+    try {
+      const data = await apiRequest<RideOptionsResponse>(
+        apiUrl(API_ENDPOINTS.AIRPORT_OPTIONS),
+        {
+          method: 'POST',
+          body: JSON.stringify({ pickup, drop, tripType }),
+        },
+      );
 
-    return data || { success: false, message: 'Failed to get airport ride options' };
-  } catch (error) {
-    console.error('Get airport ride options API error:', error);
-    return {
-      success: false,
-      message:
-        error instanceof Error ? error.message : 'Failed to get airport ride options',
-    };
-  }
-};
+      return (
+        data || { success: false, message: 'Failed to get airport ride options' }
+      );
+    } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
+      console.error('Get airport ride options API error:', error);
+      return {
+        success: false,
+        message: getErrorMessage(error, 'Failed to get airport ride options'),
+      };
+    }
+  };
 
   // ================================
   // 2. CREATE BOOKING
   // ================================
 
-  /**
-   * Create a booking ONLY after customer presses Book button.
-   * Uses quoteId from the options response.
-   *
-   * @param quoteId - Quote ID from getRideOptions response
-   * @param paymentMethod - 'COC' (Cash on Completion) or 'ONLINE'
-   * @returns BookingResponse with booking details
-   *
-   * @example
-   * const booking = await rideApi.createBooking(selectedOption.quoteId, 'COC');
-   * // booking.data.bookingId = "BOK123456"
-   */
-  // rideApi.ts - REPLACE createBooking method with this:
-
   createBooking = async (
     quoteId: string,
-    serviceType: 'LOCAL_RIDE' | 'AIRPORT' = 'LOCAL_RIDE', // ✅ ADD serviceType parameter with default
+    serviceType: 'LOCAL_RIDE' | 'AIRPORT' = 'LOCAL_RIDE',
     paymentMethod: 'COC' | 'ONLINE' = 'COC',
   ): Promise<BookingResponse> => {
     if (!quoteId) {
@@ -311,14 +289,13 @@ getAirportRideOptions = async (
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOK}`,
+      const data = await apiRequest<BookingResponse>(
+        apiUrl(API_ENDPOINTS.RIDE_BOOK),
         {
           method: 'POST',
-          headers: await this.getHeaders(),
           body: JSON.stringify({
             quoteId,
-            serviceType, // ✅ SEND serviceType
+            serviceType,
             paymentMethod,
           }),
         },
@@ -326,11 +303,13 @@ getAirportRideOptions = async (
 
       return data || { success: false, message: 'Failed to create booking' };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
       console.error('Create booking API error:', error);
       return {
         success: false,
-        message:
-          error instanceof Error ? error.message : 'Failed to create booking',
+        message: getErrorMessage(error, 'Failed to create booking'),
       };
     }
   };
@@ -339,41 +318,25 @@ getAirportRideOptions = async (
   // 3. GET SEARCH STATUS
   // ================================
 
-  /**
-   * Get current search status for a booking.
-   * Used primarily for reconnect scenarios, not for polling.
-   *
-   * @param bookingId - Booking ID
-   * @returns SearchStatusResponse with search progress
-   *
-   * @example
-   * const status = await rideApi.getSearchStatus('BOK123456');
-   * // status.data.currentBatch = 2, status.data.driversFound = 3
-   */
   getSearchStatus = async (
     bookingId: string,
   ): Promise<SearchStatusResponse> => {
     if (!bookingId) {
-      return {
-        success: false,
-      };
+      return { success: false };
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${bookingId}`,
-        {
-          method: 'GET',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<SearchStatusResponse>(
+        apiUrl(`${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${bookingId}`),
       );
 
       return data || { success: false };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false };
+      }
       console.error('Get search status API error:', error);
-      return {
-        success: false,
-      };
+      return { success: false };
     }
   };
 
@@ -381,17 +344,6 @@ getAirportRideOptions = async (
   // 4. RETRY SEARCH
   // ================================
 
-  /**
-   * Retry driver search with increased fare.
-   * Continues from current batch (does NOT restart).
-   *
-   * @param bookingId - Booking ID
-   * @returns RetryResponse with success status
-   *
-   * @example
-   * const retry = await rideApi.retrySearch('BOK123456');
-   * // retry.message = "Retry started with increased fare"
-   */
   retrySearch = async (bookingId: string): Promise<RetryResponse> => {
     if (!bookingId) {
       return {
@@ -401,21 +353,20 @@ getAirportRideOptions = async (
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_RETRY}/${bookingId}`,
-        {
-          method: 'POST',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<RetryResponse>(
+        apiUrl(`${API_ENDPOINTS.RIDE_RETRY}/${bookingId}`),
+        { method: 'POST' },
       );
 
       return data || { success: false, message: 'Failed to retry search' };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
       console.error('Retry search API error:', error);
       return {
         success: false,
-        message:
-          error instanceof Error ? error.message : 'Failed to retry search',
+        message: getErrorMessage(error, 'Failed to retry search'),
       };
     }
   };
@@ -424,16 +375,6 @@ getAirportRideOptions = async (
   // 5. CANCEL BOOKING
   // ================================
 
-  /**
-   * Cancel an ongoing search or active ride.
-   *
-   * @param bookingId - Booking ID
-   * @param cancelReason - Reason for cancellation (optional)
-   * @returns CancelBookingResponse
-   *
-   * @example
-   * const cancel = await rideApi.cancelBooking('BOK123456', 'Changed my mind');
-   */
   cancelBooking = async (
     bookingId: string,
     cancelReason?: string,
@@ -446,11 +387,10 @@ getAirportRideOptions = async (
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_CANCEL}/${bookingId}`,
+      const data = await apiRequest<CancelBookingResponse>(
+        apiUrl(`${API_ENDPOINTS.RIDE_CANCEL}/${bookingId}`),
         {
           method: 'POST',
-          headers: await this.getHeaders(),
           body: JSON.stringify({
             cancelReason: cancelReason || 'No reason provided',
           }),
@@ -459,11 +399,13 @@ getAirportRideOptions = async (
 
       return data || { success: false, message: 'Failed to cancel booking' };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
       console.error('Cancel booking API error:', error);
       return {
         success: false,
-        message:
-          error instanceof Error ? error.message : 'Failed to cancel booking',
+        message: getErrorMessage(error, 'Failed to cancel booking'),
       };
     }
   };
@@ -472,15 +414,6 @@ getAirportRideOptions = async (
   // 6. GET BOOKING DETAILS
   // ================================
 
-  /**
-   * Get complete booking details.
-   *
-   * @param bookingId - Booking ID
-   * @returns BookingDetailResponse with full booking data
-   *
-   * @example
-   * const booking = await rideApi.getBooking('BOK123456');
-   */
   getBooking = async (bookingId: string): Promise<BookingDetailResponse> => {
     if (!bookingId) {
       return {
@@ -490,21 +423,19 @@ getAirportRideOptions = async (
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOKING}/${bookingId}`,
-        {
-          method: 'GET',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<BookingDetailResponse>(
+        apiUrl(`${API_ENDPOINTS.RIDE_BOOKING}/${bookingId}`),
       );
 
       return data || { success: false, message: 'Failed to get booking' };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, message: 'Please login to continue.' };
+      }
       console.error('Get booking API error:', error);
       return {
         success: false,
-        message:
-          error instanceof Error ? error.message : 'Failed to get booking',
+        message: getErrorMessage(error, 'Failed to get booking'),
       };
     }
   };
@@ -513,26 +444,17 @@ getAirportRideOptions = async (
   // 7. GET CUSTOMER BOOKINGS
   // ================================
 
-  /**
-   * Get all bookings for the authenticated customer.
-   *
-   * @returns Array of bookings
-   *
-   * @example
-   * const bookings = await rideApi.getCustomerBookings();
-   */
   getCustomerBookings = async (): Promise<any> => {
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS}`,
-        {
-          method: 'GET',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS),
       );
 
       return data || { success: false, data: [] };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, data: [] };
+      }
       console.error('Get customer bookings API error:', error);
       return { success: false, data: [] };
     }
@@ -542,26 +464,17 @@ getAirportRideOptions = async (
   // 8. GET DRIVER BOOKINGS
   // ================================
 
-  /**
-   * Get all bookings for the authenticated driver.
-   *
-   * @returns Array of bookings
-   *
-   * @example
-   * const bookings = await rideApi.getDriverBookings();
-   */
   getDriverBookings = async (): Promise<any> => {
     try {
-      const data = await fetchHandler(
-        `${TIZZYOS_TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RIDE_DRIVER_BOOKINGS}`,
-        {
-          method: 'GET',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.RIDE_DRIVER_BOOKINGS),
       );
 
       return data || { success: false, data: [] };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false, data: [] };
+      }
       console.error('Get driver bookings API error:', error);
       return { success: false, data: [] };
     }

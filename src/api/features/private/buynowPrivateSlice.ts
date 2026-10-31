@@ -1,13 +1,33 @@
-import { getToken } from '../../connections/token/tokenSlice';
-import Config from 'react-native-config';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import {
   ProductVariant,
   SelectedVariant,
   ProductData,
 } from '../../../core/types/BuyNowTypes';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER — guards against undefined base URL
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -17,74 +37,54 @@ export interface ApiResponse<T = any> {
 }
 
 // ================================
-// GET PRODUCT VARIANTS
+// GET PRODUCT VARIANTS — authenticated
 // ================================
 
 export const fetchProductVariantsAPI = async (
   productId: string,
 ): Promise<ProductVariant[]> => {
   try {
-    const token = await getToken();
-
-    if (!token) {
-      return [];
-    }
-
-    console.log(
-      'Fetching variants:',
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
-    );
-
-    const data = await fetchHandler(
-      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
+    const data = await apiRequest<any>(
+      apiUrl(API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)),
     );
 
     return data?.variants || data?.data || [];
   } catch (error) {
+    if (isAuthError(error)) {
+      return [];
+    }
+
     console.error('❌ Error fetching variants:', error);
     return [];
   }
 };
 
 // ================================
-// CLEAR BUY NOW CART
+// CLEAR BUY NOW CART — authenticated
 // ================================
 
 export const clearBuyNowCartAPI = async (
   productId: string,
 ): Promise<boolean> => {
   try {
-    const token = await getToken();
-
-    if (!token) {
-      return false;
-    }
-
-    await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_BUY_NOW}`, {
+    await apiRequest(apiUrl(API_ENDPOINTS.CLEAR_BUY_NOW), {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        productId,
-      }),
+      body: JSON.stringify({ productId }),
     });
 
     return true;
   } catch (error) {
+    if (isAuthError(error)) {
+      return false;
+    }
+
     console.error('❌ Error clearing buy now cart:', error);
     return false;
   }
 };
 
 // ================================
-// BUY NOW CHECKOUT
+// BUY NOW CHECKOUT — authenticated
 // ================================
 
 export const processBuyNowAPI = async (
@@ -92,16 +92,7 @@ export const processBuyNowAPI = async (
   selectedVariant: SelectedVariant | null,
 ): Promise<ApiResponse> => {
   try {
-    const token = await getToken();
-
-    if (!token) {
-      return {
-        success: false,
-        error: 'Please login first!',
-      };
-    }
-
-    const requestBody: any = {
+    const requestBody: Record<string, unknown> = {
       productData,
     };
 
@@ -121,27 +112,31 @@ export const processBuyNowAPI = async (
       requestBody.selectedVariant = variantToSend;
     }
 
-    const data = await fetchHandler(`${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUY_NOW}`, {
+    const data = await apiRequest(apiUrl(API_ENDPOINTS.BUY_NOW), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify(requestBody),
     });
-
-    console.log('✅ Checkout successful:', data);
 
     return {
       success: true,
       data,
     };
-  } catch (error: any) {
+  } catch (error) {
+    if (isAuthError(error)) {
+      return {
+        success: false,
+        error: 'Please login first!',
+      };
+    }
+
     console.error('❌ BuyNow API error:', error);
 
     return {
       success: false,
-      error: error?.message || 'Failed to process buy now!',
+      error:
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to process buy now!',
     };
   }
 };

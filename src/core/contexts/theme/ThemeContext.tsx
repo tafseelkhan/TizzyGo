@@ -14,6 +14,7 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TIZZYGO_API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
 
 type ColorScheme = 'light' | 'dark';
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -32,7 +33,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // API URL - Change this to your actual API URL
-const API_URL = 'http://10.210.13.121:1000'; // or use env variables
+const API_URL = {TIZZYGO_API_BASE_URL}; // or use env variables
 
 // For Android navigation bar color - we'll use a simple approach
 const setAndroidNavigationBar = async (isDark: boolean) => {

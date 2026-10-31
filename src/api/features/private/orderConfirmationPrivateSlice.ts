@@ -3,10 +3,23 @@
 // ============================================================
 // NO REDUX - Pure API Service with TypeScript
 
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 // ============================================================
 // TYPES
@@ -89,77 +102,36 @@ export interface OrderConfirmationResponse {
 }
 
 // ============================================================
-// HELPER: Get Headers
-// ============================================================
-
-const getHeaders = async (): Promise<Record<string, string>> => {
-  const token = await getToken();
-
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
-
-// ============================================================
 // API METHODS
 // ============================================================
 
 /**
  * ✅ GET ORDER CONFIRMATION
- *
- * Fetches complete order confirmation data including:
- * - Checkout session details
- * - Timer information (server-side calculated)
- * - Order summary
- * - List of orders (supports Buy Now & Cart Checkout)
- * - Navigation configuration
- * - Button visibility
- *
- * @param checkoutSessionId - The checkout session ID
- * @returns Promise<OrderConfirmationResponse>
- * @throws Error if request fails
  */
 export const getOrderConfirmation = async (
   checkoutSessionId: string,
 ): Promise<OrderConfirmationResponse> => {
-  console.log('========================================');
-  console.log('📋 ORDER CONFIRMATION API CALLED');
-  console.log('========================================');
-  console.log(`📋 CheckoutSession ID: ${checkoutSessionId}`);
-
   if (!checkoutSessionId) {
     throw new Error('checkoutSessionId is required');
   }
 
   try {
-    const headers = await getHeaders();
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ORDER_CONFIRMATION}/${checkoutSessionId}`;
-
-    console.log(`📤 URL: ${url}`);
-    console.log(`📤 Headers:`, JSON.stringify(headers, null, 2));
-
-    const data = await fetchHandler(url, {
-      method: 'GET',
-      headers,
-    });
-
-    console.log('📥 Response received:');
-    console.log(`  - Status: ${data?.confirmationStatus}`);
-    console.log(`  - Orders: ${data?.orders?.length || 0}`);
-    console.log(`  - Timer: ${data?.timer?.remainingSeconds}s remaining`);
+    const data = await apiRequest<OrderConfirmationResponse>(
+      apiUrl(`${API_ENDPOINTS.ORDER_CONFIRMATION}/${checkoutSessionId}`),
+    );
 
     if (!data || !data.success) {
-      throw new Error(data?.error || 'Failed to fetch confirmation');
+      throw new Error(
+        (data as any)?.error || 'Failed to fetch confirmation',
+      );
     }
 
     return data;
-  } catch (error: any) {
-    console.error('❌ Order Confirmation API Error:', error.message);
-
-    if (error.response) {
-      console.error(`  - Status: ${error.response.status}`);
-      console.error(`  - Data:`, error.response.data);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      console.error('❌ Order Confirmation API Error:', error.message);
+    } else {
+      console.error('❌ Order Confirmation API Error:', error);
     }
 
     throw error;
@@ -168,25 +140,15 @@ export const getOrderConfirmation = async (
 
 /**
  * ✅ REFRESH ORDER CONFIRMATION (Alias)
- *
- * Use this for polling or manual refresh
  */
 export const refreshOrderConfirmation = async (
   checkoutSessionId: string,
 ): Promise<OrderConfirmationResponse> => {
-  console.log('🔄 Refreshing order confirmation...');
   return getOrderConfirmation(checkoutSessionId);
 };
 
 /**
  * ✅ GET ORDER CONFIRMATION WITH RETRY
- *
- * Automatically retries on failure
- *
- * @param checkoutSessionId - The checkout session ID
- * @param maxRetries - Maximum number of retries (default: 3)
- * @param retryDelay - Delay between retries in ms (default: 1000)
- * @returns Promise<OrderConfirmationResponse>
  */
 export const getOrderConfirmationWithRetry = async (
   checkoutSessionId: string,
@@ -197,16 +159,22 @@ export const getOrderConfirmationWithRetry = async (
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 Attempt ${attempt}/${maxRetries}`);
       return await getOrderConfirmation(checkoutSessionId);
     } catch (error: any) {
       lastError = error;
-      console.warn(`⚠️ Attempt ${attempt} failed:`, error.message);
+      console.warn(`⚠️ Attempt ${attempt} failed:`, error?.message);
+
+      // Don't retry on auth errors — refresh already failed inside apiClient
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        throw error;
+      }
 
       if (attempt < maxRetries) {
-        console.log(`⏳ Waiting ${retryDelay}ms before retry...`);
-        await new Promise<void>(resolve => setTimeout(() => resolve(), retryDelay));
-        retryDelay *= 2; // Exponential backoff
+        await new Promise<void>(resolve => setTimeout(resolve, retryDelay));
+        retryDelay *= 2;
       }
     }
   }

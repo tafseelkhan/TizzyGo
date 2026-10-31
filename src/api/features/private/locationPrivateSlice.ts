@@ -1,13 +1,31 @@
-// src/api/locationApi.ts - FINAL COMPLETE VERSION
+// src/api/locationApi.ts
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { getToken } from '../../connections/token/tokenSlice';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ================================
+// TYPES
+// ================================
 
 export interface SaveLocationData {
   label: string;
   location: {
     type: string;
-    coordinates: number[]; // [longitude, latitude]
+    coordinates: number[];
     address: string;
     city: string;
     state: string;
@@ -28,29 +46,34 @@ export interface LocationResponse {
   message?: string;
 }
 
+// ================================
+// LOCATION API
+// ================================
+
 export const locationApi = {
   // Get location and GPS tracking status
   getLocation: async (): Promise<LocationResponse> => {
     try {
-      const token = await getToken();
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_FULL_LOCATION}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.GET_FULL_LOCATION),
       );
-      const result = await response.json();
+
       return {
-        success: response.ok,
-        data: result.data,
-        message: result.message,
+        success: true,
+        data: data?.data,
+        message: data?.message,
       };
     } catch (error) {
       console.error('Error getting location:', error);
+
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          data: error.data,
+          message: error.message,
+        };
+      }
+
       return { success: false, message: String(error) };
     }
   },
@@ -67,48 +90,45 @@ export const locationApi = {
     placeId: string = '',
   ): Promise<LocationResponse> => {
     try {
-      const token = await getToken();
       const requestBody = {
         label: address.substring(0, 50),
         location: {
           type: 'Point',
-          coordinates: [lng, lat], // GeoJSON: [longitude, latitude]
-          address: address,
-          city: city,
-          state: state,
-          country: country,
-          pinCode: pinCode,
+          coordinates: [lng, lat],
+          address,
+          city,
+          state,
+          country,
+          pinCode,
         },
         isDefault: true,
-        placeId: placeId,
+        placeId,
       };
 
-      console.log('📤 Saving location:', JSON.stringify(requestBody, null, 2));
-
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_LOCATION_ADDRESS}`,
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.POST_LOCATION_ADDRESS),
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify(requestBody),
         },
       );
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error('Save location error:', result);
-      }
 
       return {
-        success: response.ok,
-        data: result.data,
-        message: result.message,
+        success: true,
+        data: data?.data,
+        message: data?.message,
       };
     } catch (error) {
       console.error('Error saving location:', error);
+
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          data: error.data,
+          message: error.message,
+        };
+      }
+
       return { success: false, message: String(error) };
     }
   },
@@ -116,28 +136,30 @@ export const locationApi = {
   // Update GPS tracking status only
   updateGpsTracking: async (enabled: boolean): Promise<LocationResponse> => {
     try {
-      const token = await getToken();
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_GPS_TRACKING_ENABLED}`,
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.POST_GPS_TRACKING_ENABLED),
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            gpsTrackingEnabled: enabled,
-          }),
+          body: JSON.stringify({ gpsTrackingEnabled: enabled }),
         },
       );
-      const result = await response.json();
+
       return {
-        success: response.ok,
-        data: result.data,
-        message: result.message,
+        success: true,
+        data: data?.data,
+        message: data?.message,
       };
     } catch (error) {
       console.error('Error updating GPS tracking:', error);
+
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          data: error.data,
+          message: error.message,
+        };
+      }
+
       return { success: false, message: String(error) };
     }
   },

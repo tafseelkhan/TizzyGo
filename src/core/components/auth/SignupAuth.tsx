@@ -1,801 +1,1045 @@
-// SignupScreen.tsx - Sirf upar ke imports change karo, baaki sab same rahega
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Alert,
-  Dimensions,
   ActivityIndicator,
-  Keyboard,
-  Animated,
-  Image,
+  KeyboardAvoidingView,
+  Platform,
   SafeAreaView,
   StatusBar,
+  Image,
+  Keyboard,
+  Animated,
+  Easing,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Icon from 'react-native-vector-icons/Ionicons';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import LottieView from 'lottie-react-native';
+import Icon from 'react-native-vector-icons/Feather';
+import LinearGradient from 'react-native-linear-gradient';
+import CountryPicker, {
+  Country,
+  CountryCode,
+} from 'react-native-country-picker-modal';
+
+// 👇 SVG Imports
+import SignupIllustration from '../../../assets/svg/illustrations/tizzygo-os_sign-up_qamz.svg';
+import ProfileIllustration from '../../../assets/svg/illustrations/tizzygo-os_profile-image_2hi8.svg';
+import AccessIllustration from '../../../assets/svg/illustrations/tizzygo-os_access-account_aydp.svg';
+import ForgotPasswordIllustration from '../../../assets/svg/illustrations/tizzygo-os_forgot-password_nttj.svg';
+
 import { RootStackParamList } from '../../types/NavigationTypes';
-
-// Yahan sirf ye 3 imports add karo
-import { signupService } from '../../services/auth/signupService';
 import {
-  validateSignupForm,
-  isPhoneNumber,
-} from '../../utils/auth/signupValidation';
-import {
-  setupKeyboardAnimations,
-  startInitialAnimations,
-} from '../../utils/auth/signupAnimations';
-import { useCountdownTimer } from '../../utils/auth/signupTimer';
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  signup,
+  verifyPhone,
+  resendOtp,
+} from '../../../api/features/public/authPublicSlice';
+import { ApiError } from '../../../core/utils/handler/apiClient';
+import TermsPolicyDialog from './terms-policy';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 export default function SignupScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [step, setStep] = useState<'form' | 'otp'>('form');
-  const [emailOrPhone, setEmailOrPhone] = useState('');
-  const [name, setName] = useState('');
-  const [otp, setOtp] = useState('');
-  const [msg, setMsg] = useState('');
-  const [waitTime, setWaitTime] = useState(0);
-  const [errors, setErrors] = useState({ name: '', emailOrPhone: '' });
-  const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
+
+  const [step, setStep] = useState<number | 'otp'>(1);
+
+  // Form State
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Country Picker State
+  const [countryCode, setCountryCode] = useState<CountryCode>('IN');
+  const [callingCode, setCallingCode] = useState('91');
+  const [isCountryPickerVisible, setIsCountryPickerVisible] = useState(false);
+
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  const scrollViewRef = useRef<ScrollView>(null);
-  const lottieRef = useRef<LottieView>(null);
+  // UI State
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Animation values
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-30)).current;
-  const formOpacity = useRef(new Animated.Value(0)).current;
-  const formScale = useRef(new Animated.Value(0.9)).current;
-  const nameInputOpacity = useRef(new Animated.Value(0)).current;
-  const nameInputTranslateX = useRef(new Animated.Value(-20)).current;
-  const emailInputOpacity = useRef(new Animated.Value(0)).current;
-  const emailInputTranslateX = useRef(new Animated.Value(-20)).current;
-  const checkboxOpacity = useRef(new Animated.Value(0)).current;
-  const checkboxTranslateY = useRef(new Animated.Value(20)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const buttonTranslateY = useRef(new Animated.Value(20)).current;
-  const lottieOpacity = useRef(new Animated.Value(1)).current;
+  // API State
+  const [verificationId, setVerificationId] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
 
-  const isPhone = isPhoneNumber(emailOrPhone);
-  const isEmail = emailOrPhone.includes('@');
+  // OTP State
+  const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
+  const otpInputs = useRef<Array<React.ElementRef<typeof TextInput> | null>>(
+    [],
+  );
+  const boxAnims = useRef(
+    Array(6)
+      .fill(0)
+      .map(() => new Animated.Value(0)),
+  ).current;
 
-  // Use custom timer hook
-  useCountdownTimer(waitTime, setWaitTime);
+  // OTP Timer State
+  const [expirationTimestamp, setExpirationTimestamp] = useState<number | null>(
+    null,
+  );
+  const [timeLeft, setTimeLeft] = useState<number>(0);
 
-  // Keyboard listeners using utility
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const otp = otpArray.join('');
+
+  const primaryColor = '#5EE817';
+  const errorColor = '#FF4D4D';
+
+  // --- OTP TIMER EFFECT ---
   useEffect(() => {
-    const { onKeyboardShow, onKeyboardHide } = setupKeyboardAnimations(
-      setIsKeyboardVisible,
-      lottieOpacity,
-    );
+    if (!expirationTimestamp) return;
 
-    const keyboardDidShowListener = Keyboard.addListener(
-      'keyboardDidShow',
-      onKeyboardShow,
-    );
-    const keyboardDidHideListener = Keyboard.addListener(
-      'keyboardDidHide',
-      onKeyboardHide,
-    );
+    const interval = setInterval(() => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((expirationTimestamp - Date.now()) / 1000),
+      );
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
 
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
-
-  // Initial animations using utility
-  useEffect(() => {
-    startInitialAnimations(
-      headerOpacity,
-      headerTranslateY,
-      formOpacity,
-      formScale,
-      nameInputOpacity,
-      nameInputTranslateX,
-      emailInputOpacity,
-      emailInputTranslateX,
-      checkboxOpacity,
-      checkboxTranslateY,
-      buttonOpacity,
-      buttonTranslateY,
+    const initialRemaining = Math.max(
+      0,
+      Math.ceil((expirationTimestamp - Date.now()) / 1000),
     );
-  }, []);
+    setTimeLeft(initialRemaining);
 
-  const handleEmailPhoneFocus = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({ y: 150, animated: true });
-    }, 100);
+    return () => clearInterval(interval);
+  }, [expirationTimestamp]);
+
+  const formatTime = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const handleSignup = async () => {
-    const newErrors = validateSignupForm(name, emailOrPhone);
-    setErrors(newErrors);
+  const isOtpExpired = timeLeft <= 0 && expirationTimestamp !== null;
+  const canResend =
+    isOtpExpired &&
+    !!verificationId &&
+    !isResending &&
+    !isAnimating &&
+    !isLoading;
 
-    if (newErrors.name || newErrors.emailOrPhone) return;
+  // --- OTP ANIMATIONS ---
+  const playWrongOtpAnimation = () => {
+    setIsAnimating(true);
+    const animations = boxAnims.map((anim, index) => {
+      const delay = (5 - index) * 100;
+      return Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, {
+          toValue: -150,
+          duration: 400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]);
+    });
 
-    if (!agreeTerms) {
-      Alert.alert(
-        'Terms Required',
-        'Please agree to Terms of Use and Privacy Policy',
-      );
+    Animated.parallel(animations).start(() => {
+      setOtpArray(['', '', '', '', '', '']);
+      boxAnims.forEach(anim => anim.setValue(0));
+      setIsAnimating(false);
+      setErrors({ ...errors, otp: 'Invalid OTP. Please try again.' });
+      otpInputs.current[0]?.focus();
+    });
+  };
+
+  const playSuccessOtpAnimation = () => {
+    setIsAnimating(true);
+    const animations = boxAnims.map((anim, index) => {
+      const delay = index * 100;
+      return Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, {
+          toValue: 150,
+          duration: 300,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]);
+    });
+
+    Animated.parallel(animations).start(() => {
+      navigation.reset({ index: 0, routes: [{ name: 'CustomerShop' }] });
+    });
+  };
+
+  // --- OTP HANDLERS ---
+  const handleOtpChange = (text: string, index: number) => {
+    if (isAnimating) return;
+    const cleaned = text.replace(/[^0-9]/g, '');
+
+    if (cleaned.length > 1) {
+      const pasted = cleaned.slice(0, 6).split('');
+      const newOtp = [...otpArray];
+      pasted.forEach((d, i) => {
+        if (index + i < 6) newOtp[index + i] = d;
+      });
+      setOtpArray(newOtp);
+      const lastFilled = Math.min(index + pasted.length, 5);
+      otpInputs.current[lastFilled]?.focus();
       return;
     }
 
-    setIsLoading(true);
-    const res = await signupService.sendOTP(emailOrPhone);
+    const newOtp = [...otpArray];
+    newOtp[index] = cleaned;
+    setOtpArray(newOtp);
+    setErrors({ ...errors, otp: '' });
 
-    if (res.success) {
-      setMsg(res.message);
-      setStep('otp');
-      setWaitTime(30);
-    } else {
-      Alert.alert('Error', res.message);
+    if (cleaned && index < 5) {
+      otpInputs.current[index + 1]?.focus();
     }
-    setIsLoading(false);
+  };
+
+  const handleOtpKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otpArray[index] && index > 0) {
+      otpInputs.current[index - 1]?.focus();
+    }
+  };
+
+  // --- VALIDATIONS ---
+  const validateStep1 = () => {
+    let newErrors: Record<string, string> = {};
+    if (!firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!/^[a-z0-9._-]{3,50}$/i.test(username.trim())) {
+      newErrors.username = '3-50 chars (letters, numbers, . _ -)';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateStep2 = () => {
+    let newErrors: Record<string, string> = {};
+    if (!/^\d{8,15}$/.test(phone.replace(/[\s\-()]/g, ''))) {
+      newErrors.phone = 'Enter valid phone number';
+    }
+    if (password.length < 8) {
+      newErrors.password = 'Must be at least 8 characters';
+    }
+    if (password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNextStep = () => {
+    Keyboard.dismiss();
+    if (step === 1 && validateStep1()) setStep(2);
+    else if (step === 2 && validateStep2()) setStep(3);
+  };
+
+  // --- API CALLS ---
+  const handleSignup = async () => {
+    if (!agreeTerms) return;
+    Keyboard.dismiss();
+    setIsLoading(true);
+    try {
+      const res = await signup({
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+        username: username.trim().toLowerCase(),
+        password,
+        confirmPassword,
+        phone: `+${callingCode} ${phone.trim()}`,
+        termsAccepted: agreeTerms,
+      });
+
+      if (res.verificationId) {
+        setVerificationId(res.verificationId);
+        const expiresIn = res.expiresInSeconds ?? 240;
+        const expiresAt = Date.now() + expiresIn * 1000;
+        setExpirationTimestamp(expiresAt);
+        setTimeLeft(expiresIn);
+        setStep('otp');
+      }
+    } catch (err) {
+      Alert.alert(
+        'Signup Error',
+        err instanceof ApiError ? err.message : 'Something went wrong.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerify = async () => {
-    if (!otp) {
-      Alert.alert('OTP Required', 'Please enter the OTP');
+    if (isOtpExpired) {
+      Alert.alert('OTP Expired', 'Please request a new OTP to continue.');
       return;
     }
-
-    setIsLoading(true);
-    const res = await signupService.verifyOTP(emailOrPhone, otp, name);
-
-    if (res.success) {
-      navigation.navigate('CustomerShop');
-    } else {
-      Alert.alert('Error', res.message);
+    if (!/^\d{6}$/.test(otp)) {
+      setErrors({ otp: 'Enter valid 6-digit OTP' });
+      return;
     }
-    setIsLoading(false);
-  };
-
-  const handleResendOTP = async () => {
-    if (waitTime > 0) return;
+    Keyboard.dismiss();
     setIsLoading(true);
-    const res = await signupService.resendOTP(emailOrPhone);
-    if (res.success) {
-      setMsg(res.message);
-      setWaitTime(30);
-    } else {
-      Alert.alert('Error', res.message);
+    setErrors({});
+    try {
+      await verifyPhone({ verificationId, code: otp });
+      playSuccessOtpAnimation();
+    } catch (err) {
+      playWrongOtpAnimation();
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  // Animated styles (same as before)
-  const headerAnimatedStyle = {
-    opacity: headerOpacity,
-    transform: [{ translateY: headerTranslateY }],
+  const handleResendOtp = async () => {
+    if (!canResend || !verificationId) return;
+
+    Keyboard.dismiss();
+    setIsResending(true);
+    setErrors({ ...errors, otp: '' });
+
+    try {
+      const res = await resendOtp({ verificationId });
+
+      if (res.verificationId) {
+        setVerificationId(res.verificationId);
+      }
+
+      // 👇 Backend response ke expiresInSeconds se timer set karo
+      const expiresIn = res.expiresInSeconds ?? 240;
+      const expiresAt = Date.now() + expiresIn * 1000;
+      setExpirationTimestamp(expiresAt);
+      setTimeLeft(expiresIn);
+
+      setOtpArray(['', '', '', '', '', '']);
+      boxAnims.forEach(anim => anim.setValue(0));
+      otpInputs.current[0]?.focus();
+
+      Alert.alert('OTP Sent', res.message || 'A new OTP has been sent.');
+    } catch (err) {
+      Alert.alert(
+        'Resend Failed',
+        err instanceof ApiError ? err.message : 'Unable to resend OTP.',
+      );
+    } finally {
+      setIsResending(false);
+    }
   };
 
-  const formAnimatedStyle = {
-    opacity: formOpacity,
-    transform: [{ scale: formScale }],
+  const getInputContainerStyle = (fieldName: string) => [
+    styles.inputContainer,
+    focusedInput === fieldName && {
+      borderColor: primaryColor,
+      backgroundColor: '#FFFFFF',
+    },
+    errors[fieldName] && { borderColor: errorColor },
+  ];
+
+  const renderHeader = () => {
+    if (step === 'otp') return 'Verify Number';
+    return ['', 'Create Account', 'Security Setup', 'Review Details'][step];
   };
 
-  const nameInputAnimatedStyle = {
-    opacity: nameInputOpacity,
-    transform: [{ translateX: nameInputTranslateX }],
-  };
-
-  const emailInputAnimatedStyle = {
-    opacity: emailInputOpacity,
-    transform: [{ translateX: emailInputTranslateX }],
-  };
-
-  const checkboxAnimatedStyle = {
-    opacity: checkboxOpacity,
-    transform: [{ translateY: checkboxTranslateY }],
-  };
-
-  const buttonAnimatedStyle = {
-    opacity: buttonOpacity,
-    transform: [{ translateY: buttonTranslateY }],
-  };
-
-  const lottieAnimatedStyle = {
-    opacity: lottieOpacity,
+  const renderIllustration = () => {
+    if (step === 1) return <SignupIllustration width={280} height={180} />;
+    if (step === 2) return <ProfileIllustration width={280} height={180} />;
+    if (step === 3) return <AccessIllustration width={280} height={180} />;
+    if (step === 'otp')
+      return <ForgotPasswordIllustration width={280} height={180} />;
+    return null;
   };
 
   return (
-    <>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+    <View style={styles.mainContainer}>
+      <StatusBar barStyle="dark-content" />
+      <LinearGradient
+        colors={['#F2FCE4', '#FFFFFF']}
+        style={styles.backgroundGradient}
+      />
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          {/* Background Gradient */}
-          <View style={styles.background}>
-            <View style={[styles.gradientLayer, styles.gradientStart]} />
-            <View style={[styles.gradientLayer, styles.gradientEnd]} />
-          </View>
-
-          <ScrollView
-            ref={scrollViewRef}
-            contentContainerStyle={[
-              styles.scrollContainer,
-              isKeyboardVisible && styles.scrollContainerKeyboardOpen,
-            ]}
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        >
+          <KeyboardAwareScrollView
+            innerRef={ref => {
+              scrollViewRef.current = ref as any;
+            }}
+            contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
+            extraScrollHeight={Platform.OS === 'android' ? 80 : 20}
+            extraHeight={Platform.OS === 'android' ? 100 : 0}
           >
-            {/* Header */}
-            {!isKeyboardVisible && (
-              <Animated.View style={[styles.header, headerAnimatedStyle]}>
-                <View style={styles.logoContainer}>
-                  <Image
-                    source={require('../../../assets/images/tizzy-logo.jpg')}
-                    style={styles.appLogo}
-                    resizeMode="contain"
-                  />
-                </View>
-                <Text style={styles.title}>Welcome to TizzyGo</Text>
-                <Text style={styles.subtitle}>
-                  {step === 'form'
-                    ? 'Create your account to get started'
-                    : 'Verify your account'}
-                </Text>
-              </Animated.View>
-            )}
-
-            {/* Solid Switch Tabs - Now with real vector icons */}
-            <View style={styles.tabsContainer}>
-              <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-                <Icon
-                  name="person-add-outline"
-                  size={20}
-                  color="#ffffff"
-                  style={styles.tabIcon}
-                />
-                <Text style={styles.tabTextActive}>SignUp</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={() => navigation.navigate('Login')}
-              >
-                <Icon
-                  name="log-in-outline"
-                  size={20}
-                  color="#6b7280"
-                  style={styles.tabIcon}
-                />
-                <Text style={styles.tabText}>LogIn</Text>
-              </TouchableOpacity>
+            <View style={styles.navBar}>
+              {step !== 1 ? (
+                <TouchableOpacity
+                  style={styles.backCircle}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    if (step === 'otp') {
+                      setStep(3);
+                      return;
+                    }
+                    setStep((step as number) - 1);
+                  }}
+                  disabled={isAnimating}
+                >
+                  <Icon name="chevron-left" size={24} color="#000" />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 40 }} />
+              )}
+              <View style={{ flex: 1 }} />
             </View>
 
-            {/* Solid Form Container */}
-            <Animated.View style={[styles.formContainer, formAnimatedStyle]}>
-              {step === 'form' ? (
-                <View style={styles.formContent}>
-                  {/* Name Input */}
-                  <Animated.View
-                    style={[
-                      styles.inputContainer,
-                      errors.name && styles.inputError,
-                      nameInputAnimatedStyle,
-                    ]}
-                  >
-                    <Text style={styles.inputLabel}>Full Name</Text>
-                    <View style={styles.inputWrapper}>
-                      <FontAwesome
-                        name="user-o"
-                        size={20}
-                        color="#9ca3af"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Enter your full name"
-                        placeholderTextColor="#9ca3af"
-                        value={name}
-                        onChangeText={text => {
-                          setName(text);
-                          setErrors({ ...errors, name: '' });
-                        }}
-                        returnKeyType="next"
-                      />
-                    </View>
-                    {errors.name ? (
-                      <Text style={styles.errorText}>{errors.name}</Text>
-                    ) : null}
-                  </Animated.View>
+            <View style={styles.headerContent}>
+              <Text style={styles.title}>{renderHeader()}</Text>
+              <Text style={styles.subtitle}>
+                {step === 1
+                  ? 'Please enter your details to continue'
+                  : step === 2
+                    ? 'Create a secure password for your account'
+                    : step === 3
+                      ? 'Review your info before creating account'
+                      : 'Enter the OTP sent to your phone'}
+              </Text>
+            </View>
 
-                  {/* Email/Phone Input */}
-                  <Animated.View
-                    style={[
-                      styles.inputContainer,
-                      errors.emailOrPhone && styles.inputError,
-                      emailInputAnimatedStyle,
-                    ]}
-                  >
-                    <Text style={styles.inputLabel}>Email or Phone</Text>
-                    <View style={styles.inputWrapper}>
-                      <MaterialIcon
-                        name="email"
-                        size={20}
-                        color="#9ca3af"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Enter email or phone number"
-                        placeholderTextColor="#9ca3af"
-                        value={emailOrPhone}
-                        onChangeText={text => {
-                          setEmailOrPhone(text);
-                          setErrors({ ...errors, emailOrPhone: '' });
-                        }}
-                        keyboardType={isPhone ? 'phone-pad' : 'email-address'}
-                        autoCapitalize="none"
-                        returnKeyType="done"
-                        onFocus={handleEmailPhoneFocus}
-                      />
-                    </View>
-                    {errors.emailOrPhone ? (
-                      <Text style={styles.errorText}>
-                        {errors.emailOrPhone}
-                      </Text>
-                    ) : null}
-                  </Animated.View>
+            <View style={styles.illustrationContainer}>
+              {renderIllustration()}
+            </View>
 
-                  {/* Checkbox - Terms & Privacy */}
-                  <Animated.View
-                    style={[styles.checkboxContainer, checkboxAnimatedStyle]}
-                  >
-                    <TouchableOpacity
-                      style={styles.checkboxRow}
-                      onPress={() => setAgreeTerms(!agreeTerms)}
-                      activeOpacity={0.7}
-                    >
-                      <View
-                        style={[
-                          styles.checkbox,
-                          agreeTerms && styles.checkboxChecked,
-                        ]}
-                      >
-                        {agreeTerms && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
-                      <Text style={styles.checkboxLabel}>
-                        I agree to <Text style={styles.link}>Terms</Text> and{' '}
-                        <Text style={styles.link}>Privacy Policy</Text>
-                      </Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-
-                  {/* Signup Button */}
-                  <Animated.View style={buttonAnimatedStyle}>
-                    <TouchableOpacity
-                      style={[
-                        styles.button,
-                        isLoading && styles.buttonDisabled,
-                      ]}
-                      onPress={handleSignup}
-                      disabled={isLoading}
-                      activeOpacity={0.9}
-                    >
-                      <View style={styles.buttonGradient}>
-                        {isLoading ? (
-                          <ActivityIndicator color="#ffffff" size="small" />
-                        ) : (
-                          <>
-                            <Icon
-                              name="arrow-forward-outline"
-                              size={20}
-                              color="#ffffff"
-                              style={styles.buttonIcon}
-                            />
-                            <Text style={styles.buttonText}>
-                              Create Account
-                            </Text>
-                          </>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </View>
-              ) : (
-                <View style={styles.otpContent}>
-                  {/* OTP Message */}
-                  <View style={styles.otpMessage}>
-                    <MaterialIcon
-                      name="mail-outline"
-                      size={32}
-                      color="#059669"
+            {step === 1 && (
+              <View style={styles.formContainer}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>First Name</Text>
+                  <View style={getInputContainerStyle('firstName')}>
+                    <Icon
+                      name="user"
+                      size={20}
+                      color="#555"
+                      style={styles.inputIcon}
                     />
-                    <Text style={styles.otpMessageText}>{msg}</Text>
-                    <Text style={styles.otpMessageSubtext}>
-                      Check your messages for the OTP
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Your first name"
+                      placeholderTextColor="#999"
+                      value={firstName}
+                      onChangeText={t => {
+                        setFirstName(t);
+                        setErrors({ ...errors, firstName: '' });
+                      }}
+                      onFocus={() => setFocusedInput('firstName')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                  </View>
+                  {errors.firstName && (
+                    <Text style={styles.errorText}>{errors.firstName}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Last Name (Optional)</Text>
+                  <View style={getInputContainerStyle('lastName')}>
+                    <Icon
+                      name="user"
+                      size={20}
+                      color="#555"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Your last name"
+                      placeholderTextColor="#999"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      onFocus={() => setFocusedInput('lastName')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Username</Text>
+                  <View style={getInputContainerStyle('username')}>
+                    <Icon
+                      name="at-sign"
+                      size={20}
+                      color="#555"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your unique username"
+                      placeholderTextColor="#999"
+                      autoCapitalize="none"
+                      value={username}
+                      onChangeText={t => {
+                        setUsername(t);
+                        setErrors({ ...errors, username: '' });
+                      }}
+                      onFocus={() => setFocusedInput('username')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                  </View>
+                  {errors.username && (
+                    <Text style={styles.errorText}>{errors.username}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {step === 2 && (
+              <View style={styles.formContainer}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Phone</Text>
+                  <View style={getInputContainerStyle('phone')}>
+                    <CountryPicker
+                      countryCode={countryCode}
+                      withFilter
+                      withFlag
+                      withCallingCode
+                      withEmoji
+                      visible={isCountryPickerVisible}
+                      onSelect={(country: Country) => {
+                        setCountryCode(country.cca2);
+                        setCallingCode(country.callingCode[0]);
+                        setIsCountryPickerVisible(false);
+                      }}
+                      onClose={() => setIsCountryPickerVisible(false)}
+                      containerButtonStyle={styles.countryPickerButton}
+                    />
+                    <TouchableOpacity
+                      style={styles.countryPickerTrigger}
+                      onPress={() => setIsCountryPickerVisible(true)}
+                    >
+                      <Text style={styles.countryCodeText}>+{callingCode}</Text>
+                      <Icon
+                        name="chevron-down"
+                        size={16}
+                        color="#555"
+                        style={{ marginLeft: 4 }}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.dividerVertical} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={t => {
+                        setPhone(t);
+                        setErrors({ ...errors, phone: '' });
+                      }}
+                      onFocus={() => setFocusedInput('phone')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                  </View>
+                  {errors.phone && (
+                    <Text style={styles.errorText}>{errors.phone}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={getInputContainerStyle('password')}>
+                    <Icon
+                      name="lock"
+                      size={20}
+                      color="#555"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Create a strong password"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                      value={password}
+                      onChangeText={t => {
+                        setPassword(t);
+                        setErrors({ ...errors, password: '' });
+                      }}
+                      onFocus={() => setFocusedInput('password')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      <Icon
+                        name={showPassword ? 'eye-off' : 'eye'}
+                        size={20}
+                        color="#555"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password && (
+                    <Text style={styles.errorText}>{errors.password}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirm Password</Text>
+                  <View style={getInputContainerStyle('confirmPassword')}>
+                    <Icon
+                      name="lock"
+                      size={20}
+                      color="#555"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm your password"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showConfirmPassword}
+                      value={confirmPassword}
+                      onChangeText={t => {
+                        setConfirmPassword(t);
+                        setErrors({ ...errors, confirmPassword: '' });
+                      }}
+                      onFocus={() => setFocusedInput('confirmPassword')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                    <TouchableOpacity
+                      onPress={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      style={styles.eyeIcon}
+                    >
+                      <Icon
+                        name={showConfirmPassword ? 'eye-off' : 'eye'}
+                        size={20}
+                        color="#555"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.confirmPassword && (
+                    <Text style={styles.errorText}>
+                      {errors.confirmPassword}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {step === 3 && (
+              <View style={styles.formContainer}>
+                <View style={styles.summaryBox}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Name</Text>
+                    <Text style={styles.summaryValue}>
+                      {firstName} {lastName}
                     </Text>
                   </View>
-
-                  {/* OTP Input */}
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Verification Code</Text>
-                    <View style={styles.inputWrapper}>
-                      <MaterialIcon
-                        name="vpn-key"
-                        size={20}
-                        color="#9ca3af"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Enter 6-digit OTP"
-                        placeholderTextColor="#9ca3af"
-                        value={otp}
-                        onChangeText={setOtp}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        onFocus={handleEmailPhoneFocus}
-                      />
-                    </View>
+                  <View style={styles.dividerHorizontal} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Username</Text>
+                    <Text style={styles.summaryValue}>@{username}</Text>
                   </View>
+                  <View style={styles.dividerHorizontal} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Phone</Text>
+                    <Text style={styles.summaryValue}>
+                      +{callingCode} {phone}
+                    </Text>
+                  </View>
+                </View>
 
-                  {/* Verify Button */}
-                  <TouchableOpacity
-                    style={[styles.button, isLoading && styles.buttonDisabled]}
-                    onPress={handleVerify}
-                    disabled={isLoading}
-                    activeOpacity={0.9}
-                  >
-                    <View style={styles.buttonGradient}>
-                      {isLoading ? (
-                        <ActivityIndicator color="#ffffff" size="small" />
-                      ) : (
-                        <>
-                          <Icon
-                            name="checkmark-outline"
-                            size={20}
-                            color="#ffffff"
-                            style={styles.buttonIcon}
-                          />
-                          <Text style={styles.buttonText}>
-                            Verify & Continue
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.termsRow}
+                  onPress={() => setIsTermsOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.termsText}>
+                    By creating an account, you acknowledge that you have read
+                    and agree to our{' '}
+                    <Text style={styles.termsLink}>Terms & Policy</Text>.
+                    Acceptance is required to proceed with account creation.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-                  {/* Resend OTP */}
+            {step === 'otp' && (
+              <View style={styles.formContainer}>
+                <Text style={styles.label}>Enter 6-Digit OTP</Text>
+                <View style={styles.otpRow}>
+                  {otpArray.map((digit, index) => {
+                    const translateY = boxAnims[index].interpolate({
+                      inputRange: [-150, 0, 150],
+                      outputRange: [-150, 0, 150],
+                      extrapolate: 'clamp',
+                    });
+                    const translateX = boxAnims[index].interpolate({
+                      inputRange: [-150, 0, 150],
+                      outputRange: [0, 0, 150],
+                      extrapolate: 'clamp',
+                    });
+
+                    return (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.otpBox,
+                          focusedInput === `otp-${index}` &&
+                            styles.otpBoxFocused,
+                          digit ? styles.otpBoxFilled : null,
+                          errors.otp ? styles.otpBoxError : null,
+                          {
+                            transform: [{ translateY }, { translateX }],
+                            opacity: boxAnims[index].interpolate({
+                              inputRange: [-150, -100, 0, 100, 150],
+                              outputRange: [0, 1, 1, 1, 0],
+                              extrapolate: 'clamp',
+                            }),
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          ref={ref => {
+                            otpInputs.current[index] = ref;
+                          }}
+                          style={styles.otpInput}
+                          value={digit}
+                          onChangeText={text => handleOtpChange(text, index)}
+                          onKeyPress={e => handleOtpKeyPress(e, index)}
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          selectTextOnFocus
+                          autoFocus={index === 0}
+                          onFocus={() => setFocusedInput(`otp-${index}`)}
+                          onBlur={() => setFocusedInput(null)}
+                          editable={!isOtpExpired && !isAnimating}
+                        />
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+
+                {errors.otp && (
+                  <Text style={styles.errorText}>{errors.otp}</Text>
+                )}
+
+                <View style={styles.timerRow}>
+                  {isOtpExpired ? (
+                    <Text style={styles.timerExpiredText}>OTP has expired</Text>
+                  ) : (
+                    <Text style={styles.timerText}>
+                      OTP expires in {formatTime(timeLeft)}
+                    </Text>
+                  )}
+                </View>
+
+                {/* 👇 Resend OTP button - SIRF tab dikhega jab timer khatam ho */}
+                {isOtpExpired && (
                   <TouchableOpacity
                     style={[
                       styles.resendButton,
-                      (waitTime > 0 || isLoading) &&
-                        styles.resendButtonDisabled,
+                      !canResend && styles.resendButtonDisabled,
                     ]}
-                    onPress={handleResendOTP}
-                    disabled={waitTime > 0 || isLoading}
+                    onPress={handleResendOtp}
+                    disabled={!canResend}
                     activeOpacity={0.7}
                   >
-                    {isLoading ? (
-                      <ActivityIndicator color="#059669" size="small" />
-                    ) : waitTime > 0 ? (
-                      <Text style={styles.resendTextDisabled}>
-                        Resend in {waitTime}s
-                      </Text>
+                    {isResending ? (
+                      <ActivityIndicator size="small" color="#5EE817" />
                     ) : (
-                      <Text style={styles.resendText}>Resend OTP</Text>
+                      <Text style={styles.resendButtonText}>Resend OTP</Text>
                     )}
                   </TouchableOpacity>
+                )}
+              </View>
+            )}
 
-                  {/* Back to Signup */}
-                  <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => setStep('form')}
-                    disabled={isLoading}
-                    activeOpacity={0.7}
-                  >
-                    <Icon
-                      name="arrow-back-outline"
-                      size={18}
-                      color="#6b7280"
-                      style={styles.backIcon}
-                    />
-                    <Text style={styles.backText}> Back to Signup</Text>
-                  </TouchableOpacity>
-                </View>
+            <View style={{ flex: 1, minHeight: 40 }} />
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { backgroundColor: primaryColor },
+                !agreeTerms && step === 3 && { opacity: 0.5 },
+                step === 'otp' && isOtpExpired && { opacity: 0.5 },
+                isAnimating && { opacity: 0.7 },
+              ]}
+              onPress={
+                step === 3
+                  ? handleSignup
+                  : step === 'otp'
+                    ? handleVerify
+                    : handleNextStep
+              }
+              disabled={
+                isLoading ||
+                (!agreeTerms && step === 3) ||
+                (step === 'otp' && isOtpExpired) ||
+                isAnimating
+              }
+              activeOpacity={0.8}
+            >
+              {isLoading || isAnimating ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {step === 1
+                    ? 'Continue'
+                    : step === 2
+                      ? 'Continue'
+                      : step === 3
+                        ? 'Sign Up'
+                        : 'Verify & Login'}
+                </Text>
               )}
-            </Animated.View>
-          </ScrollView>
-        </View>
+            </TouchableOpacity>
+
+            {/* Already have an account - ONLY ON STEP 1 */}
+            {step === 1 && (
+              <View style={styles.loginRedirectRow}>
+                <Text style={styles.loginRedirectText}>
+                  Already have an account?{' '}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Login' as never)}
+                >
+                  <Text style={styles.loginRedirectLink}>Login</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={styles.brandFooter}>
+              <View style={styles.brandRow}>
+                <Image
+                  source={require('../../../assets/images/tizzy-logo.jpg')}
+                  style={styles.brandLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.brandName}>TizzyGo</Text>
+              </View>
+              <View style={styles.builtWithRow}>
+                <Image
+                  source={require('../../../assets/images/quton-alphabet.png')}
+                  style={styles.qutonLogo}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+          </KeyboardAwareScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
-    </>
+
+      <TermsPolicyDialog
+        open={isTermsOpen}
+        onClose={() => setIsTermsOpen(false)}
+        onAccept={() => {
+          setAgreeTerms(true);
+          setIsTermsOpen(false);
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
+  mainContainer: { flex: 1, backgroundColor: '#FFFFFF' },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  background: {
-    ...StyleSheet.absoluteFill,
-  },
-  gradientLayer: {
-    ...StyleSheet.absoluteFill,
-  },
-  gradientStart: {
-    backgroundColor: '#f0fdfa',
-    opacity: 0.8,
-  },
-  gradientEnd: {
-    backgroundColor: '#e0f2fe',
-    opacity: 0.6,
-  },
+  safeArea: { flex: 1 },
+  container: { flex: 1 },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 20,
   },
-  scrollContainerKeyboardOpen: {
-    paddingTop: 10,
-  },
-  header: {
+  navBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 100,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  logoContainer: {
-    width: 100,
-    height: 100,
-    marginBottom: -30,
-    marginLeft: 50,
+  backCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  appLogo: {
-    width: 60,
-    height: 60,
+  illustrationContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+    height: 180,
   },
+  headerContent: { marginBottom: 16, alignItems: 'center' },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1A1A1A',
     marginBottom: 8,
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: 15,
+    color: '#777777',
+    lineHeight: 22,
     textAlign: 'center',
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 6,
-    marginBottom: 25,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-  },
-  tabActive: {
-    backgroundColor: '#3b82f6',
-  },
-  tabIcon: {
-    marginRight: 8,
-  },
-  tabText: {
-    fontSize: 16,
+  formContainer: { gap: 16 },
+  inputGroup: { marginBottom: 2 },
+  label: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
-  },
-  tabTextActive: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  formContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  formContent: {
-    gap: 20,
-  },
-  otpContent: {
-    gap: 20,
+    color: '#1A1A1A',
+    marginBottom: 8,
+    marginLeft: 4,
   },
   inputContainer: {
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 18,
     paddingHorizontal: 16,
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  inputError: {
-    borderColor: '#f87171',
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  checkboxContainer: {
-    marginBottom: 8,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 2,
-    backgroundColor: '#ffffff',
-  },
-  checkboxChecked: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
-  },
-  checkmark: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#374151',
-  },
-  link: {
-    color: '#059669',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  button: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
     height: 56,
   },
-  buttonGradient: {
-    flex: 1,
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 16, color: '#1A1A1A', height: '100%' },
+  eyeIcon: { padding: 8 },
+  countryPickerButton: { width: 0, height: 0 },
+  countryPickerTrigger: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2dd4bf',
+    paddingRight: 8,
   },
-  buttonIcon: {
-    marginRight: 8,
+  countryCodeText: { fontSize: 16, color: '#1A1A1A', fontWeight: '500' },
+  dividerVertical: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    marginHorizontal: 12,
   },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  otpMessage: {
-    backgroundColor: '#f0fdf4',
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    alignItems: 'center',
-    gap: 8,
-  },
-  otpMessageText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#065f46',
-    textAlign: 'center',
-  },
-  otpMessageSubtext: {
-    fontSize: 12,
-    color: '#047857',
-    textAlign: 'center',
-  },
-  resendButton: {
-    backgroundColor: '#f0fdf4',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  resendButtonDisabled: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#e5e7eb',
-  },
-  resendText: {
-    color: '#059669',
-    fontSize: 16,
+  errorText: {
+    color: '#FF4D4D',
+    fontSize: 13,
+    marginTop: 4,
+    marginLeft: 8,
     fontWeight: '500',
   },
-  resendTextDisabled: {
-    color: '#9ca3af',
-    fontSize: 16,
-    fontWeight: '500',
+  summaryBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 16,
+    marginBottom: 10,
   },
-  backButton: {
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingVertical: 12,
+  },
+  summaryLabel: { fontSize: 14, color: '#777777', fontWeight: '500' },
+  summaryValue: { fontSize: 15, color: '#1A1A1A', fontWeight: '600' },
+  dividerHorizontal: { height: 1, backgroundColor: 'rgba(0,0,0,0.1)' },
+  termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  termsText: { flex: 1, fontSize: 14, color: '#555555', lineHeight: 22 },
+  termsLink: { color: '#10B981', fontWeight: '700' },
+  primaryButton: {
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 20,
+    shadowColor: '#5EE817',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  loginRedirectRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
   },
-  backIcon: {
-    marginRight: 4,
+  loginRedirectText: { fontSize: 14, color: '#555555', fontWeight: '500' },
+  loginRedirectLink: { fontSize: 14, color: '#10B981', fontWeight: '800' },
+  brandFooter: { alignItems: 'center', marginTop: 12, marginBottom: 10 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  brandLogo: { width: 24, height: 24, marginRight: 8, borderRadius: 4 },
+  brandName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  builtWithRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backText: {
-    color: '#6b7280',
-    fontSize: 14,
-    marginLeft: 4,
+  qutonLogo: { width: 180, height: 54 },
+  otpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 8,
   },
+  otpBox: {
+    width: 48,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  otpBoxFocused: { borderColor: '#5EE817', backgroundColor: '#FFFFFF' },
+  otpBoxFilled: { borderColor: '#5EE817' },
+  otpBoxError: {
+    borderColor: '#FF4D4D',
+    backgroundColor: 'rgba(255, 77, 77, 0.1)',
+  },
+  otpInput: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    width: '100%',
+    height: '100%',
+    padding: 0,
+  },
+  timerRow: { alignItems: 'center', marginTop: 12 },
+  timerText: { fontSize: 14, color: '#777777', fontWeight: '500' },
+  timerExpiredText: { fontSize: 14, color: '#FF4D4D', fontWeight: '600' },
+  resendButton: { alignItems: 'center', marginTop: 12, paddingVertical: 8 },
+  resendButtonDisabled: { opacity: 0.55 },
+  resendButtonText: { fontSize: 14, color: '#5EE817', fontWeight: '700' },
 });

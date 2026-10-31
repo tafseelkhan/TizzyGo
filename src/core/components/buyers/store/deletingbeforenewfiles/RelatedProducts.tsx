@@ -1,8 +1,8 @@
+// RelatedProducts.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   Image,
@@ -15,16 +15,26 @@ import {
   NavigationProp,
 } from '@react-navigation/native';
 import LikeComponent from '../../global/LikeGlobal';
+// ✅ NEW import
+import {
+  fetchRelatedProducts,
+  RelatedProduct,
+} from '../../../../../api/features/private/relatedProductsSlice';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Define navigation param list
 type RootStackParamList = {
-  ProductDetail: {
-    id: string;
-    category?: string;
-  };
-  // Add other routes as needed
+  ProductDetail: { id: string; category?: string };
+};
+
+// Local Product type alias (component ke andar same shape)
+type Product = RelatedProduct;
+
+
+type ProductDetailRouteProp = {
+  key: string;
+  name: 'ProductDetail';
+  params: { category: string; id: string };
 };
 
 // Custom Icon Components - replacing lucide-react-native
@@ -45,44 +55,14 @@ const ChevronRight = ({ size, color, style }: any) => {
   return <Text style={[style, { fontSize: size, color }]}>›</Text>;
 };
 
-type ProductDetailRouteProp = {
-  key: string;
-  name: 'ProductDetail';
-  params: {
-    category: string;
-    id: string;
-  };
-};
-
 interface Props {
   id: string;
   category?: string;
   userId?: string;
 }
 
-type Product = {
-  _id: string;
-  title: string;
-  description: string;
-  category?: string;
-  images?: any[];
-  videos?: any[];
-  originalPrice?: number;
-  price?: number;
-  FinalPrice?: number;
-  Discount?: number;
-  Offer?: number;
-  averageRating?: number;
-  reviewCount?: number;
-};
-
-// Get Media URL function
-const getMediaUrl = (item: string | { url: string }): string => {
-  if (typeof item === 'string') {
-    return item;
-  }
-  return item.url;
-};
+const getMediaUrl = (item: string | { url: string }): string =>
+  typeof item === 'string' ? item : item.url;
 
 const RelatedProducts: React.FC<Props> = ({ userId }) => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -95,45 +75,23 @@ const RelatedProducts: React.FC<Props> = ({ userId }) => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   useEffect(() => {
-    const fetchRelated = async () => {
-      try {
-        if (!id) throw new Error('Product ID is missing.');
+    const load = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
+      try {
         setLoading(true);
         setError(null);
 
-        // Slot = 1
-        const url = `http://10.210.13.121:1000/api/public/related/${id}?slot=1`;
-        console.log('Fetching related products from URL:', url);
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Failed to fetch related products:', errorText);
-          throw new Error('Failed to fetch related products.');
-        }
-
-        const raw = await response.json();
-
-        let data: Product[] = Array.isArray(raw)
-          ? raw
-          : raw.products
-          ? raw.products
-          : raw.data
-          ? raw.data
-          : [];
-
-        if (!Array.isArray(data)) data = [];
-
-        // Exclude current product
-        const related = data.filter(p => p._id !== id);
+        // ✅ API call — slot = 1
+        const related = await fetchRelatedProducts(id, 1);
 
         setProducts(related);
-
-        // Show 4 initially
         setDisplayedProducts(related.slice(0, 4));
-      } catch (error: any) {
-        setError(error.message || 'Failed to load related products.');
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load related products.');
         setProducts([]);
         setDisplayedProducts([]);
       } finally {
@@ -141,10 +99,9 @@ const RelatedProducts: React.FC<Props> = ({ userId }) => {
       }
     };
 
-    if (id) {
-      fetchRelated();
-    }
+    load();
   }, [id]);
+
 
   const handleViewMore = () => {
     if (showAll) {

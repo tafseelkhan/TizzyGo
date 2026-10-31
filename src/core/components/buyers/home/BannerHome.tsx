@@ -1,149 +1,183 @@
+// src/core/components/buyers/home/BannerHome.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
   StyleSheet,
   Animated,
+  Image,
+  ScrollView,
   Dimensions,
-  ColorValue
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+const BANNER_WIDTH = screenWidth - 30;
+const SPACING = 16;
+const SNAP_OFFSET = BANNER_WIDTH + SPACING;
+
+const BANNERS_DATA = [
+  { id: '1', image: require('../../../../assets/svg/banners/banner1.png') },
+  { id: '2', image: require('../../../../assets/svg/banners/banner2.png') },
+  { id: '3', image: require('../../../../assets/svg/banners/banner3.png') },
+  { id: '4', image: require('../../../../assets/svg/banners/banner4.png') },
+  { id: '5', image: require('../../../../assets/svg/banners/banner5.png') },
+];
 
 type BannerProps = {
   productsCount?: number;
 };
 
 const Banner: React.FC<BannerProps> = ({ productsCount = 0 }) => {
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { isDark } = useTheme();
-  const [bannerContent, setBannerContent] = useState({
-    title: "Best Deals",
-    subtitle: "Amazing products waiting for you"
-  });
-  
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  // Dynamic gradient based on theme
-  const getBannerGradient = (): string[] => {
-    if (isDark) {
-      // Dark theme gradient
-      return ['#0F766E', '#2DD4BF']; // Teal to Cyan
-    }
-    // Light theme gradient
-    return ['#FF8C00', '#fbff00ff']; // Orange to Yellow
-  };
+  
+  // ✅ Auto-scroll ref taaki dependency loop khatam ho
+  const scrollIndexRef = useRef(0);
+  const isUserSwipingRef = useRef(false);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 300,
+      duration: 400,
       useNativeDriver: true,
     }).start();
-    
-    // Fetch banner content from API
-    fetchBannerContent();
   }, []);
 
-  const fetchBannerContent = async () => {
-    try {
-      const response = await fetch('admin/send/messages');
-      const data = await response.json();
-      if (data.title && data.subtitle) {
-        setBannerContent({
-          title: data.title,
-          subtitle: data.subtitle
-        });
-      }
-    } catch (error) {
-      console.log('Error fetching banner content:', error);
+  // ✅ FIXED: Auto-scroll with useRef (No loop, no jitter)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isUserSwipingRef.current) return;
+
+      let nextIndex = (scrollIndexRef.current + 1) % BANNERS_DATA.length;
+      scrollIndexRef.current = nextIndex;
+      setActiveIndex(nextIndex);
+      
+      scrollRef.current?.scrollTo({
+        x: nextIndex * SNAP_OFFSET,
+        animated: true,
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, []); // ✅ Empty dependency array
+
+  // ✅ Manual swipe tracking
+  const onScrollBeginDrag = () => {
+    isUserSwipingRef.current = true;
+  };
+
+  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / SNAP_OFFSET);
+    
+    if (index !== scrollIndexRef.current && index >= 0 && index < BANNERS_DATA.length) {
+      setActiveIndex(index);
+      scrollIndexRef.current = index;
     }
+    isUserSwipingRef.current = false;
   };
 
-  const handleShopNow = () => {
-    navigation.navigate('/products/all');
-  };
-
-  // Only show banner if there are products
-  if (productsCount === 0) {
-    return null;
-  }
+  if (productsCount === 0) return null;
 
   return (
-    <Animated.View style={[styles.headerBanner, { opacity: fadeAnim }]}>
-      <LinearGradient
-        colors={getBannerGradient()}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.bannerGradient}
+    <Animated.View style={[styles.wrapper, { opacity: fadeAnim }]}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={SNAP_OFFSET}
+        decelerationRate="fast"
+        onScrollBeginDrag={onScrollBeginDrag}
+        onMomentumScrollEnd={onScrollEnd}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
       >
-        <Text style={styles.bannerTitle}>{bannerContent.title}</Text>
-        <Text style={styles.bannerSubtitle}>{bannerContent.subtitle}</Text>
-        <TouchableOpacity 
-          style={[
-            styles.shopNowButton,
-            { backgroundColor: isDark ? '#FFFFFF' : 'white' }
-          ]}
-          onPress={handleShopNow}
-        >
-          <Text style={[
-            styles.shopNowText,
-            { color: isDark ? '#0F766E' : '#FF8C00' }
-          ]}>Shop now</Text>
-        </TouchableOpacity>
-      </LinearGradient>
+        {BANNERS_DATA.map((banner) => (
+          <View key={banner.id} style={styles.bannerContainer}>
+            {/* ✅ Naya Wrapper: Android pe borderRadius ke liye zaroori hai */}
+            <View style={styles.imageWrapper}>
+              <Image
+                source={banner.image}
+                style={styles.bannerImage}
+                resizeMode="cover"
+              />
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* ✅ Animated Dots with "merged" effect */}
+      <View style={styles.paginationContainer}>
+        {BANNERS_DATA.map((_, index) => {
+          const isActive = activeIndex === index;
+          const isPrev = index === activeIndex - 1;
+          const isNext = index === activeIndex + 1;
+
+          return (
+            <Animated.View
+              key={index}
+              style={[
+                styles.paginationDot,
+                isActive && styles.paginationDotActive,
+                {
+                  backgroundColor: isActive
+                    ? isDark ? '#FFFFFF' : '#111827'
+                    : isDark ? '#475569' : '#D1D5DB',
+                  opacity: isActive ? 1 : isPrev || isNext ? 0.7 : 0.4,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  headerBanner: {
-    height: 200,
-    marginBottom: 16,
+  wrapper: {
+    marginBottom: 20,
   },
-  bannerGradient: {
-    flex: 1,
+  bannerContainer: {
+    width: BANNER_WIDTH,
+    height: 200,
+    borderRadius: 30,
+    overflow: 'hidden',       // ✅ Container pe radius
+    marginRight: SPACING,
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
-  bannerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+  imageWrapper: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,         // ✅ Wrapper pe bhi radius
+    overflow: 'hidden',       // ✅ Wrapper pe bhi overflow hidden
   },
-  bannerSubtitle: {
-    fontSize: 18,
-    color: 'white',
-    marginBottom: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,         // ✅ Image pe bhi radius (Android fix)
   },
-  shopNowButton: {
-    backgroundColor: 'white',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
   },
-  shopNowText: {
-    color: '#FF8C00',
-    fontWeight: 'bold',
-    fontSize: 16,
+  paginationDot: {
+    width: 8,
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 3,
+  },
+  paginationDotActive: {
+    width: 24,
+    borderRadius: 3,
   },
 });
 

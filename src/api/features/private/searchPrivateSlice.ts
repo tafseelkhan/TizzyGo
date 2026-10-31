@@ -1,10 +1,29 @@
-// api/features/private/searchPrivateSlice.ts - FINAL COMPLETE FIX
+// api/features/private/searchPrivateSlice.ts
 
-import Config from 'react-native-config';
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 // ================================
 // TYPES
@@ -58,104 +77,32 @@ export interface SearchResponse {
   message?: string;
 }
 
+// ================================
+// SEARCH API CLASS
+// ================================
+
 class SearchApi {
-  private getHeaders = async (): Promise<Record<string, string>> => {
-    try {
-      const token = await getToken();
-      console.log('📋 [SearchApi] Token:', token ? '✅ Present' : '❌ Missing');
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-        console.log('📋 [SearchApi] Authorization header added');
-      }
-
-      console.log('📋 [SearchApi] Headers:', JSON.stringify(headers, null, 2));
-      return headers;
-    } catch (error) {
-      console.error('❌ Error getting headers:', error);
-      return { 'Content-Type': 'application/json' };
-    }
-  };
-
   // ================================
-  // SEARCH PRODUCTS - COMPLETE FIX
+  // SEARCH PRODUCTS — public
   // ================================
 
   searchProductsAPI = async (query: string): Promise<SearchResponse> => {
-    console.log('========================================');
-    console.log('🔍 [SearchApi] searchProductsAPI CALLED');
-    console.log('========================================');
-    console.log('🔍 Query:', query);
-    console.log('🔍 TIZZYGO_API_BASE_URL:', TIZZYGO_API_BASE_URL);
-    console.log(
-      '🔍 API_ENDPOINTS.SEARCH_PRODUCTS:',
-      API_ENDPOINTS.SEARCH_PRODUCTS,
-    );
-
     if (!query || !query.trim()) {
-      console.log('❌ [SearchApi] Empty query');
       return { success: false, data: [] };
     }
 
     try {
-      // ✅ Build URL - TIZZYGO_API_BASE_URL already has /api/v0
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`;
-      console.log('🔍 [SearchApi] FULL URL:', url);
-
-      const headers = await this.getHeaders();
-
-      console.log('🔍 [SearchApi] Making fetch request...');
-      const startTime = Date.now();
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers,
-      });
-
-      const endTime = Date.now();
-      console.log(
-        `🔍 [SearchApi] Request completed in ${endTime - startTime}ms`,
-      );
-      console.log('🔍 [SearchApi] Response Status:', response.status);
-      console.log('🔍 [SearchApi] Response OK:', response.ok);
-
-      if (!response.ok) {
-        let errorText = '';
-        try {
-          errorText = await response.text();
-          console.error('❌ [SearchApi] Error Response:', errorText);
-        } catch (e) {
-          console.error('❌ [SearchApi] Could not read error body');
-        }
-        console.log('========================================');
-        return {
-          success: false,
-          data: [],
-          message: `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
-
-      const data = await response.json();
-      console.log(
-        '🔍 [SearchApi] Raw response:',
-        JSON.stringify(data, null, 2),
+      const data = await apiRequest<any>(
+        apiUrl(
+          `${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`,
+        ),
+        {
+          auth: false,
+          retryOnUnauthorized: false,
+        },
       );
 
-      // ✅ Check if data exists - ignore success flag
       if (data?.data && Array.isArray(data.data)) {
-        console.log(`✅ [SearchApi] Found ${data.data.length} categories`);
-        if (data.data.length > 0) {
-          console.log('✅ [SearchApi] First category:', data.data[0]?.category);
-          console.log(
-            '✅ [SearchApi] Products in first category:',
-            data.data[0]?.products?.length || 0,
-          );
-        }
-        console.log('========================================');
         return {
           success: true,
           query: data.query || query,
@@ -163,138 +110,75 @@ class SearchApi {
         };
       }
 
-      // ✅ Fallback: if response is array directly
       if (Array.isArray(data)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.length} categories (array format)`,
-        );
-        console.log('========================================');
         return { success: true, data };
       }
 
-      // ✅ Fallback: if response has results
       if (data?.results && Array.isArray(data.results)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.results.length} categories (results format)`,
-        );
-        console.log('========================================');
         return { success: true, data: data.results };
       }
 
-      console.log('⚠️ [SearchApi] No results found');
-      console.log('========================================');
       return { success: false, data: [] };
-    } catch (error: any) {
-      console.log('========================================');
-      console.log('❌ [SearchApi] SEARCH ERROR');
-      console.log('========================================');
-      console.error('🔴 Error Name:', error.name);
-      console.error('🔴 Error Message:', error.message);
-      console.error('🔴 Error Stack:', error.stack);
-      console.log('========================================');
-      return { success: false, data: [], message: error.message };
+    } catch (error) {
+      console.error('❌ [SearchApi] SEARCH ERROR:', error);
+      return {
+        success: false,
+        data: [],
+        message: error instanceof Error ? error.message : 'Search failed',
+      };
     }
   };
 
   // ================================
-  // GET RECENT SEARCHES
+  // GET RECENT SEARCHES — authenticated
   // ================================
 
   getRecentSearchesAPI = async (): Promise<RecentSearch[]> => {
-    console.log('📝 [SearchApi] getRecentSearchesAPI STARTED');
-
     try {
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RECENT_SEARCHES}`;
-      console.log('📝 [SearchApi] URL:', url);
-
-      const headers = await this.getHeaders();
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers,
-      });
-
-      console.log('📝 [SearchApi] Response Status:', response.status);
-
-      if (!response.ok) {
-        console.error('❌ [SearchApi] HTTP Error:', response.status);
-        return [];
-      }
-
-      const data = await response.json();
-      console.log(
-        '📝 [SearchApi] Raw response:',
-        JSON.stringify(data, null, 2),
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.RECENT_SEARCHES),
       );
 
       if (data?.searches && Array.isArray(data.searches)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.searches.length} recent searches`,
-        );
         return data.searches;
       }
 
       if (Array.isArray(data)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.length} recent searches (array)`,
-        );
         return data;
       }
 
-      console.log('⚠️ [SearchApi] No recent searches found');
       return [];
     } catch (error) {
+      if (isAuthError(error)) {
+        return [];
+      }
       console.error('❌ [SearchApi] Recent searches error:', error);
       return [];
     }
   };
 
   // ================================
-  // GET POPULAR SEARCHES
+  // GET POPULAR SEARCHES — public
   // ================================
 
   getPopularSearchesAPI = async (): Promise<PopularSearch[]> => {
-    console.log('📊 [SearchApi] getPopularSearchesAPI STARTED');
-
     try {
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POPULAR_SEARCHES}`;
-      console.log('📊 [SearchApi] URL:', url);
-
-      const headers = await this.getHeaders();
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers,
-      });
-
-      console.log('📊 [SearchApi] Response Status:', response.status);
-
-      if (!response.ok) {
-        console.error('❌ [SearchApi] HTTP Error:', response.status);
-        return [];
-      }
-
-      const data = await response.json();
-      console.log(
-        '📊 [SearchApi] Raw response:',
-        JSON.stringify(data, null, 2),
+      const data = await apiRequest<any>(
+        apiUrl(API_ENDPOINTS.POPULAR_SEARCHES),
+        {
+          auth: false,
+          retryOnUnauthorized: false,
+        },
       );
 
       if (data?.searches && Array.isArray(data.searches)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.searches.length} popular searches`,
-        );
         return data.searches.slice(0, 10);
       }
 
       if (Array.isArray(data)) {
-        console.log(
-          `✅ [SearchApi] Found ${data.length} popular searches (array)`,
-        );
         return data.slice(0, 10);
       }
 
-      console.log('⚠️ [SearchApi] No popular searches found');
       return [];
     } catch (error) {
       console.error('❌ [SearchApi] Popular searches error:', error);
@@ -303,73 +187,47 @@ class SearchApi {
   };
 
   // ================================
-  // REMOVE RECENT SEARCH
+  // REMOVE RECENT SEARCH — authenticated
   // ================================
 
   removeRecentSearchAPI = async (
     searchId: string,
   ): Promise<{ success: boolean }> => {
-    console.log('🗑️ [SearchApi] removeRecentSearchAPI called:', searchId);
-
     if (!searchId) {
-      console.log('❌ [SearchApi] No search ID provided');
       return { success: false };
     }
 
     try {
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`;
-      console.log('🗑️ [SearchApi] URL:', url);
+      await apiRequest(
+        apiUrl(`${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`),
+        { method: 'DELETE' },
+      );
 
-      const headers = await this.getHeaders();
-
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: headers,
-      });
-
-      console.log('🗑️ [SearchApi] Response Status:', response.status);
-
-      if (!response.ok) {
-        console.error('❌ [SearchApi] HTTP Error:', response.status);
-        return { success: false };
-      }
-
-      console.log('✅ [SearchApi] Search removed successfully');
       return { success: true };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false };
+      }
       console.error('❌ [SearchApi] Remove search error:', error);
       return { success: false };
     }
   };
 
   // ================================
-  // CLEAR ALL RECENT SEARCHES
+  // CLEAR ALL RECENT SEARCHES — authenticated
   // ================================
 
   clearAllRecentSearchesAPI = async (): Promise<{ success: boolean }> => {
-    console.log('🗑️ [SearchApi] clearAllRecentSearchesAPI STARTED');
-
     try {
-      const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_RECENT_SEARCHES}`;
-      console.log('🗑️ [SearchApi] URL:', url);
-
-      const headers = await this.getHeaders();
-
-      const response = await fetch(url, {
+      await apiRequest(apiUrl(API_ENDPOINTS.CLEAR_RECENT_SEARCHES), {
         method: 'DELETE',
-        headers: headers,
       });
 
-      console.log('🗑️ [SearchApi] Response Status:', response.status);
-
-      if (!response.ok) {
-        console.error('❌ [SearchApi] HTTP Error:', response.status);
-        return { success: false };
-      }
-
-      console.log('✅ [SearchApi] All searches cleared');
       return { success: true };
     } catch (error) {
+      if (isAuthError(error)) {
+        return { success: false };
+      }
       console.error('❌ [SearchApi] Clear searches error:', error);
       return { success: false };
     }

@@ -1,10 +1,21 @@
 // api/features/private/checkoutPrivateSlice.ts
-
-import Config from 'react-native-config';
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 // ================================
 // TYPES
@@ -22,6 +33,7 @@ export interface CalculationParams {
 
 export interface CheckoutResponse {
   success: boolean;
+  code?: string;
   calculated: CalculatedData;
   location: {
     address: string;
@@ -77,18 +89,6 @@ export interface CalculatedData {
 }
 
 // ================================
-// TOKEN HELPER
-// ================================
-
-const getHeaders = async () => {
-  const token = await getToken();
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-};
-
-// ================================
 // CHECKOUT API CLASS
 // ================================
 
@@ -98,19 +98,14 @@ class CheckoutApi {
    * Backend automatically fetches buyer location from database.
    */
   fetchCalculatedDataAPI = async (params: CalculationParams) => {
-    console.log('🚀 [CheckoutApi] fetchCalculatedDataAPI called');
-    console.log('📦 Params:', JSON.stringify(params, null, 2));
-
     const urlParams = new URLSearchParams();
 
-    // ✅ REQUIRED PARAMS
     urlParams.append('productId', params.mongoObjectId);
     urlParams.append('quantity', params.quantity.toString());
     urlParams.append('vendorCodeUID', params.vendorCodeUID);
     urlParams.append('sellerId', params.sellerId);
     urlParams.append('productDataId', params.displayProductId);
 
-    // ✅ OPTIONAL PARAMS
     if (params.couponCode) {
       urlParams.append('couponCode', params.couponCode);
     }
@@ -119,31 +114,32 @@ class CheckoutApi {
       urlParams.append('isLocationUpdate', 'true');
     }
 
-    // ❌ REMOVED ALL LOCATION PARAMS
-
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`;
-    console.log('🌐 [CheckoutApi] URL:', url);
-
     try {
-      const data = await fetchHandler(url, {
-        method: 'GET',
-        headers: await getHeaders(),
-      });
-
-      console.log('✅ [CheckoutApi] Response received');
-      console.log('📊 Response data:', JSON.stringify(data, null, 2));
+      const data = await apiRequest<CheckoutResponse>(
+        apiUrl(`${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`),
+      );
 
       if (!data.success && data.code === 'LOCATION_NOT_FOUND') {
-        console.warn('⚠️ [CheckoutApi] Location not found in database');
         throw new Error('LOCATION_NOT_FOUND');
       }
 
       return data;
-    } catch (error: any) {
-      console.error('❌ [CheckoutApi] Error:', error.message);
-      if (error.message === 'LOCATION_NOT_FOUND') {
-        throw new Error('LOCATION_NOT_FOUND');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        // Preserve LOCATION_NOT_FOUND code if backend returns it in data
+        if (
+          error.data &&
+          typeof error.data === 'object' &&
+          (error.data as any).code === 'LOCATION_NOT_FOUND'
+        ) {
+          throw new Error('LOCATION_NOT_FOUND');
+        }
       }
+
+      if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
+        throw error;
+      }
+
       throw error;
     }
   };

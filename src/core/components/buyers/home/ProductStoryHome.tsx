@@ -191,8 +191,6 @@ const ProductStories: React.FC<ProductStoriesProps> = ({
       >
         <StatusBar
           barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor="transparent"
-          translucent
         />
 
         <ScrollView

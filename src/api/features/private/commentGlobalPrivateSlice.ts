@@ -1,20 +1,16 @@
-import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
-import { getToken } from '../../connections/token/tokenSlice';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { apiRequest } from '../../../core/utils/handler/apiClient';
 
-// ================================
-// TOKEN HELPER
-// ================================
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
 
-const getHeaders = async () => {
-  const token = await getToken();
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 };
 
 // ================================
@@ -22,12 +18,8 @@ const getHeaders = async () => {
 // ================================
 
 export const fetchCommentersAPI = async (productId: string) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.FETCH_COMMENTERS}/${productId}`,
-    {
-      method: 'GET',
-      headers: await getHeaders(),
-    },
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.FETCH_COMMENTERS}/${productId}`),
   );
 };
 
@@ -36,12 +28,8 @@ export const fetchCommentersAPI = async (productId: string) => {
 // ================================
 
 export const fetchCommentsAPI = async (productId: string) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.FETCH_COMMENTS}/${productId}`,
-    {
-      method: 'GET',
-      headers: await getHeaders(),
-    },
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.FETCH_COMMENTS}/${productId}`),
   );
 };
 
@@ -50,14 +38,10 @@ export const fetchCommentsAPI = async (productId: string) => {
 // ================================
 
 export const fetchUsersBatchAPI = async (userIds: string[]) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.USERS_BATCH}`,
-    {
-      method: 'POST',
-      headers: await getHeaders(),
-      body: JSON.stringify({ userIds }),
-    },
-  );
+  return await apiRequest(apiUrl(API_ENDPOINTS.USERS_BATCH), {
+    method: 'POST',
+    body: JSON.stringify({ userIds }),
+  });
 };
 
 // ================================
@@ -71,20 +55,16 @@ export const addCommentAPI = async (
   media?: string,
   mediaType?: 'image' | 'gif',
 ) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ADD_COMMENT}`,
-    {
-      method: 'POST',
-      headers: await getHeaders(),
-      body: JSON.stringify({
-        postId: productId,
-        userId,
-        content: content.trim(),
-        media,
-        mediaType,
-      }),
-    },
-  );
+  return await apiRequest(apiUrl(API_ENDPOINTS.ADD_COMMENT), {
+    method: 'POST',
+    body: JSON.stringify({
+      postId: productId,
+      userId,
+      content: content.trim(),
+      media,
+      mediaType,
+    }),
+  });
 };
 
 // ================================
@@ -98,19 +78,15 @@ export const addReplyAPI = async (
   media?: string,
   mediaType?: 'image' | 'gif',
 ) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ADD_REPLY}/${commentId}`,
-    {
-      method: 'POST',
-      headers: await getHeaders(),
-      body: JSON.stringify({
-        userId,
-        content: content.trim(),
-        media,
-        mediaType,
-      }),
-    },
-  );
+  return await apiRequest(apiUrl(`${API_ENDPOINTS.ADD_REPLY}/${commentId}`), {
+    method: 'POST',
+    body: JSON.stringify({
+      userId,
+      content: content.trim(),
+      media,
+      mediaType,
+    }),
+  });
 };
 
 // ================================
@@ -121,11 +97,10 @@ export const toggleCommentLikeAPI = async (
   commentId: string,
   userId: string,
 ) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.TOGGLE_COMMENT_LIKE}/${commentId}`,
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.TOGGLE_COMMENT_LIKE}/${commentId}`),
     {
       method: 'POST',
-      headers: await getHeaders(),
       body: JSON.stringify({ userId }),
     },
   );
@@ -140,11 +115,10 @@ export const toggleReplyLikeAPI = async (
   replyId: string,
   userId: string,
 ) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.TOGGLE_REPLY_LIKE}/${commentId}/${replyId}`,
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.TOGGLE_REPLY_LIKE}/${commentId}/${replyId}`),
     {
       method: 'POST',
-      headers: await getHeaders(),
       body: JSON.stringify({ userId }),
     },
   );
@@ -155,12 +129,9 @@ export const toggleReplyLikeAPI = async (
 // ================================
 
 export const deleteCommentAPI = async (commentId: string) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.DELETE_COMMENT}/${commentId}`,
-    {
-      method: 'DELETE',
-      headers: await getHeaders(),
-    },
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.DELETE_COMMENT}/${commentId}`),
+    { method: 'DELETE' },
   );
 };
 
@@ -172,11 +143,8 @@ export const deleteReplyAPI = async (
   commentId: string,
   replyId: string,
 ) => {
-  return await fetchHandler(
-    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.DELETE_REPLY}/${commentId}/${replyId}`,
-    {
-      method: 'DELETE',
-      headers: await getHeaders(),
-    },
+  return await apiRequest(
+    apiUrl(`${API_ENDPOINTS.DELETE_REPLY}/${commentId}/${replyId}`),
+    { method: 'DELETE' },
   );
 };

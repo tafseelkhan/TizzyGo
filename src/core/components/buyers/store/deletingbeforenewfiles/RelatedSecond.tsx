@@ -16,6 +16,12 @@ import {
 } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+// ✅ NEW import — API slice
+import {
+  fetchRelatedProducts,
+  RelatedProduct,
+} from '../../../../../api/features/private/relatedProductsSlice';
+
 const { width: screenWidth } = Dimensions.get('window');
 
 // Define navigation param list
@@ -28,7 +34,6 @@ type RootStackParamList = {
   CategoryProducts: {
     category: string;
   };
-  // Add other screens as needed
 };
 
 type ProductDetailRouteProp = {
@@ -46,19 +51,8 @@ interface Props {
   userId?: string;
 }
 
-type Product = {
-  _id: string;
-  title: string;
-  description: string;
-  category?: string;
-  images?: any[];
-  videos?: any[];
-  originalPrice?: number;
-  price?: number;
-  FinalPrice?: number;
-  Discount?: number;
-  Offer?: number;
-};
+// ✅ Local alias — shape slice ke RelatedProduct se match karta hai
+type Product = RelatedProduct;
 
 // Get Media URL function
 const getMediaUrl = (item: string | { url: string }): string => {
@@ -68,13 +62,12 @@ const getMediaUrl = (item: string | { url: string }): string => {
   return item.url;
 };
 
-// Custom Like Component (replacing Expo-based LikeComponent)
+// Custom Like Component
 const LikeButton: React.FC<{ productId: string; size?: string }> = ({
   productId,
   size = '22',
 }) => {
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
 
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -112,54 +105,28 @@ const RelatedSecond: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRelated = async () => {
-      try {
-        if (!id) {
-          console.log('No product ID provided, skipping fetch');
-          setLoading(false);
-          return;
-        }
+    const load = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
+      try {
         setLoading(true);
         setError(null);
 
-        // Slot = 2 for RelatedSecond
-        const url = `http://10.210.13.121:1000/api/public/related/${id}?slot=2`;
-        console.log('Fetching related products from URL:', url);
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Failed to fetch related products:', errorText);
-          throw new Error('Failed to fetch related products.');
-        }
-
-        const raw = await response.json();
-
-        let data: Product[] = Array.isArray(raw)
-          ? raw
-          : raw.products
-          ? raw.products
-          : raw.data
-          ? raw.data
-          : [];
-
-        if (!Array.isArray(data)) data = [];
-
-        // Exclude current product
-        const related = data.filter(p => p._id !== id);
-
+        // ✅ API call — slot = 2
+        const related = await fetchRelatedProducts(id, 2);
         setProducts(related);
-      } catch (error: any) {
-        console.error('Error fetching related products:', error);
-        setError(error.message || 'Failed to load related products.');
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load related products.');
         setProducts([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRelated();
+    load();
   }, [id]);
 
   const navigateToProduct = (product: Product) => {
@@ -295,16 +262,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
     ...(product.videos || []).map(getMediaUrl),
   ].filter(url => url !== '');
 
-  // Calculate final price
   useEffect(() => {
-    const calculatePricing = () => {
-      const finPrice = product.FinalPrice || product.price || 0;
-      setFinalPrice(finPrice);
-    };
-    calculatePricing();
+    const finPrice = product.FinalPrice || product.price || 0;
+    setFinalPrice(finPrice);
   }, [product.price, product.FinalPrice]);
 
-  // Shorten title for display
   const getShortTitle = (title: string) => {
     return title.length > 35 ? title.substring(0, 35) + '...' : title;
   };
@@ -315,7 +277,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
       onPress={onPress}
       activeOpacity={0.9}
     >
-      {/* Image Section - MAXIMUM VERTICAL SIZE */}
       <View style={styles.imageContainer}>
         {media.length > 0 && !imageError ? (
           <Image
@@ -331,23 +292,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </View>
         )}
 
-        {/* Content Overlay - BOTTOM SECTION */}
         <View style={styles.contentOverlay}>
-          {/* Title - First Line */}
           <Text style={styles.productTitle} numberOfLines={1}>
             {getShortTitle(product.title)}
           </Text>
-
-          {/* Description - Second Line */}
           <Text style={styles.productDescription} numberOfLines={2}>
             {product.description || 'Fashion Product'}
           </Text>
-
-          {/* Price - Third Line */}
           <Text style={styles.priceText}>₹{finalPrice}</Text>
         </View>
 
-        {/* Like Button - TOP RIGHT */}
         <View style={styles.likeButtonContainer}>
           <LikeButton productId={product._id} size={'22'} />
         </View>
@@ -362,7 +316,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginVertical: 8,
   },
-  // Header Styles
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -395,7 +348,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
   },
-  // Loading Styles for 2 ROWS
   loadingContainer: {
     flexDirection: 'row',
     gap: 20,
@@ -433,16 +385,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     width: '60%',
   },
-  // Products Container
   productsContainer: {
     gap: 20,
     paddingRight: 16,
   },
-  // Column container for EXACTLY 2 ROWS
   column: {
     gap: 20,
   },
-  // Product Card Styles - MAXIMUM VERTICAL SIZE
   productCard: {
     width: 200,
     backgroundColor: '#FFFFFF',
@@ -478,7 +427,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'System',
   },
-  // Content Overlay - BOTTOM SECTION WITH TRANSPARENT BACKGROUND
   contentOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -511,7 +459,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'System',
   },
-  // Like Button - TOP RIGHT
   likeButtonContainer: {
     position: 'absolute',
     top: 12,

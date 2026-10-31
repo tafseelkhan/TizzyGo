@@ -1,8 +1,27 @@
-import Config from 'react-native-config';
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 // ================================
 // TYPES
@@ -44,27 +63,7 @@ export interface SubmitReviewData {
 
 class RatingAPI {
   // ================================
-  // TOKEN HEADERS
-  // ================================
-
-  private getHeaders = async (): Promise<Record<string, string>> => {
-    try {
-      const token = await getToken();
-
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      };
-    } catch (error) {
-      console.error('Error getting headers:', error);
-      return {
-        'Content-Type': 'application/json',
-      };
-    }
-  };
-
-  // ================================
-  // GET RATING STATS
+  // GET RATING STATS — public
   // ================================
 
   getRatingStats = async (productId: string): Promise<RatingStats | null> => {
@@ -74,18 +73,15 @@ class RatingAPI {
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_RATING_STATS}/${productId}`,
+      const data = await apiRequest<any>(
+        apiUrl(`${API_ENDPOINTS.GET_RATING_STATS}/${productId}`),
         {
-          method: 'GET',
+          auth: false,
+          retryOnUnauthorized: false,
         },
       );
 
-      if (data?.success) {
-        return data.data;
-      }
-
-      return null;
+      return data?.success ? data.data : null;
     } catch (error) {
       console.error('Get rating stats error:', error);
       return null;
@@ -93,7 +89,7 @@ class RatingAPI {
   };
 
   // ================================
-  // GET REVIEWS
+  // GET REVIEWS — public
   // ================================
 
   getReviews = async (
@@ -106,18 +102,15 @@ class RatingAPI {
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_REVIEWS}/${productId}?limit=${limit}`,
+      const data = await apiRequest<any>(
+        apiUrl(`${API_ENDPOINTS.GET_REVIEWS}/${productId}?limit=${limit}`),
         {
-          method: 'GET',
+          auth: false,
+          retryOnUnauthorized: false,
         },
       );
 
-      if (data?.success) {
-        return data.data || [];
-      }
-
-      return [];
+      return data?.success ? data.data || [] : [];
     } catch (error) {
       console.error('Get reviews error:', error);
       return [];
@@ -125,7 +118,7 @@ class RatingAPI {
   };
 
   // ================================
-  // GET USER REVIEW
+  // GET USER REVIEW — authenticated
   // ================================
 
   getUserReview = async (productId: string): Promise<Review | null> => {
@@ -135,34 +128,29 @@ class RatingAPI {
     }
 
     try {
-      const data = await fetchHandler(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_USER_REVIEW}/${productId}`,
-        {
-          method: 'GET',
-          headers: await this.getHeaders(),
-        },
+      const data = await apiRequest<any>(
+        apiUrl(`${API_ENDPOINTS.GET_USER_REVIEW}/${productId}`),
       );
 
-      if (data?.success && data?.data) {
-        return data.data;
+      return data?.success && data?.data ? data.data : null;
+    } catch (error) {
+      if (isAuthError(error)) {
+        return null;
       }
 
-      return null;
-    } catch (error) {
       console.error('Get user review error:', error);
       return null;
     }
   };
 
   // ================================
-  // SUBMIT REVIEW
+  // SUBMIT REVIEW — authenticated
   // ================================
 
   submitReview = async (
     reviewData: SubmitReviewData,
     reviewId?: string,
   ): Promise<boolean> => {
-    // Validate required fields
     if (!reviewData.productId) {
       console.error('Product ID is required for submitting review');
       return false;
@@ -174,13 +162,12 @@ class RatingAPI {
     }
 
     try {
-      const endpoint = reviewId
-        ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.UPDATE_REVIEW}/${reviewId}`
-        : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_REVIEW}`;
+      const path = reviewId
+        ? `${API_ENDPOINTS.UPDATE_REVIEW}/${reviewId}`
+        : API_ENDPOINTS.CREATE_REVIEW;
 
-      const data = await fetchHandler(endpoint, {
+      const data = await apiRequest<any>(apiUrl(path), {
         method: reviewId ? 'PUT' : 'POST',
-        headers: await this.getHeaders(),
         body: JSON.stringify({
           productId: reviewData.productId,
           rating: reviewData.rating,
@@ -191,13 +178,18 @@ class RatingAPI {
 
       return !!data?.success;
     } catch (error) {
+      if (isAuthError(error)) {
+        console.error('Submit review: auth failed');
+        return false;
+      }
+
       console.error('Submit review error:', error);
       return false;
     }
   };
 
   // ================================
-  // DELETE REVIEW
+  // DELETE REVIEW — authenticated
   // ================================
 
   deleteReview = async (reviewId: string): Promise<boolean> => {
@@ -207,16 +199,18 @@ class RatingAPI {
     }
 
     try {
-      await fetchHandler(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.DELETE_REVIEW}/${reviewId}`,
-        {
-          method: 'DELETE',
-          headers: await this.getHeaders(),
-        },
+      await apiRequest(
+        apiUrl(`${API_ENDPOINTS.DELETE_REVIEW}/${reviewId}`),
+        { method: 'DELETE' },
       );
 
       return true;
     } catch (error) {
+      if (isAuthError(error)) {
+        console.error('Delete review: auth failed');
+        return false;
+      }
+
       console.error('Delete review error:', error);
       return false;
     }

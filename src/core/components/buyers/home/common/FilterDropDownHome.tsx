@@ -10,58 +10,47 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
 } from 'react-native';
-import LottieView from 'lottie-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { APIs } from '../../../../services/buyers/HomeService';
 import { useTheme } from '../../../../contexts/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
-const FilterAnimation = require('../../../animations/lotties/Line Filter Icon Animations.json');
 
 // Local theme colors function - SOLID COLORS, NO GLASS EFFECT
 const getLocalThemeColors = (isDark: boolean) => {
   return {
-    // Filter button colors
     filterButtonBg: isDark ? '#00000000' : '#00000000',
     filterButtonText: isDark ? '#F1F5F9' : '#1f2937',
     filterCountBg: isDark ? '#0d9488' : '#0d9488',
     filterCountText: '#FFFFFF',
 
-    // Modal colors
     modalBg: isDark ? '#1E293B' : '#FFFFFF',
     modalBorder: isDark ? '#334155' : '#E5E7EB',
     modalShadow: isDark ? '#000000' : '#000000',
 
-    // Text colors
     titleText: isDark ? '#F1F5F9' : '#1f2937',
     sectionText: isDark ? '#E2E8F0' : '#374151',
     closeIcon: isDark ? '#94A3B8' : '#6b7280',
 
-    // Category colors
     categoryButtonBg: isDark ? '#334155' : '#F9FAFB',
     categoryButtonSelectedBg: isDark ? '#0d9488' : '#0d9488',
     categoryText: isDark ? '#E2E8F0' : '#374151',
     categoryTextSelected: '#FFFFFF',
 
-    // Scroll arrows
     scrollArrowBg: isDark ? '#334155' : '#F3F4F6',
     scrollArrowIcon: isDark ? '#E2E8F0' : '#374151',
 
-    // Sort options
     sortOptionBg: isDark ? '#334155' : '#F9FAFB',
     sortOptionSelectedBg: isDark ? '#0d9488' : '#0d9488',
     sortOptionText: isDark ? '#CBD5E1' : '#374151',
     sortOptionSelectedText: '#FFFFFF',
 
-    // Action buttons
     clearButtonBg: isDark ? '#334155' : '#F3F4F6',
     clearButtonText: isDark ? '#E2E8F0' : '#374151',
     applyButtonBg: isDark ? '#0d9488' : '#0d9488',
     applyButtonText: '#FFFFFF',
 
-    // Overlay
     overlayBg: isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
   };
 };
@@ -116,10 +105,7 @@ const createStyles = (themeColors: any) =>
       maxWidth: 420,
       maxHeight: '85%',
       shadowColor: themeColors.modalShadow,
-      shadowOffset: {
-        width: 0,
-        height: 10,
-      },
+      shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.25,
       shadowRadius: 20,
       elevation: 15,
@@ -316,6 +302,10 @@ interface FilterDropdownProps {
   selectedCategory: string;
   handleCategoryClick: (category: string) => void;
   isMobile?: boolean;
+  /** Optional: parent ko applied filters mil jayenge */
+  onApply?: (filters: { category?: string; sort?: string }) => void;
+  /** Optional: clear hone par parent ko notify karega */
+  onClear?: () => void;
 }
 
 const categoriesData = [
@@ -377,6 +367,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   selectedCategory,
   handleCategoryClick,
   isMobile = false,
+  onApply,
+  onClear,
 }) => {
   const { isDark } = useTheme();
   const themeColors = getLocalThemeColors(isDark);
@@ -389,7 +381,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   const [appliedFiltersCount, setAppliedFiltersCount] = useState(0);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
@@ -402,20 +394,13 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     ),
   }));
 
+  // Local count calculate — API hata diya
   useEffect(() => {
-    const fetchFiltersCount = async () => {
-      try {
-        const data = await APIs.getAppliedFiltersCount();
-        setAppliedFiltersCount(data.count || 0);
-      } catch (error) {
-        console.error('Error fetching filters count:', error);
-        setAppliedFiltersCount(0);
-      }
-    };
-    if (isDropdownOpen) {
-      fetchFiltersCount();
-    }
-  }, [isDropdownOpen]);
+    let count = 0;
+    if (tempSelectedCategory && tempSelectedCategory !== 'All') count++;
+    if (selectedSort) count++;
+    setAppliedFiltersCount(count);
+  }, [tempSelectedCategory, selectedSort]);
 
   useEffect(() => {
     if (isDropdownOpen) {
@@ -463,38 +448,32 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     }
   };
 
-  const handleApplyFilters = async () => {
-    try {
-      const filters: any = {};
-      if (tempSelectedCategory && tempSelectedCategory !== 'All') {
-        filters.category = tempSelectedCategory;
-      }
-      if (selectedSort) {
-        filters.sort = selectedSort;
-      }
-      if (Object.keys(filters).length > 0) {
-        await APIs.applyFilters(filters);
-        if (tempSelectedCategory) {
-          handleCategoryClick(tempSelectedCategory);
-        }
-      }
-      setIsDropdownOpen(false);
-    } catch (error) {
-      console.error('Failed to apply filters:', error);
+  // API call hata di — sirf local state + callback
+  const handleApplyFilters = () => {
+    const filters: { category?: string; sort?: string } = {};
+    if (tempSelectedCategory && tempSelectedCategory !== 'All') {
+      filters.category = tempSelectedCategory;
     }
+    if (selectedSort) {
+      filters.sort = selectedSort;
+    }
+
+    if (tempSelectedCategory) {
+      handleCategoryClick(tempSelectedCategory);
+    }
+
+    onApply?.(filters);
+    setIsDropdownOpen(false);
   };
 
-  const handleClearFilters = async () => {
-    try {
-      await APIs.clearFilters();
-      setAppliedFiltersCount(0);
-      setSelectedSort('');
-      setTempSelectedCategory('');
-      setIsDropdownOpen(false);
-      handleCategoryClick('All');
-    } catch (error) {
-      console.error('Clear filters error:', error);
-    }
+  // API call hata di — sirf local reset + callback
+  const handleClearFilters = () => {
+    setAppliedFiltersCount(0);
+    setSelectedSort('');
+    setTempSelectedCategory('');
+    setIsDropdownOpen(false);
+    handleCategoryClick('All');
+    onClear?.();
   };
 
   const sortOptions = [

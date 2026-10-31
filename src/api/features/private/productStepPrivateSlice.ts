@@ -1,8 +1,19 @@
 // api/features/private/productStepPrivateSlice.ts
 
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import { apiRequest } from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER — TIZZYOS base
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYOS_API_BASE_URL) {
+    throw new Error('TIZZYOS_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 // ================================
 // TYPES
@@ -70,51 +81,50 @@ export interface Product {
 }
 
 // ================================
-// GET PRODUCT + SELECTED VARIANT
+// GET PRODUCT + SELECTED VARIANT — public
 // ================================
 
 export const fetchProduct = async (
   productId: string,
   variantId: string,
 ): Promise<Product> => {
-  const url = `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
-
-  console.log('Fetching Product:', url);
-
-  const response = await fetchHandler(url, {
-    method: 'GET',
-  });
+  const response = await apiRequest<any>(
+    apiUrl(
+      `${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`,
+    ),
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+    },
+  );
 
   if (!response?.success) {
     throw new Error(response?.message || 'Product not found');
   }
 
-  // ✅ Merge product and selectedVariant into one object
   const mergedProduct: Product = {
     ...response.product,
     selectedVariant: response.selectedVariant,
   };
 
-  console.log('Merged Product:', {
-    productId: mergedProduct.productId,
-    title: mergedProduct.title,
-    hasSelectedVariant: !!mergedProduct.selectedVariant,
-    selectedVariantId: mergedProduct.selectedVariant?.variantId,
-  });
-
   return mergedProduct;
 };
 
 // ================================
-// DEBUG - GET RAW RESPONSE
+// DEBUG - GET RAW RESPONSE — public
 // ================================
 
-export const fetchProductRaw = async (productId: string, variantId: string) => {
-  const url = `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`;
-
-  const response = await fetchHandler(url, {
-    method: 'GET',
-  });
-
-  return response;
+export const fetchProductRaw = async (
+  productId: string,
+  variantId: string,
+) => {
+  return await apiRequest<any>(
+    apiUrl(
+      `${API_ENDPOINTS.GET_PRODUCT}/${productId}/selected/${variantId}`,
+    ),
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+    },
+  );
 };

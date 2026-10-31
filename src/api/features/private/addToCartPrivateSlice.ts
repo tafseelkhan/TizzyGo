@@ -1,4 +1,3 @@
-import Config from 'react-native-config';
 import { Alert } from 'react-native';
 
 import {
@@ -6,26 +5,53 @@ import {
   CartStatusResponse,
 } from '../../../core/types/CartTypes';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
-
-import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+//
+// Joins TIZZYGO_API_BASE_URL with an endpoint path, avoiding
+// double slashes. Matches apiClient.buildUrl logic.
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured');
+  }
+
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/** True if the error looks like a missing/expired session. */
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+// ============================================================
+// CART API
+// ============================================================
 
 export const CartAPI = {
   // ==========================================
-  // PRODUCT VARIANTS
+  // PRODUCT VARIANTS — public endpoint
   // ==========================================
 
   async fetchProductVariants(productId: string): Promise<any[]> {
     try {
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`,
+      const data = await apiRequest<any[]>(
+        apiUrl(`${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`),
+        {
+          auth: false,
+          retryOnUnauthorized: false,
+        },
       );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch variants');
-      }
-
-      const data = await response.json();
 
       return Array.isArray(data) ? data : [];
     } catch (error) {
@@ -35,7 +61,7 @@ export const CartAPI = {
   },
 
   // ==========================================
-  // ADD TO CART
+  // ADD TO CART — authenticated
   // ==========================================
 
   async addToCart(params: CartItemParams): Promise<boolean> {
@@ -47,14 +73,7 @@ export const CartAPI = {
     } = params;
 
     try {
-      const token = await getToken();
-
-      if (!token) {
-        Alert.alert('Error', 'Please login to add items to cart');
-        return false;
-      }
-
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         productId,
         productData,
         quantity,
@@ -64,34 +83,31 @@ export const CartAPI = {
         requestBody.selectedVariant = selectedVariant;
       }
 
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ADD_TO_CART}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(requestBody),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        throw new Error(errorData.message || 'Failed to add to cart');
-      }
+      await apiRequest(apiUrl(API_ENDPOINTS.ADD_TO_CART), {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
 
       return true;
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add item to cart');
+    } catch (error) {
+      if (isAuthError(error)) {
+        Alert.alert('Error', 'Please login to add items to cart');
+        return false;
+      }
+
+      Alert.alert(
+        'Error',
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to add item to cart',
+      );
 
       return false;
     }
   },
 
   // ==========================================
-  // UPDATE CART
+  // UPDATE CART — authenticated
   // ==========================================
 
   async updateCartItem(
@@ -100,14 +116,7 @@ export const CartAPI = {
     const { productId, quantity = 1, selectedVariant = null } = params;
 
     try {
-      const token = await getToken();
-
-      if (!token) {
-        Alert.alert('Error', 'Please login to update cart');
-        return false;
-      }
-
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         productId,
         quantity,
       };
@@ -116,104 +125,85 @@ export const CartAPI = {
         requestBody.selectedVariant = selectedVariant;
       }
 
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.UPDATE_CART}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(requestBody),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        throw new Error(errorData.message || 'Failed to update cart');
-      }
+      await apiRequest(apiUrl(API_ENDPOINTS.UPDATE_CART), {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
 
       return true;
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update cart');
+    } catch (error) {
+      if (isAuthError(error)) {
+        Alert.alert('Error', 'Please login to update cart');
+        return false;
+      }
+
+      Alert.alert(
+        'Error',
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to update cart',
+      );
 
       return false;
     }
   },
 
   // ==========================================
-  // REMOVE FROM CART
+  // REMOVE FROM CART — authenticated
   // ==========================================
 
   async removeFromCart(productId: string): Promise<boolean> {
     try {
-      const token = await getToken();
+      await apiRequest(apiUrl(API_ENDPOINTS.REMOVE_FROM_CART), {
+        method: 'DELETE',
+        body: JSON.stringify({ productId }),
+      });
 
-      if (!token) {
+      return true;
+    } catch (error) {
+      if (isAuthError(error)) {
         Alert.alert('Error', 'Please login to remove from cart');
         return false;
       }
 
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_FROM_CART}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ productId }),
-        },
+      Alert.alert(
+        'Error',
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to remove from cart',
       );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        throw new Error(errorData.message || 'Failed to remove from cart');
-      }
-
-      return true;
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to remove from cart');
 
       return false;
     }
   },
 
   // ==========================================
-  // CHECK CART STATUS
+  // CHECK CART STATUS — authenticated
   // ==========================================
 
   async fetchCart(productId: string): Promise<CartStatusResponse | null> {
     try {
-      const token = await getToken();
+      const data = await apiRequest<{
+        inCart?: boolean;
+        quantity?: number;
+        selectedVariant?: any;
+      }>(
+        apiUrl(
+          `${API_ENDPOINTS.CHECK_CART}?productId=${encodeURIComponent(productId)}`,
+        ),
+      );
 
-      if (!token) {
+      return {
+        inCart: data.inCart ?? false,
+        quantity: data.quantity ?? 1,
+        selectedVariant: data.selectedVariant ?? null,
+      };
+    } catch (error) {
+      // No token / expired session → treat as "not in cart" silently.
+      if (isAuthError(error)) {
         return null;
       }
 
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CHECK_CART}?productId=${productId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch cart status');
-      }
-
-      const data = await response.json();
-
-      return {
-        inCart: data.inCart || false,
-        quantity: data.quantity || 1,
-        selectedVariant: data.selectedVariant || null,
-      };
-    } catch (error) {
       console.error('Error fetching cart:', error);
       return null;
     }

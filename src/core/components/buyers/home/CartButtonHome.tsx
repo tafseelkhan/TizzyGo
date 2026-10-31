@@ -11,7 +11,7 @@ import {
 import LottieView from 'lottie-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { APIs } from '../../../services/buyers/HomeService';
+import { CartAPI } from '../../../../api/features/private/cartPrivateSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../contexts/theme/ThemeContext';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -44,10 +44,11 @@ const CartButton: React.FC<CartButtonProps> = ({ userId }) => {
           setCartCount(0);
           return;
         }
-        const data = await APIs.getCartCount();
-        setCartCount(data.count || 0);
+        const data = await CartAPI.getCartCount();
+        const count = data?.count ?? 0;
+        setCartCount(count);
 
-        if (data.count > 0) {
+        if (count > 0) {
           animateBounce();
         }
       } catch (error) {

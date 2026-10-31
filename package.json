@@ -40,6 +40,7 @@
     "react-native-haptic-feedback": "^3.0.0",
     "react-native-image-crop-picker": "^0.52.0",
     "react-native-image-picker": "^8.3.0",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-nitro-image": "^0.15.2",
@@ -51,6 +52,7 @@
     "react-native-screens": "^4.30.0",
     "react-native-share": "^12.3.1",
     "react-native-sound": "^0.13.0",
+    "react-native-svg": "^15.16.0",
     "react-native-toast-message": "^2.5.2",
     "react-native-vector-icons": "^10.3.0",
     "react-native-video": "^6.19.3",
@@ -82,6 +84,7 @@
     "jest": "^30.5.2",
     "patch-package": "^8.0.1",
     "prettier": "^3.9.10",
+    "react-native-svg-transformer": "^1.5.3",
     "react-test-renderer": "^19.3.1",
     "typescript": "^7.0.2"
   },

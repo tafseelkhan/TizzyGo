@@ -17,7 +17,10 @@ import {
   createScaleAnimation,
   createEntryAnimations,
 } from '../../utils/animations/animationUtils';
-import { verifyAndNavigate } from '../../utils/animations/authUtils';
+
+// ✅ Splash auth — direct API + token check
+import { me } from '../../../api/features/public/authPublicSlice';
+import { getToken } from '../../../api/connections/token/tokenSlice';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -61,25 +64,74 @@ export default function TizzyGo() {
     createScaleAnimation(scaleAnim, isPressed);
   }, [isPressed]);
 
-  // Auth check and navigation
+  // ============================================================
+  // AUTH CHECK & NAVIGATION — direct Connect API calls
+  // ============================================================
   useEffect(() => {
     const minTimer = setTimeout(() => {
       setMinTimeElapsed(true);
     }, 3000);
 
+    return () => clearTimeout(minTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!minTimeElapsed) return;
+
+    let cancelled = false;
+
     const checkAndNavigate = async () => {
-      const navigationTarget = await verifyAndNavigate(minTimeElapsed);
-      if (navigationTarget?.shouldNavigate) {
-        navigation.navigate(navigationTarget.route as any);
+      try {
+        // Step 1: do we even have an access token?
+        const accessToken = await getToken();
+
+        if (cancelled) return;
+
+        if (!accessToken) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Signup' }],
+          });
+          return;
+        }
+
+        // Step 2: validate session with `me()`
+        // If the access token is expired, apiClient auto-refreshes
+        // using the stored session token. If refresh fails,
+        // apiClient clears tokens and throws.
+        const response = await me();
+
+        if (cancelled) return;
+
+        if (response?.success && response?.user) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'CustomerShop' }],
+          });
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+      } catch {
+        // Network error, expired refresh token, etc.
+        // apiClient already cleared tokens on refresh failure.
+        if (!cancelled) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
       }
     };
 
-    if (minTimeElapsed) {
-      checkAndNavigate();
-    }
+    checkAndNavigate();
 
-    return () => clearTimeout(minTimer);
-  }, [navigation, minTimeElapsed]);
+    return () => {
+      cancelled = true;
+    };
+  }, [minTimeElapsed, navigation]);
 
   return (
     <TouchableWithoutFeedback onPress={handleTap}>

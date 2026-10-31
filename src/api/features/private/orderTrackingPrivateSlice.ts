@@ -3,10 +3,23 @@
 // ============================================================
 // COMPLETE TYPES FOR ORDER TRACKING - MATCHES BACKEND
 
-import { getToken } from '../../connections/token/tokenSlice';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 // ============================================================
 // ✅ ORDER TYPE (matches backend order object)
@@ -216,49 +229,35 @@ export interface TrackingObject {
 // ============================================================
 
 export interface OrderTrackingData {
-  // Tracking status
   trackingCreated: boolean;
   currentStatus: string;
   trackingAvailable: boolean;
 
-  // Order
   order: OrderObject;
-
-  // Tracking (null if not created)
   tracking: TrackingObject | null;
 
-  // Addresses
   buyerAddress: AddressInfo;
   sellerAddress: AddressInfo;
 
-  // Rider Info (if rider active)
   riderLocation?: TrackingLocation | null;
   riderName?: string | null;
   riderPhone?: string | null;
   riderRating?: number | null;
 
-  // Shipping Partner
   shippingPartner?: ShippingPartner | null;
-
-  // FWS Info
   fwsInfo?: FWSInfo | null;
 
-  // Timeline
   timeline: TimelineEvent[];
 
-  // ETA & Distance
   distance?: number | null;
   eta?: number | null;
   estimatedDelivery?: string | null;
 
-  // Status Flags
   isDelivered: boolean;
   isCancelled: boolean;
 
-  // Message
   message?: string;
 
-  // Product Info (extracted from order for convenience)
   product: {
     id: string;
     title: string;
@@ -275,13 +274,11 @@ export interface OrderTrackingData {
   price: number;
   totalAmount: number;
 
-  // Order Info (extracted for convenience)
   orderId: string;
   orderStatus: string;
   paymentStatus: string;
   trackingId?: string;
 
-  // Timestamps
   createdAt: string | Date;
   updatedAt: string | Date;
   deliveredAt?: string | Date;
@@ -318,16 +315,11 @@ export interface TrackingSocketUpdate {
 }
 
 // ============================================================
-// ✅ HELPER: Get Headers
+// ✅ HELPER: isAuthError
 // ============================================================
 
-const getHeaders = async (): Promise<Record<string, string>> => {
-  const token = await getToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 // ============================================================
 // ✅ API METHODS
@@ -342,28 +334,26 @@ const getHeaders = async (): Promise<Record<string, string>> => {
 export const getOrderTrackingData = async (
   orderId: string,
 ): Promise<OrderTrackingResponse> => {
-  console.log('📍 ORDER TRACKING API CALLED:', orderId);
-
   if (!orderId) {
     throw new Error('orderId is required');
   }
 
   try {
-    const headers = await getHeaders();
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ORDER_TRACKING}/${orderId}`;
-
-    const data = await fetchHandler(url, {
-      method: 'GET',
-      headers,
-    });
+    const data = await apiRequest<OrderTrackingResponse>(
+      apiUrl(`${API_ENDPOINTS.ORDER_TRACKING}/${orderId}`),
+    );
 
     if (!data || !data.success) {
       throw new Error(data?.error || 'Failed to fetch tracking data');
     }
 
     return data;
-  } catch (error: any) {
-    console.error('❌ Order Tracking API Error:', error.message);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      console.error('❌ Order Tracking API Error:', error.message);
+    } else {
+      console.error('❌ Order Tracking API Error:', error);
+    }
     throw error;
   }
 };
@@ -383,6 +373,12 @@ export const getOrderTrackingDataWithRetry = async (
       return await getOrderTrackingData(orderId);
     } catch (error: any) {
       lastError = error;
+
+      // Don't retry on auth errors — refresh already failed inside apiClient
+      if (isAuthError(error)) {
+        throw error;
+      }
+
       if (attempt < maxRetries) {
         await new Promise<void>(resolve =>
           setTimeout(() => resolve(), retryDelay),
@@ -425,8 +421,8 @@ export const getOrderStatus = async (
       };
     }
     throw new Error(response.error || 'Failed to fetch order status');
-  } catch (error: any) {
-    console.error('❌ Error fetching order status:', error.message);
+  } catch (error) {
+    console.error('❌ Error fetching order status:', error);
     throw error;
   }
 };

@@ -1,11 +1,24 @@
 // services/cart/CartAPI.ts
 
-import Config from 'react-native-config';
 import { Alert } from 'react-native';
 
-import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
-import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+// Sirf 401 = auth issue. 403 = permission issue (refresh se
+// fayda nahi hoga), isliye use auth error treat nahi karte.
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && error.status === 401;
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof ApiError ? error.message : fallback;
 
 export interface CartResponse {
   success?: boolean;
@@ -42,40 +55,34 @@ export interface CartResponse {
   currency?: string;
 }
 
+export interface CartCountResponse {
+  success?: boolean;
+  message?: string;
+  count?: number;
+  data?: {
+    count?: number;
+    totalItems?: number;
+  };
+  totalItems?: number;
+}
+
 export const CartAPI = {
   // ✅ GET CART CHECKOUT
   async getCartCheckout(couponCode?: string): Promise<CartResponse | null> {
     try {
-      const token = await getToken();
-      if (!token) {
+      const path = couponCode
+        ? `${API_ENDPOINTS.CART_CHECKOUT}?couponCode=${encodeURIComponent(couponCode)}`
+        : API_ENDPOINTS.CART_CHECKOUT;
+
+      const data = await apiRequest<CartResponse>(path);
+      return data;
+    } catch (error) {
+      if (isAuthError(error)) {
         Alert.alert('Error', 'Please login to view cart');
         return null;
       }
 
-      const url = couponCode
-        ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}?couponCode=${couponCode}`
-        : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT}`;
-
-      console.log('🛒 [CartAPI] Fetching cart checkout...');
-      console.log('  - URL:', url);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch cart');
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      console.error('❌ [CartAPI] Error:', error.message);
-      Alert.alert('Error', error.message || 'Failed to load cart');
+      Alert.alert('Error', getErrorMessage(error, 'Failed to load cart'));
       return null;
     }
   },
@@ -83,33 +90,38 @@ export const CartAPI = {
   // ✅ UPDATE CART LOCATION
   async updateCartLocation(locationData: any): Promise<CartResponse | null> {
     try {
-      const token = await getToken();
-      if (!token) {
+      const data = await apiRequest<CartResponse>(
+        API_ENDPOINTS.CART_CHECKOUT_LOCATION,
+        {
+          method: 'POST',
+          body: JSON.stringify(locationData),
+        },
+      );
+      return data;
+    } catch (error) {
+      if (isAuthError(error)) {
         Alert.alert('Error', 'Please login to update location');
         return null;
       }
 
-      const response = await fetch(
-        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CART_CHECKOUT_LOCATION}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(locationData),
-        },
+      Alert.alert('Error', getErrorMessage(error, 'Failed to update location'));
+      return null;
+    }
+  },
+
+  // ✅ GET CART COUNT
+  // Count non-critical hai — silent fail, UI block nahi karte.
+  async getCartCount(): Promise<CartCountResponse | null> {
+    try {
+      const data = await apiRequest<CartCountResponse>(
+        API_ENDPOINTS.CART_COUNT,
       );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update location');
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      console.error('❌ [CartAPI] Error:', error.message);
-      Alert.alert('Error', error.message || 'Failed to update location');
+      return data;
+    } catch (error) {
+      console.error(
+        'Failed to fetch cart count:',
+        error instanceof ApiError ? error.message : error,
+      );
       return null;
     }
   },

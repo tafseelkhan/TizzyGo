@@ -7,6 +7,7 @@
 
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'authToken',
+  SESSION_TOKEN: 'SESSION_TOKEN',
 };
 
 /**

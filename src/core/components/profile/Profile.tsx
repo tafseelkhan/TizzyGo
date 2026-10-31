@@ -1,5 +1,5 @@
-// ProfileScreen.tsx (Fixed - Animation will show when no image)
-import React, { useEffect, useState } from 'react';
+// ProfileScreen.tsx
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,8 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
-  Alert,
   Dimensions,
   StatusBar,
-  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -22,38 +20,69 @@ import FAIcon from 'react-native-vector-icons/FontAwesome';
 import IIcon from 'react-native-vector-icons/Ionicons';
 import BottomNavigation from '../BottomNavigationHome';
 import { useTheme } from '../../contexts/theme/ThemeContext';
-import { profileService } from '../../services/profile/profileService';
+
+// 👇 Direct API Import
+import { me } from '../../../api/features/public/authPublicSlice';
+import { ApiError } from '../../../core/utils/handler/apiClient';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+// Stuck detection — agar fetch 30s se zyada pending hai, force reset
+const STUCK_THRESHOLD_MS = 30000;
+
 interface ProfileData {
-  _id: string;
-  name: string;
-  image: string;
-  email: string;
-  phone: string;
-  joinDate: string;
-  verified: boolean;
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  connectAddress: string;
+  displayName?: string;
+  profilePhoto?: string;
+  phone?: string;
+  phoneVerified?: boolean;
+  connectVerified?: boolean;
+  role?: string;
+  status?: string;
+  apps?: Array<{ app: string; roles: string[] }>;
+  createdAt?: string;
+  updatedAt?: string;
   hasImage?: boolean;
 }
+
+const EMPTY_PROFILE: ProfileData = {
+  id: '',
+  firstName: '',
+  lastName: '',
+  username: '',
+  connectAddress: '',
+  displayName: '',
+  profilePhoto: '',
+  phone: '',
+  phoneVerified: false,
+  connectVerified: false,
+  role: '',
+  status: '',
+  apps: [],
+  createdAt: '',
+  updatedAt: '',
+  hasImage: false,
+};
 
 export default function ProfileScreen() {
   const { isDark } = useTheme();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('profile');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [profileData, setProfileData] = useState<ProfileData>({
-    _id: '',
-    name: '',
-    image: '',
-    email: '',
-    phone: '',
-    joinDate: '',
-    verified: false,
-    hasImage: false,
-  });
 
-  // Dynamic colors based on theme
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<ProfileData>(EMPTY_PROFILE);
+
+  // Refs
+  const hasLoadedOnceRef = useRef(false);
+  const isFetchingRef = useRef(false);
+  const fetchStartedAtRef = useRef<number | null>(null);
+
+  // Dynamic colors
   const backgroundColor = isDark ? '#1E293B' : '#f9fafb';
   const textColor = isDark ? '#F1F5F9' : '#1a1a1a';
   const subtitleColor = isDark ? '#94A3B8' : '#6b7280';
@@ -61,8 +90,6 @@ export default function ProfileScreen() {
   const cardBorder = isDark ? '#374151' : '#e5e7eb';
   const contactBackground = isDark ? '#374151' : '#f3f4f6';
   const statusBackground = isDark ? '#374151' : '#f3f4f6';
-  const statCardBackground = isDark ? '#374151' : '#ffffff';
-  const statCardBorder = isDark ? '#475569' : '#e5e7eb';
 
   const gradientColors: string[] = isDark
     ? ['#1E293B', '#1E293B', '#1E293B']
@@ -72,54 +99,118 @@ export default function ProfileScreen() {
     ? ['#7C3AED', '#6D28D9']
     : ['#8b5cf6', '#3b82f6'];
 
-  const secondaryButtonGradient: string[] = isDark
-    ? ['#475569', '#374151']
-    : ['#6b7280', '#374151'];
+  // ============================================================
+  // FETCH PROFILE — single-flight, stuck-safe
+  // ============================================================
+  const fetchProfile = useCallback(async (showSpinner: boolean) => {
+    // Stuck detection — agar pehli fetch 30s se zyada pending hai, force reset
+    if (isFetchingRef.current) {
+      const startedAt = fetchStartedAtRef.current;
+      const age = startedAt ? Date.now() - startedAt : 0;
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    const result = await profileService.fetchProfile();
-
-    if (result.success && result.data) {
-      setProfileData({
-        ...result.data,
-        hasImage: result.data.hasImage || false,
-      });
-    } else {
-      Alert.alert('Error', result.message || 'Failed to load profile data');
+      if (age > STUCK_THRESHOLD_MS) {
+        console.warn(
+          `⚠️ [Profile] Previous fetch stuck for ${age}ms — forcing reset`,
+        );
+        isFetchingRef.current = false;
+        fetchStartedAtRef.current = null;
+      } else {
+        // Genuinely in-flight — skip duplicate
+        console.log('⏭️ [Profile] Fetch skipped — already in flight');
+        return;
+      }
     }
 
-    setLoading(false);
-  };
+    isFetchingRef.current = true;
+    fetchStartedAtRef.current = Date.now();
 
-  useEffect(() => {
-    fetchProfile();
+    if (showSpinner) setLoading(true);
+    setError(null);
+
+    try {
+      console.log('🟢 [Profile] Calling me()...');
+      const t0 = Date.now();
+      const response = await me();
+      console.log(
+        `🟢 [Profile] me() resolved in ${Date.now() - t0}ms, success=`,
+        response?.success,
+      );
+
+      if (response?.success && response?.user) {
+        const user = response.user;
+        setProfileData({
+          id: user.id || '',
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          username: user.username || '',
+          connectAddress: user.connectAddress || '',
+          displayName: user.displayName || '',
+          profilePhoto: user.profilePhoto || '',
+          phone: user.phone || '',
+          phoneVerified: user.phoneVerified || false,
+          connectVerified: user.connectVerified || false,
+          role: user.role || '',
+          status: user.status || '',
+          apps: user.apps || [],
+          createdAt: user.createdAt || '',
+          updatedAt: user.updatedAt || '',
+          hasImage: !!(user.profilePhoto && user.profilePhoto !== ''),
+        });
+        hasLoadedOnceRef.current = true;
+        setError(null);
+      } else {
+        setError('Failed to load profile data');
+      }
+    } catch (err) {
+      console.error('❌ [Profile] fetch failed:', (err as any)?.message);
+      const message =
+        err instanceof ApiError ? err.message : 'Unable to fetch profile.';
+      setError(message);
+    } finally {
+      console.log('🟢 [Profile] fetch END');
+      isFetchingRef.current = false;
+      fetchStartedAtRef.current = null;
+      setLoading(false);
+    }
   }, []);
 
-  // Refresh profile when screen comes into focus (after edit/delete)
+  // ============================================================
+  // FETCH ON FOCUS — single request, no double
+  // ============================================================
   useFocusEffect(
-    React.useCallback(() => {
-      fetchProfile();
+    useCallback(() => {
+      if (!hasLoadedOnceRef.current) {
+        fetchProfile(true);
+      } else {
+        fetchProfile(false);
+      }
       return () => {};
-    }, []),
+    }, [fetchProfile]),
   );
+
+  const handleRetry = () => {
+    // Force reset if stuck
+    isFetchingRef.current = false;
+    fetchStartedAtRef.current = null;
+    fetchProfile(true);
+  };
 
   const handleSettingsPress = () => {
     navigation.navigate('Settings' as never);
   };
 
-  // Function to check if image exists properly
   const hasValidImage = (): boolean => {
     return !!(
       profileData.hasImage &&
-      profileData.image &&
-      profileData.image !== '' &&
-      profileData.image !== 'null' &&
-      profileData.image !== 'undefined'
+      profileData.profilePhoto &&
+      profileData.profilePhoto !== '' &&
+      profileData.profilePhoto !== 'null' &&
+      profileData.profilePhoto !== 'undefined'
     );
   };
 
-  if (loading) {
+  // Full-screen loader — only first load
+  if (loading && !hasLoadedOnceRef.current) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor }]}>
         <LinearGradient
@@ -144,12 +235,54 @@ export default function ProfileScreen() {
     );
   }
 
+  // Error state — only when we have no data
+  if (error && !hasLoadedOnceRef.current) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor }]}>
+        <LinearGradient
+          colors={gradientColors}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          style={[
+            styles.loadingCard,
+            { backgroundColor: cardBackground, borderColor: cardBorder },
+          ]}
+        >
+          <Icon name="error-outline" size={40} color="#ef4444" />
+          <Text
+            style={[
+              styles.loadingText,
+              { color: textColor, textAlign: 'center' },
+            ]}
+          >
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={handleRetry}
+            style={styles.retryButton}
+            activeOpacity={0.8}
+          >
+            <Icon name="refresh" size={18} color="white" />
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const displayName =
+    profileData.displayName ||
+    `${profileData.firstName} ${profileData.lastName}`.trim() ||
+    profileData.username ||
+    'Your Profile';
+
+  const isVerified =
+    profileData.phoneVerified || profileData.connectVerified;
+
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <StatusBar
-        backgroundColor={isDark ? '#1E293B' : '#f9fafb'}
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-      />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFill} />
 
@@ -163,7 +296,7 @@ export default function ProfileScreen() {
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <Text style={[styles.userName, { color: textColor }]}>
-                {profileData.name}
+                {displayName}
               </Text>
               <TouchableOpacity
                 style={[
@@ -191,7 +324,6 @@ export default function ProfileScreen() {
               { backgroundColor: cardBackground, borderColor: cardBorder },
             ]}
           >
-            {/* Profile Image - FIXED: Animation shows when NO image */}
             <View style={styles.imageSection}>
               <View style={styles.imageContainer}>
                 <View
@@ -202,11 +334,10 @@ export default function ProfileScreen() {
                 >
                   {hasValidImage() ? (
                     <Image
-                      source={{ uri: profileData.image }}
+                      source={{ uri: profileData.profilePhoto }}
                       style={styles.profileImage}
                       resizeMode="cover"
                       onError={() => {
-                        // Agar image load nahi hoti to bhi animation dikhao
                         setProfileData(prev => ({ ...prev, hasImage: false }));
                       }}
                     />
@@ -220,7 +351,7 @@ export default function ProfileScreen() {
                     />
                   )}
                 </View>
-                {profileData.verified && (
+                {isVerified && (
                   <View style={styles.verifiedBadge}>
                     <FAIcon name="check" size={10} color="white" />
                   </View>
@@ -228,9 +359,8 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Contact Info */}
             <View style={styles.contactSection}>
-              {profileData.email !== 'Not provided' && (
+              {profileData.connectAddress && (
                 <View
                   style={[
                     styles.contactItem,
@@ -242,27 +372,27 @@ export default function ProfileScreen() {
                       styles.contactIcon,
                       {
                         backgroundColor: isDark
-                          ? 'rgba(239, 68, 68, 0.2)'
-                          : 'rgba(239, 68, 68, 0.1)',
+                          ? 'rgba(59, 130, 246, 0.2)'
+                          : 'rgba(59, 130, 246, 0.1)',
                       },
                     ]}
                   >
-                    <Icon name="email" size={16} color="#ef4444" />
+                    <Icon name="alternate-email" size={16} color="#3b82f6" />
                   </View>
                   <View style={styles.contactContent}>
                     <Text
                       style={[styles.contactLabel, { color: subtitleColor }]}
                     >
-                      Email
+                      Connect Address
                     </Text>
                     <Text style={[styles.contactValue, { color: textColor }]}>
-                      {profileData.email}
+                      {profileData.connectAddress}
                     </Text>
                   </View>
                 </View>
               )}
 
-              {profileData.phone !== 'Not provided' && (
+              {profileData.phone && (
                 <View
                   style={[
                     styles.contactItem,
@@ -293,9 +423,40 @@ export default function ProfileScreen() {
                   </View>
                 </View>
               )}
+
+              {profileData.username && (
+                <View
+                  style={[
+                    styles.contactItem,
+                    { backgroundColor: contactBackground },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.contactIcon,
+                      {
+                        backgroundColor: isDark
+                          ? 'rgba(139, 92, 246, 0.2)'
+                          : 'rgba(139, 92, 246, 0.1)',
+                      },
+                    ]}
+                  >
+                    <Icon name="person" size={16} color="#8b5cf6" />
+                  </View>
+                  <View style={styles.contactContent}>
+                    <Text
+                      style={[styles.contactLabel, { color: subtitleColor }]}
+                    >
+                      Username
+                    </Text>
+                    <Text style={[styles.contactValue, { color: textColor }]}>
+                      @{profileData.username}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
-            {/* Account Status */}
             <View style={styles.accountStatus}>
               <View
                 style={[
@@ -317,18 +478,18 @@ export default function ProfileScreen() {
                   </Text>
                   <View style={styles.statusContainer}>
                     <Text style={[styles.statusValue, { color: textColor }]}>
-                      {profileData.verified ? 'Verified' : 'Not Verified'}
+                      {isVerified ? 'Verified' : 'Not Verified'}
                     </Text>
                     <View
                       style={[
                         styles.statusBadge,
-                        profileData.verified
+                        isVerified
                           ? styles.verifiedStatus
                           : styles.pendingStatus,
                       ]}
                     >
                       <Text style={styles.statusText}>
-                        {profileData.verified ? 'Secure' : 'Pending'}
+                        {isVerified ? 'Secure' : 'Pending'}
                       </Text>
                     </View>
                   </View>
@@ -337,7 +498,6 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -352,20 +512,6 @@ export default function ProfileScreen() {
               <Icon name="edit" size={18} color="white" />
               <Text style={styles.buttonText}>Edit Profile</Text>
             </TouchableOpacity>
-
-            {/* <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.navigate('Security' as never)}
-            >
-              <LinearGradient
-                colors={secondaryButtonGradient}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              />
-              <Icon name="security" size={18} color="white" />
-              <Text style={styles.buttonText}>Security</Text>
-            </TouchableOpacity> */}
           </View>
           <View style={styles.bottomSpacer} />
         </ScrollView>
@@ -406,10 +552,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -445,10 +588,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
@@ -463,10 +603,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -489,10 +626,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     overflow: 'hidden',
     shadowColor: '#00000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -514,10 +648,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'white',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
@@ -602,6 +733,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: screenWidth * 0.028,
     fontWeight: '600',
+    color: '#000',
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -617,27 +749,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  secondaryButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -652,6 +764,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: screenWidth * 0.04,
     fontWeight: '600',
+  },
+  retryButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
   },
   bottomSpacer: {
     height: 20,

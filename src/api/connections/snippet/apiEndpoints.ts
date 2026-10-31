@@ -5,17 +5,27 @@
 
 export const API_ENDPOINTS = {
   // Authentication endpoints
-  VERIFY_USER_ROUTE: '/api/v0/auth/check',
+  ME: '/api/v0/auth/me',
   SIGNUP: '/api/v0/auth/signup',
-  VERIFY_SIGNUP: '/api/v0/auth/verify-signup',
+  VERIFY_PHONE: '/api/v0/auth/verify-phone',
   LOGIN: '/api/v0/auth/login',
-  VERIFY_LOGIN: '/api/v0/auth/verify-login',
+  LOGIN_VERIFY_OTP: '/api/v0/auth/login/verify-otp',
+  FORGOT_PASSWORD: '/api/v0/auth/forgot-password',
+  FORGOT_PASSWORD_VERIFY_OTP: '/api/v0/auth/forgot-password/verify-otp',
+  FORGOT_PASSWORD_RESET: '/api/v0/auth/forgot-password/reset',
   RESEND_OTP: '/api/v0/auth/resend-otp',
+  REFRESH: '/api/v0/auth/refresh',
+  LOGOUT: '/api/v0/auth/logout',
 
   // Profile endpoints
   GET_PROFILE: '/api/v0/profile/me',
   UPDATE_PROFILE: '/api/v0/profile/update',
   DELETE_PROFILE_IMAGE: '/api/v0/profile/delete-image',
+
+  SELLER_FORMS_CATEGORIES: '/api/v0/seller/forms/categories',
+  FAV_COLOR: '/api/v0/fav/color',
+
+    RELATED_PRODUCTS: '/api/public/related',
 
   // Orders endpoints
   MY_ORDERS: '/api/v0/orders/yourorder/my',
@@ -30,6 +40,7 @@ export const API_ENDPOINTS = {
   CART_CHECKOUT: '/api/v0/cart/checkout',
   CART_CHECKOUT_LOCATION: '/api/v0/cart/checkout/location',
   CHECK_CART: '/api/v0/cart/check',
+  CART_COUNT: '/api/v0/cart/count',
 
   // Buy Now endpoints
   BUYNOW_PRODUCT_VARIANTS: (productId: string) =>

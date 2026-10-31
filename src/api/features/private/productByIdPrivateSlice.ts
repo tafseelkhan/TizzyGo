@@ -1,11 +1,21 @@
-import Config from 'react-native-config';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import { apiRequest } from '../../../core/utils/handler/apiClient';
 
-// ================================
+// ============================================================
+// SAFE URL JOINER — TIZZYOS base
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYOS_API_BASE_URL) {
+    throw new Error('TIZZYOS_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
 // TYPES
-// ================================
+// ============================================================
 
 export interface Product {
   _id: string;
@@ -66,7 +76,6 @@ export interface Product {
   manufacturer?: boolean;
   cashOnDelivery?: boolean;
   deliveryVehicleType?: boolean;
-  // ✅ Add missing properties from ShopTypes Product
   vendorCodeUID?: string;
   sellerId?: string;
   gstRate?: number;
@@ -76,19 +85,15 @@ export interface Product {
 }
 
 // ================================
-// GET SINGLE PRODUCT
+// GET SINGLE PRODUCT — public
 // ================================
 
 export const fetchProduct = async (productId: string): Promise<Product> => {
-  console.log(
-    'Fetching product:',
-    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
-  );
-
-  const data = await fetchHandler(
-    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
+  const data = await apiRequest<any>(
+    apiUrl(`${API_ENDPOINTS.GET_PRODUCT}/${productId}`),
     {
-      method: 'GET',
+      auth: false,
+      retryOnUnauthorized: false,
     },
   );
 
@@ -102,14 +107,15 @@ export const fetchProduct = async (productId: string): Promise<Product> => {
 };
 
 // ================================
-// GET RAW PRODUCT (DEBUG)
+// GET RAW PRODUCT (DEBUG) — public
 // ================================
 
 export const fetchProductRaw = async (productId: string) => {
-  return await fetchHandler(
-    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
+  return await apiRequest<any>(
+    apiUrl(`${API_ENDPOINTS.GET_PRODUCT}/${productId}`),
     {
-      method: 'GET',
+      auth: false,
+      retryOnUnauthorized: false,
     },
   );
 };

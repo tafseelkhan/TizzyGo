@@ -2,13 +2,33 @@
 // api/features/private/RatingGlobalPrivateSlice.ts
 // ============================================================
 
-import Config from 'react-native-config';
 import { jwtDecode } from 'jwt-decode';
 
 import { getToken } from '../../connections/token/tokenSlice';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
-import { fetchHandler } from '../../../core/utils/handler/fetchHandler';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
+import {
+  apiRequest,
+  ApiError,
+} from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// SAFE URL JOINER
+// ============================================================
+
+const apiUrl = (path: string): string => {
+  if (!TIZZYGO_API_BASE_URL) {
+    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
+  }
+  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const isAuthError = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
 
 // ================================
 // TYPES
@@ -51,19 +71,6 @@ export interface RatingStats {
 }
 
 // ================================
-// TOKEN HELPER
-// ================================
-
-const getHeaders = async () => {
-  const token = await getToken();
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-};
-
-// ================================
 // CURRENT USER ID
 // ================================
 
@@ -85,7 +92,7 @@ export const getCurrentUserId = async (): Promise<string | null> => {
 };
 
 // ================================
-// ✅ FETCH RATING STATS
+// ✅ FETCH RATING STATS — public
 // GET /api/v0/rating-review/rating/stats/:productId
 // ================================
 
@@ -93,20 +100,14 @@ export const fetchRatingStatsAPI = async (
   productId: string,
 ): Promise<RatingStats> => {
   try {
-    console.log('📊 fetchRatingStatsAPI called with productId:', productId);
+    const data = await apiRequest<any>(
+      apiUrl(`${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`),
+      {
+        auth: false,
+        retryOnUnauthorized: false,
+      },
+    );
 
-    // ✅ FIXED: Correct URL format
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`;
-    console.log('📤 URL:', url);
-
-    const data = await fetchHandler(url, {
-      method: 'GET',
-      headers: await getHeaders(),
-    });
-
-    console.log('📥 Response data:', data);
-
-    // ✅ Backend returns: { success: true, data: { ... } }
     const statsData = data?.data || data;
 
     return {
@@ -116,9 +117,8 @@ export const fetchRatingStatsAPI = async (
       distribution: statsData?.distribution || [0, 0, 0, 0, 0],
       totalReviews: statsData?.totalReviews || 0,
     };
-  } catch (error: any) {
-    console.error('❌ fetchRatingStatsAPI error:', error.message);
-    // ✅ Return default stats on error
+  } catch (error) {
+    console.error('❌ fetchRatingStatsAPI error:', error);
     return {
       totalRatings: 0,
       averageRating: '0.0',
@@ -130,7 +130,7 @@ export const fetchRatingStatsAPI = async (
 };
 
 // ================================
-// ✅ FETCH REVIEWS WITH USER DATA
+// ✅ FETCH REVIEWS WITH USER DATA — public
 // GET /api/v0/rating-review/rating/reviews/:productId?page=1&limit=10
 // ================================
 
@@ -140,50 +140,38 @@ export const fetchReviewsWithUserDataAPI = async (
   limit: number = 10,
 ): Promise<Review[]> => {
   try {
-    console.log(
-      '📚 fetchReviewsWithUserDataAPI called with productId:',
-      productId,
+    const data = await apiRequest<any>(
+      apiUrl(`${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`),
+      {
+        auth: false,
+        retryOnUnauthorized: false,
+      },
     );
 
-    // ✅ FIXED: Correct URL format
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`;
-    console.log('📤 URL:', url);
-
-    const data = await fetchHandler(url, {
-      method: 'GET',
-      headers: await getHeaders(),
-    });
-
-    console.log('📥 Response data:', data?.length || 0, 'reviews');
-
-    // ✅ Backend returns: { success: true, data: [ ... ] }
     return data?.data || data || [];
-  } catch (error: any) {
-    console.error('❌ fetchReviewsWithUserDataAPI error:', error.message);
+  } catch (error) {
+    console.error('❌ fetchReviewsWithUserDataAPI error:', error);
     return [];
   }
 };
 
 // ================================
-// ✅ SUBMIT REVIEW
+// ✅ SUBMIT REVIEW — authenticated
 // POST /api/v0/rating-review/rating
 // PUT /api/v0/rating-review/rating/:reviewId
 // ================================
 
-export const submitReviewAPI = async (submitData: any, reviewId?: string) => {
+export const submitReviewAPI = async (
+  submitData: any,
+  reviewId?: string,
+) => {
   try {
-    console.log('📝 submitReviewAPI called with reviewId:', reviewId);
+    const path = reviewId
+      ? `${API_ENDPOINTS.REVIEW}/${reviewId}`
+      : API_ENDPOINTS.REVIEW;
 
-    // ✅ FIXED: Correct URL format
-    const endpoint = reviewId
-      ? `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW}/${reviewId}` // PUT for update
-      : `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW}`; // POST for create
-
-    console.log('📤 URL:', endpoint);
-
-    const data = await fetchHandler(endpoint, {
+    const data = await apiRequest<any>(apiUrl(path), {
       method: reviewId ? 'PUT' : 'POST',
-      headers: await getHeaders(),
       body: JSON.stringify({
         productId: submitData.productId,
         rating: submitData.rating,
@@ -192,69 +180,55 @@ export const submitReviewAPI = async (submitData: any, reviewId?: string) => {
       }),
     });
 
-    console.log('✅ Review submitted successfully');
-
-    // ✅ Backend returns: { success: true, data: { ... } }
     return data?.data || data;
-  } catch (error: any) {
-    console.error('❌ submitReviewAPI error:', error.message);
+  } catch (error) {
+    if (isAuthError(error)) {
+      throw new Error('Please login to submit a review.');
+    }
+    console.error('❌ submitReviewAPI error:', error);
     throw error;
   }
 };
 
 // ================================
-// ✅ DELETE REVIEW
+// ✅ DELETE REVIEW — authenticated
 // DELETE /api/v0/rating-review/:ratingReviewId
 // ================================
 
 export const deleteReviewAPI = async (reviewId: string): Promise<void> => {
   try {
-    console.log('🗑️ deleteReviewAPI called with reviewId:', reviewId);
-
-    // ✅ FIXED: Correct URL format
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`;
-    console.log('📤 URL:', url);
-
-    await fetchHandler(url, {
+    await apiRequest(apiUrl(`${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`), {
       method: 'DELETE',
-      headers: await getHeaders(),
     });
-
-    console.log('✅ Review deleted successfully');
-  } catch (error: any) {
-    console.error('❌ deleteReviewAPI error:', error.message);
+  } catch (error) {
+    if (isAuthError(error)) {
+      throw new Error('Please login to delete a review.');
+    }
+    console.error('❌ deleteReviewAPI error:', error);
     throw error;
   }
 };
 
 // ================================
-// ✅ FETCH USER RATING
+// ✅ FETCH USER RATING — authenticated
 // GET /api/v0/rating-review/rating/user/:productId
 // ================================
 
 export const fetchUserRatingAPI = async (productId: string) => {
   try {
-    console.log('👤 fetchUserRatingAPI called with productId:', productId);
+    const data = await apiRequest<any>(
+      apiUrl(`${API_ENDPOINTS.USER_RATING}/${productId}`),
+    );
 
-    // ✅ FIXED: Correct URL format
-    const url = `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`;
-    console.log('📤 URL:', url);
-
-    const data = await fetchHandler(url, {
-      method: 'GET',
-      headers: await getHeaders(),
-    });
-
-    console.log('📥 Response data:', data);
-
-    // ✅ Backend returns: { success: true, data: { ... } }
     return data?.data || data;
-  } catch (error: any) {
-    if (error?.message?.includes('404') || error?.status === 404) {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
       return null;
     }
-
-    console.error('❌ fetchUserRatingAPI error:', error.message);
+    if (isAuthError(error)) {
+      return null;
+    }
+    console.error('❌ fetchUserRatingAPI error:', error);
     throw error;
   }
 };
