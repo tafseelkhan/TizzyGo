@@ -1,20 +1,10 @@
+
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import {
   apiRequest,
   ApiError,
 } from '../../../core/utils/handler/apiClient';
-
-// ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
 
 // ============================================================
 // ORDERS API
@@ -28,7 +18,7 @@ export const ordersApi = {
   fetchUserOrders: async () => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.MY_ORDERS),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.MY_ORDERS}`,
       );
 
       return data;

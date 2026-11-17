@@ -11,18 +11,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER — guards against undefined base URL
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -45,7 +33,7 @@ export const fetchProductVariantsAPI = async (
 ): Promise<ProductVariant[]> => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUYNOW_PRODUCT_VARIANTS(productId)}`,
     );
 
     return data?.variants || data?.data || [];
@@ -67,10 +55,13 @@ export const clearBuyNowCartAPI = async (
   productId: string,
 ): Promise<boolean> => {
   try {
-    await apiRequest(apiUrl(API_ENDPOINTS.CLEAR_BUY_NOW), {
-      method: 'DELETE',
-      body: JSON.stringify({ productId }),
-    });
+    await apiRequest(
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_BUY_NOW}`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ productId }),
+      },
+    );
 
     return true;
   } catch (error) {
@@ -112,10 +103,13 @@ export const processBuyNowAPI = async (
       requestBody.selectedVariant = variantToSend;
     }
 
-    const data = await apiRequest(apiUrl(API_ENDPOINTS.BUY_NOW), {
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-    });
+    const data = await apiRequest(
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.BUY_NOW}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      },
+    );
 
     return {
       success: true,

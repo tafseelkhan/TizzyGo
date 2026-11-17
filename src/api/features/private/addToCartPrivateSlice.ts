@@ -12,21 +12,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER
-//
-// Joins TIZZYGO_API_BASE_URL with an endpoint path, avoiding
-// double slashes. Matches apiClient.buildUrl logic.
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured');
-  }
-
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -46,7 +31,7 @@ export const CartAPI = {
   async fetchProductVariants(productId: string): Promise<any[]> {
     try {
       const data = await apiRequest<any[]>(
-        apiUrl(`${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_VARIANTS}/${productId}/variants`,
         {
           auth: false,
           retryOnUnauthorized: false,
@@ -83,10 +68,13 @@ export const CartAPI = {
         requestBody.selectedVariant = selectedVariant;
       }
 
-      await apiRequest(apiUrl(API_ENDPOINTS.ADD_TO_CART), {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
+      await apiRequest(
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ADD_TO_CART}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(requestBody),
+        },
+      );
 
       return true;
     } catch (error) {
@@ -125,10 +113,13 @@ export const CartAPI = {
         requestBody.selectedVariant = selectedVariant;
       }
 
-      await apiRequest(apiUrl(API_ENDPOINTS.UPDATE_CART), {
-        method: 'PUT',
-        body: JSON.stringify(requestBody),
-      });
+      await apiRequest(
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.UPDATE_CART}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(requestBody),
+        },
+      );
 
       return true;
     } catch (error) {
@@ -154,10 +145,13 @@ export const CartAPI = {
 
   async removeFromCart(productId: string): Promise<boolean> {
     try {
-      await apiRequest(apiUrl(API_ENDPOINTS.REMOVE_FROM_CART), {
-        method: 'DELETE',
-        body: JSON.stringify({ productId }),
-      });
+      await apiRequest(
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_FROM_CART}`,
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ productId }),
+        },
+      );
 
       return true;
     } catch (error) {
@@ -188,9 +182,7 @@ export const CartAPI = {
         quantity?: number;
         selectedVariant?: any;
       }>(
-        apiUrl(
-          `${API_ENDPOINTS.CHECK_CART}?productId=${encodeURIComponent(productId)}`,
-        ),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CHECK_CART}?productId=${encodeURIComponent(productId)}`,
       );
 
       return {

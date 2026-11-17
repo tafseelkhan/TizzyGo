@@ -9,17 +9,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -56,7 +45,7 @@ export const shareService = {
   ): Promise<ShareResponse | null> => {
     try {
       const data = await apiRequest<ShareResponse>(
-        apiUrl(API_ENDPOINTS.CREATE_SHARE),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_SHARE}`,
         {
           method: 'POST',
           body: JSON.stringify({

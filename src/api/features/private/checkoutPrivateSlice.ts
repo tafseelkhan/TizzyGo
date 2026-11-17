@@ -6,17 +6,6 @@ import {
   ApiError,
 } from '../../../core/utils/handler/apiClient';
 
-// ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
 // ================================
 // TYPES
 // ================================
@@ -116,7 +105,7 @@ class CheckoutApi {
 
     try {
       const data = await apiRequest<CheckoutResponse>(
-        apiUrl(`${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CALCULATE_CHECKOUT}?${urlParams.toString()}`,
       );
 
       if (!data.success && data.code === 'LOCATION_NOT_FOUND') {

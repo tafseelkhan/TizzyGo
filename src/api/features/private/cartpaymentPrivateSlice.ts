@@ -7,18 +7,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER — guards against undefined base URL
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -35,7 +23,7 @@ export const createPaymentIntentAPI = async (
   idempotencyKey?: string,
 ) => {
   const data = await apiRequest(
-    apiUrl(API_ENDPOINTS.CREATE_PAYMENT_INTENT),
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CREATE_PAYMENT_INTENT}`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -67,10 +55,13 @@ export const processPaymentAPI = async (
     razorpay_signature,
   };
 
-  const data = await apiRequest(apiUrl(API_ENDPOINTS.PROCESS_PAYMENT), {
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-  });
+  const data = await apiRequest(
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PROCESS_PAYMENT}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    },
+  );
 
   return data;
 };
@@ -80,10 +71,13 @@ export const processPaymentAPI = async (
 // ================================
 
 export const confirmCODAPI = async (checkoutSessionId: string) => {
-  const data = await apiRequest(apiUrl(API_ENDPOINTS.CONFIRM_COD), {
-    method: 'POST',
-    body: JSON.stringify({ checkoutSessionId }),
-  });
+  const data = await apiRequest(
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CONFIRM_COD}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ checkoutSessionId }),
+    },
+  );
 
   return data;
 };
@@ -97,7 +91,7 @@ export const getSessionStatusAPI = async (
 ): Promise<any> => {
   try {
     const data = await apiRequest(
-      apiUrl(`${API_ENDPOINTS.GET_SESSION_STATUS}/${checkoutSessionId}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_SESSION_STATUS}/${checkoutSessionId}`,
     );
 
     return data;

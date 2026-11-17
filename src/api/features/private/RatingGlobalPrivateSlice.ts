@@ -13,17 +13,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -101,7 +90,7 @@ export const fetchRatingStatsAPI = async (
 ): Promise<RatingStats> => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(`${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_GLOBAL_STATS}/${productId}`,
       {
         auth: false,
         retryOnUnauthorized: false,
@@ -141,7 +130,7 @@ export const fetchReviewsWithUserDataAPI = async (
 ): Promise<Review[]> => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(`${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEWS}/${productId}?page=${page}&limit=${limit}`,
       {
         auth: false,
         retryOnUnauthorized: false,
@@ -170,15 +159,18 @@ export const submitReviewAPI = async (
       ? `${API_ENDPOINTS.REVIEW}/${reviewId}`
       : API_ENDPOINTS.REVIEW;
 
-    const data = await apiRequest<any>(apiUrl(path), {
-      method: reviewId ? 'PUT' : 'POST',
-      body: JSON.stringify({
-        productId: submitData.productId,
-        rating: submitData.rating,
-        review: submitData.review || '',
-        images: submitData.images || [],
-      }),
-    });
+    const data = await apiRequest<any>(
+      `${TIZZYGO_API_BASE_URL}${path}`,
+      {
+        method: reviewId ? 'PUT' : 'POST',
+        body: JSON.stringify({
+          productId: submitData.productId,
+          rating: submitData.rating,
+          review: submitData.review || '',
+          images: submitData.images || [],
+        }),
+      },
+    );
 
     return data?.data || data;
   } catch (error) {
@@ -197,9 +189,10 @@ export const submitReviewAPI = async (
 
 export const deleteReviewAPI = async (reviewId: string): Promise<void> => {
   try {
-    await apiRequest(apiUrl(`${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`), {
-      method: 'DELETE',
-    });
+    await apiRequest(
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REVIEW_DELETE}/${reviewId}`,
+      { method: 'DELETE' },
+    );
   } catch (error) {
     if (isAuthError(error)) {
       throw new Error('Please login to delete a review.');
@@ -217,7 +210,7 @@ export const deleteReviewAPI = async (reviewId: string): Promise<void> => {
 export const fetchUserRatingAPI = async (productId: string) => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(`${API_ENDPOINTS.USER_RATING}/${productId}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.USER_RATING}/${productId}`,
     );
 
     return data?.data || data;

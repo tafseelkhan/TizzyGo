@@ -8,17 +8,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER — TIZZYOS base
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYOS_API_BASE_URL) {
-    throw new Error('TIZZYOS_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // TYPES
 // ============================================================
 
@@ -71,7 +60,7 @@ export const ordersApi = {
   fetchOrderDetails: async (orderId: string) => {
     try {
       return await apiRequest(
-        apiUrl(`${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.ORDER_DETAILS}/${orderId}`,
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -90,7 +79,7 @@ export const ordersApi = {
   ): Promise<LiveDeliveryData> => {
     try {
       return await apiRequest<LiveDeliveryData>(
-        apiUrl(`${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.LIVE_TRACKING}/${orderId}`,
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {

@@ -1,4 +1,5 @@
 // contexts/ThemeContext.tsx
+
 import React, {
   createContext,
   useContext,
@@ -7,24 +8,40 @@ import React, {
   useCallback,
 } from 'react';
 import {
-  Platform,
   Alert,
   AppState,
   Appearance,
-  StatusBar as RNStatusBar,
+  StatusBar,
+  View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TIZZYGO_API_BASE_URL } from '../../../api/connections/snippet/apiBaseUrl';
+
+// ✅ combined theme+color API slice
+import {
+  getThemeColor,
+  updateThemeColor,
+  ThemeMode,
+} from '../../../api/features/private/themePrivateSlice';
+import { ApiError } from '../../../core/utils/handler/apiClient';
+
+// ============================================================
+// TYPES
+// ============================================================
 
 type ColorScheme = 'light' | 'dark';
-type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
+  // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => Promise<void>;
   isDark: boolean;
   resolvedTheme: ColorScheme;
   systemColorScheme: ColorScheme;
+
+  // Accent color
+  color: string;
+  setColor: (color: string) => Promise<void>;
+
+  // Lifecycle
   refreshThemeFromAPI: () => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -32,32 +49,20 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// API URL - Change this to your actual API URL
-const API_URL = {TIZZYGO_API_BASE_URL}; // or use env variables
-
-// For Android navigation bar color - we'll use a simple approach
-const setAndroidNavigationBar = async (isDark: boolean) => {
-  if (Platform.OS === 'android') {
-    try {
-      // ✅ Only barStyle — setBackgroundColor() doesn't exist on StatusBar
-      RNStatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
-    } catch (error) {
-      console.error('Error setting navigation bar:', error);
-    }
-  }
-};
+// ============================================================
+// PROVIDER
+// ============================================================
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [theme, setThemeState] = useState<ThemeMode>('system');
+  const [color, setColorState] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Handle Appearance.getColorScheme() properly
   const getInitialColorScheme = (): ColorScheme => {
     const colorScheme = Appearance.getColorScheme();
-    // Filter out 'unspecified' and null, default to 'light'
     return colorScheme === 'dark' ? 'dark' : 'light';
   };
 
@@ -65,7 +70,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     getInitialColorScheme(),
   );
 
-  // Listen to system theme changes
+  // ============================================================
+  // SYSTEM THEME LISTENER
+  // ============================================================
+
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
       const newColorScheme: ColorScheme =
@@ -76,11 +84,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => subscription.remove();
   }, []);
 
-  // App state change listener (when app comes to foreground)
+  // ============================================================
+  // APP STATE LISTENER
+  // ============================================================
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
-        refreshThemeFromAPI(); // Refresh theme when app becomes active
+        refreshThemeFromAPI();
       }
     });
 
@@ -90,165 +101,179 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const resolvedTheme = theme === 'system' ? systemTheme : theme;
   const isDark = resolvedTheme === 'dark';
 
-  // Apply theme to UI elements
+  // ============================================================
+  // THEME APPLIED LOG (dev only)
+  // ============================================================
+
   useEffect(() => {
-    applyTheme();
-  }, [resolvedTheme, isDark]);
-
-  const applyTheme = async () => {
-    try {
-      const barStyle = isDark ? 'light-content' : 'dark-content';
-
-      // ✅ Set Status Bar style (valid method)
-      RNStatusBar.setBarStyle(barStyle);
-
-      // ❌ RNStatusBar.setBackgroundColor() — NOT a valid method, removed
-
-      // Android Navigation Bar
-      if (Platform.OS === 'android') {
-        await setAndroidNavigationBar(isDark);
-      }
-    } catch (error) {
-      console.error('Error applying theme:', error);
+    if (__DEV__) {
+      console.log(`🎨 Theme applied: ${isDark ? 'dark' : 'light'}`);
     }
-  };
+  }, [isDark]);
 
-  // Load theme on startup
+  // ============================================================
+  // ✅ REFRESH THEME + COLOR FROM API (via slice)
+  // ============================================================
+
+  const refreshThemeFromAPI = useCallback(async (): Promise<void> => {
+    try {
+      const remote = await getThemeColor();
+
+      if (!remote) return;
+
+      if (__DEV__) {
+        console.log('🎨 Theme/color fetched from API:', remote);
+      }
+
+      // Apply theme if valid
+      if (remote.theme && ['light', 'dark', 'system'].includes(remote.theme)) {
+        setThemeState(remote.theme);
+      }
+
+      // Apply color if present
+      if (typeof remote.color === 'string') {
+        setColorState(remote.color);
+      }
+    } catch (err) {
+      if (__DEV__) {
+        console.error('❌ Error refreshing theme/color from API:', err);
+      }
+    }
+  }, []);
+
+  // ============================================================
+  // ✅ LOAD THEME + COLOR ON STARTUP (server only)
+  // ============================================================
+
   const loadTheme = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1️⃣ First load from AsyncStorage (fast, offline)
-      const savedTheme = await AsyncStorage.getItem('app-theme');
-      if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-        setThemeState(savedTheme as ThemeMode);
-      }
-
-      // 2️⃣ Then try to load from API (if logged in)
+      // Pull everything from the server
       await refreshThemeFromAPI();
-    } catch (error) {
-      console.error('Error loading theme:', error);
+    } catch (err) {
+      if (__DEV__) {
+        console.error('Error loading theme:', err);
+      }
       setError('Failed to load theme');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshThemeFromAPI]);
 
-  // Initial load
   useEffect(() => {
     loadTheme();
   }, [loadTheme]);
 
-  // ✅ FETCH THEME FROM BACKEND
-  const refreshThemeFromAPI = async (): Promise<void> => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        console.log('No auth token, skipping API theme fetch');
-        return;
-      }
+  // ============================================================
+  // ✅ SET THEME (via combined API)
+  // ============================================================
 
-      console.log('🔍 Fetching theme from API...');
-
-      const response = await fetch(`${API_URL}/api/v0/user/theme`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log('📡 API Response Status:', response.status);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ API Response:', data);
-
-      if (
-        data.success &&
-        data.theme &&
-        ['light', 'dark', 'system'].includes(data.theme)
-      ) {
-        console.log('🎨 Setting theme from API:', data.theme);
-        setThemeState(data.theme);
-        await AsyncStorage.setItem('app-theme', data.theme);
-      }
-    } catch (err) {
-      console.error('❌ Error fetching theme from API:', err);
-      // Don't show error to user, just use local theme
-    }
-  };
-
-  // ✅ UPDATE THEME (Local + Backend API)
   const handleSetTheme = async (newTheme: ThemeMode): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1️⃣ Optimistic update (instant UI response)
+      // Optimistic update (in-memory only)
       setThemeState(newTheme);
-      await AsyncStorage.setItem('app-theme', newTheme);
 
-      // 2️⃣ Sync with backend API
-      const token = await AsyncStorage.getItem('authToken');
-      if (token) {
-        console.log('🔄 Syncing theme with backend...');
+      // Sync with backend
+      const result = await updateThemeColor({ theme: newTheme });
 
-        const response = await fetch(`${API_URL}/api/v0/user/theme`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ theme: newTheme }),
-        });
+      // If server normalized the theme (rare), apply it
+      if (result.theme && result.theme !== newTheme) {
+        setThemeState(result.theme);
+      }
 
-        console.log('📡 Update API Status:', response.status);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`API Error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('✅ Backend response:', data);
-
-        if (!data.success) {
-          throw new Error(data.message || 'Theme update failed on server');
-        }
-
-        // Success - verify with backend response
-        if (data.theme && data.theme !== newTheme) {
-          // Backend might have normalized the theme
-          setThemeState(data.theme);
-          await AsyncStorage.setItem('app-theme', data.theme);
-        }
-
-        console.log('🎉 Theme updated successfully!');
-      } else {
-        console.log('👤 No user token, theme saved locally only');
+      if (__DEV__) {
+        console.log('🎉 Theme synced with backend');
       }
     } catch (err: any) {
-      console.error('❌ Error setting theme:', err);
+      if (__DEV__) {
+        console.error('❌ Error setting theme:', err);
+      }
 
-      // Show user-friendly error
-      const errorMsg = err.message.includes('Network')
-        ? 'Network error. Theme saved locally.'
-        : 'Server error. Theme saved locally.';
+      const isNetwork = err instanceof ApiError && err.status === 0;
+      const errorMsg = isNetwork
+        ? 'Network error. Please try again.'
+        : 'Server error. Please try again.';
 
       setError(errorMsg);
 
-      Alert.alert('Theme Updated', errorMsg, [
+      Alert.alert('Theme Update Failed', errorMsg, [
         { text: 'OK', onPress: () => setError(null) },
       ]);
+
+      // Revert optimistic update on failure
+      // (server state is the source of truth)
+      await refreshThemeFromAPI();
     } finally {
       setLoading(false);
     }
   };
+
+  // ============================================================
+  // ✅ SET COLOR (via combined API)
+  // ============================================================
+
+  const handleSetColor = async (newColor: string): Promise<void> => {
+    const trimmed = newColor.trim();
+
+    if (!trimmed) {
+      setError('Color cannot be empty');
+      return;
+    }
+
+    if (trimmed.length > 32) {
+      setError('Color value is too long');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Optimistic update (in-memory only)
+      setColorState(trimmed);
+
+      // Sync with backend
+      const result = await updateThemeColor({ color: trimmed });
+
+      // If server normalized the color, apply it
+      if (result.color && result.color !== trimmed) {
+        setColorState(result.color);
+      }
+
+      if (__DEV__) {
+        console.log('🎉 Color synced with backend');
+      }
+    } catch (err: any) {
+      if (__DEV__) {
+        console.error('❌ Error setting color:', err);
+      }
+
+      const isNetwork = err instanceof ApiError && err.status === 0;
+      const errorMsg = isNetwork
+        ? 'Network error. Please try again.'
+        : 'Server error. Please try again.';
+
+      setError(errorMsg);
+
+      Alert.alert('Color Update Failed', errorMsg, [
+        { text: 'OK', onPress: () => setError(null) },
+      ]);
+
+      // Revert optimistic update on failure
+      await refreshThemeFromAPI();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ============================================================
+  // CONTEXT VALUE
+  // ============================================================
 
   const value: ThemeContextType = {
     theme,
@@ -256,6 +281,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     isDark,
     resolvedTheme,
     systemColorScheme: systemTheme,
+
+    color,
+    setColor: handleSetColor,
+
     refreshThemeFromAPI,
     loading,
     error,
@@ -263,15 +292,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <ThemeContext.Provider value={value}>
-      {/* StatusBar component for React Native */}
-      <RNStatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {children}
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <View style={{ flex: 1 }}>{children}</View>
     </ThemeContext.Provider>
   );
 };
+
+// ============================================================
+// HOOK
+// ============================================================
 
 export const useTheme = (): ThemeContextType => {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme must be used within a ThemeProvider');
   return ctx;
 };
+
+export default ThemeContext;

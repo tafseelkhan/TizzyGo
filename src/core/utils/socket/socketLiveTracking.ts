@@ -82,7 +82,7 @@ class SocketLiveTracking {
         throw new Error('Failed to extract userId from token');
       }
 
-      let baseUrl = TIZZYGO_API_BASE_URL || 'http://10.239.191.121:1000';
+      let baseUrl = TIZZYGO_API_BASE_URL || 'http://10.25.159.121:1000';
       if (baseUrl.endsWith('/')) {
         baseUrl = baseUrl.slice(0, -1);
       }

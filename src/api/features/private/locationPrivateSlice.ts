@@ -6,17 +6,6 @@ import {
   ApiError,
 } from '../../../core/utils/handler/apiClient';
 
-// ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
 // ================================
 // TYPES
 // ================================
@@ -55,7 +44,7 @@ export const locationApi = {
   getLocation: async (): Promise<LocationResponse> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.GET_FULL_LOCATION),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.GET_FULL_LOCATION}`,
       );
 
       return {
@@ -106,7 +95,7 @@ export const locationApi = {
       };
 
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.POST_LOCATION_ADDRESS),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_LOCATION_ADDRESS}`,
         {
           method: 'POST',
           body: JSON.stringify(requestBody),
@@ -137,7 +126,7 @@ export const locationApi = {
   updateGpsTracking: async (enabled: boolean): Promise<LocationResponse> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.POST_GPS_TRACKING_ENABLED),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POST_GPS_TRACKING_ENABLED}`,
         {
           method: 'POST',
           body: JSON.stringify({ gpsTrackingEnabled: enabled }),

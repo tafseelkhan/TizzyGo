@@ -11,17 +11,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // ✅ ORDER TYPE (matches backend order object)
 // ============================================================
 
@@ -340,7 +329,7 @@ export const getOrderTrackingData = async (
 
   try {
     const data = await apiRequest<OrderTrackingResponse>(
-      apiUrl(`${API_ENDPOINTS.ORDER_TRACKING}/${orderId}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.ORDER_TRACKING}/${orderId}`,
     );
 
     if (!data || !data.success) {

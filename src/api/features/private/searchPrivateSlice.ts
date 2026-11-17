@@ -8,17 +8,6 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
@@ -93,9 +82,7 @@ class SearchApi {
 
     try {
       const data = await apiRequest<any>(
-        apiUrl(
-          `${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`,
-        ),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SEARCH_PRODUCTS}?q=${encodeURIComponent(query.trim())}`,
         {
           auth: false,
           retryOnUnauthorized: false,
@@ -136,7 +123,7 @@ class SearchApi {
   getRecentSearchesAPI = async (): Promise<RecentSearch[]> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.RECENT_SEARCHES),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RECENT_SEARCHES}`,
       );
 
       if (data?.searches && Array.isArray(data.searches)) {
@@ -164,7 +151,7 @@ class SearchApi {
   getPopularSearchesAPI = async (): Promise<PopularSearch[]> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.POPULAR_SEARCHES),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.POPULAR_SEARCHES}`,
         {
           auth: false,
           retryOnUnauthorized: false,
@@ -199,7 +186,7 @@ class SearchApi {
 
     try {
       await apiRequest(
-        apiUrl(`${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`),
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.REMOVE_RECENT_SEARCH}/${searchId}`,
         { method: 'DELETE' },
       );
 
@@ -219,9 +206,10 @@ class SearchApi {
 
   clearAllRecentSearchesAPI = async (): Promise<{ success: boolean }> => {
     try {
-      await apiRequest(apiUrl(API_ENDPOINTS.CLEAR_RECENT_SEARCHES), {
-        method: 'DELETE',
-      });
+      await apiRequest(
+        `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.CLEAR_RECENT_SEARCHES}`,
+        { method: 'DELETE' },
+      );
 
       return { success: true };
     } catch (error) {

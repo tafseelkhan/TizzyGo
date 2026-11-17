@@ -1,3 +1,4 @@
+
 // services/api/rideApi.ts
 
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
@@ -8,22 +9,12 @@ import {
 } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER — combined base
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYOS_API_BASE_URL) {
-    throw new Error('TIZZYOS_TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // HELPERS
 // ============================================================
 
 const isAuthError = (error: unknown): boolean =>
-  error instanceof ApiError && (error.status === 401 || error.status === 403);
+  error instanceof ApiError &&
+  (error.status === 401 || error.status === 403);
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof ApiError) return error.message;
@@ -188,6 +179,7 @@ export interface RetryResponse {
 // ================================
 
 class RideBooking {
+
   // ================================
   // 1. GET RIDE OPTIONS (QUOTE)
   // ================================
@@ -205,25 +197,42 @@ class RideBooking {
 
     try {
       const data = await apiRequest<RideOptionsResponse>(
-        apiUrl(API_ENDPOINTS.RIDE_OPTIONS),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_OPTIONS}`,
         {
           method: 'POST',
           body: JSON.stringify({ pickup, drop }),
         },
       );
 
-      return data || { success: false, message: 'Failed to get ride options' };
+      return (
+        data || {
+          success: false,
+          message: 'Failed to get ride options',
+        }
+      );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Get ride options API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to get ride options'),
+        message: getErrorMessage(
+          error,
+          'Failed to get ride options',
+        ),
       };
     }
   };
+
+  // ================================
+  // 2. GET AIRPORT RIDE OPTIONS
+  // ================================
 
   getAirportRideOptions = async (
     pickup: Location,
@@ -250,7 +259,7 @@ class RideBooking {
 
     try {
       const data = await apiRequest<RideOptionsResponse>(
-        apiUrl(API_ENDPOINTS.AIRPORT_OPTIONS),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.AIRPORT_OPTIONS}`,
         {
           method: 'POST',
           body: JSON.stringify({ pickup, drop, tripType }),
@@ -258,22 +267,33 @@ class RideBooking {
       );
 
       return (
-        data || { success: false, message: 'Failed to get airport ride options' }
+        data || {
+          success: false,
+          message: 'Failed to get airport ride options',
+        }
       );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Get airport ride options API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to get airport ride options'),
+        message: getErrorMessage(
+          error,
+          'Failed to get airport ride options',
+        ),
       };
     }
   };
 
   // ================================
-  // 2. CREATE BOOKING
+  // 3. CREATE BOOKING
   // ================================
 
   createBooking = async (
@@ -290,7 +310,7 @@ class RideBooking {
 
     try {
       const data = await apiRequest<BookingResponse>(
-        apiUrl(API_ENDPOINTS.RIDE_BOOK),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOK}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -301,21 +321,34 @@ class RideBooking {
         },
       );
 
-      return data || { success: false, message: 'Failed to create booking' };
+      return (
+        data || {
+          success: false,
+          message: 'Failed to create booking',
+        }
+      );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Create booking API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to create booking'),
+        message: getErrorMessage(
+          error,
+          'Failed to create booking',
+        ),
       };
     }
   };
 
   // ================================
-  // 3. GET SEARCH STATUS
+  // 4. GET SEARCH STATUS
   // ================================
 
   getSearchStatus = async (
@@ -327,7 +360,10 @@ class RideBooking {
 
     try {
       const data = await apiRequest<SearchStatusResponse>(
-        apiUrl(`${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${bookingId}`),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_SEARCH_STATUS}/${encodeURIComponent(bookingId)}`,
+        {
+          method: 'GET',
+        },
       );
 
       return data || { success: false };
@@ -335,16 +371,19 @@ class RideBooking {
       if (isAuthError(error)) {
         return { success: false };
       }
+
       console.error('Get search status API error:', error);
       return { success: false };
     }
   };
 
   // ================================
-  // 4. RETRY SEARCH
+  // 5. RETRY SEARCH
   // ================================
 
-  retrySearch = async (bookingId: string): Promise<RetryResponse> => {
+  retrySearch = async (
+    bookingId: string,
+  ): Promise<RetryResponse> => {
     if (!bookingId) {
       return {
         success: false,
@@ -354,25 +393,40 @@ class RideBooking {
 
     try {
       const data = await apiRequest<RetryResponse>(
-        apiUrl(`${API_ENDPOINTS.RIDE_RETRY}/${bookingId}`),
-        { method: 'POST' },
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_RETRY}/${encodeURIComponent(bookingId)}`,
+        {
+          method: 'POST',
+        },
       );
 
-      return data || { success: false, message: 'Failed to retry search' };
+      return (
+        data || {
+          success: false,
+          message: 'Failed to retry search',
+        }
+      );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Retry search API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to retry search'),
+        message: getErrorMessage(
+          error,
+          'Failed to retry search',
+        ),
       };
     }
   };
 
   // ================================
-  // 5. CANCEL BOOKING
+  // 6. CANCEL BOOKING
   // ================================
 
   cancelBooking = async (
@@ -388,7 +442,7 @@ class RideBooking {
 
     try {
       const data = await apiRequest<CancelBookingResponse>(
-        apiUrl(`${API_ENDPOINTS.RIDE_CANCEL}/${bookingId}`),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_CANCEL}/${encodeURIComponent(bookingId)}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -397,24 +451,39 @@ class RideBooking {
         },
       );
 
-      return data || { success: false, message: 'Failed to cancel booking' };
+      return (
+        data || {
+          success: false,
+          message: 'Failed to cancel booking',
+        }
+      );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Cancel booking API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to cancel booking'),
+        message: getErrorMessage(
+          error,
+          'Failed to cancel booking',
+        ),
       };
     }
   };
 
   // ================================
-  // 6. GET BOOKING DETAILS
+  // 7. GET BOOKING DETAILS
   // ================================
 
-  getBooking = async (bookingId: string): Promise<BookingDetailResponse> => {
+  getBooking = async (
+    bookingId: string,
+  ): Promise<BookingDetailResponse> => {
     if (!bookingId) {
       return {
         success: false,
@@ -424,30 +493,49 @@ class RideBooking {
 
     try {
       const data = await apiRequest<BookingDetailResponse>(
-        apiUrl(`${API_ENDPOINTS.RIDE_BOOKING}/${bookingId}`),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_BOOKING}/${encodeURIComponent(bookingId)}`,
+        {
+          method: 'GET',
+        },
       );
 
-      return data || { success: false, message: 'Failed to get booking' };
+      return (
+        data || {
+          success: false,
+          message: 'Failed to get booking',
+        }
+      );
     } catch (error) {
       if (isAuthError(error)) {
-        return { success: false, message: 'Please login to continue.' };
+        return {
+          success: false,
+          message: 'Please login to continue.',
+        };
       }
+
       console.error('Get booking API error:', error);
+
       return {
         success: false,
-        message: getErrorMessage(error, 'Failed to get booking'),
+        message: getErrorMessage(
+          error,
+          'Failed to get booking',
+        ),
       };
     }
   };
 
   // ================================
-  // 7. GET CUSTOMER BOOKINGS
+  // 8. GET CUSTOMER BOOKINGS
   // ================================
 
   getCustomerBookings = async (): Promise<any> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_CUSTOMER_BOOKINGS}`,
+        {
+          method: 'GET',
+        },
       );
 
       return data || { success: false, data: [] };
@@ -455,19 +543,23 @@ class RideBooking {
       if (isAuthError(error)) {
         return { success: false, data: [] };
       }
+
       console.error('Get customer bookings API error:', error);
       return { success: false, data: [] };
     }
   };
 
   // ================================
-  // 8. GET DRIVER BOOKINGS
+  // 9. GET DRIVER BOOKINGS
   // ================================
 
   getDriverBookings = async (): Promise<any> => {
     try {
       const data = await apiRequest<any>(
-        apiUrl(API_ENDPOINTS.RIDE_DRIVER_BOOKINGS),
+        `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.RIDE_DRIVER_BOOKINGS}`,
+        {
+          method: 'GET',
+        },
       );
 
       return data || { success: false, data: [] };
@@ -475,11 +567,15 @@ class RideBooking {
       if (isAuthError(error)) {
         return { success: false, data: [] };
       }
+
       console.error('Get driver bookings API error:', error);
       return { success: false, data: [] };
     }
   };
 }
 
-// Export singleton instance
+// ================================
+// EXPORT SINGLETON INSTANCE
+// ================================
+
 export const rideBooking = new RideBooking();

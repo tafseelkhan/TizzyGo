@@ -3,17 +3,6 @@ import { TIZZYOS_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { apiRequest } from '../../../core/utils/handler/apiClient';
 
 // ============================================================
-// SAFE URL JOINER — TIZZYOS base
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYOS_API_BASE_URL) {
-    throw new Error('TIZZYOS_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYOS_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
-// ============================================================
 // TYPES
 // ============================================================
 
@@ -90,7 +79,7 @@ export interface Product {
 
 export const fetchProduct = async (productId: string): Promise<Product> => {
   const data = await apiRequest<any>(
-    apiUrl(`${API_ENDPOINTS.GET_PRODUCT}/${productId}`),
+    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
     {
       auth: false,
       retryOnUnauthorized: false,
@@ -112,7 +101,7 @@ export const fetchProduct = async (productId: string): Promise<Product> => {
 
 export const fetchProductRaw = async (productId: string) => {
   return await apiRequest<any>(
-    apiUrl(`${API_ENDPOINTS.GET_PRODUCT}/${productId}`),
+    `${TIZZYOS_API_BASE_URL}${API_ENDPOINTS.GET_PRODUCT}/${productId}`,
     {
       auth: false,
       retryOnUnauthorized: false,

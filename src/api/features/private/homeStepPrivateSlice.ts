@@ -4,17 +4,6 @@ import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { apiRequest } from '../../../core/utils/handler/apiClient';
 
-// ============================================================
-// SAFE URL JOINER — TIZZYGO base (same as CartAPI)
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
 // ================================
 // TYPES
 // ================================
@@ -67,7 +56,7 @@ export interface FavoriteColorResponse {
 
 export const fetchHomeProducts = async (): Promise<ApiProductResponse[]> => {
   const data = await apiRequest<ProductsResponse>(
-    apiUrl(API_ENDPOINTS.SELLER_FORMS_CATEGORIES),
+    `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.SELLER_FORMS_CATEGORIES}`,
     {
       auth: false,
       retryOnUnauthorized: false,
@@ -87,7 +76,7 @@ export const fetchHomeProducts = async (): Promise<ApiProductResponse[]> => {
 export const fetchUserFavoriteColor = async (): Promise<string | null> => {
   try {
     const data = await apiRequest<FavoriteColorResponse>(
-      apiUrl(API_ENDPOINTS.FAV_COLOR),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.FAV_COLOR}`,
     );
 
     if (data?.success && data.data?.color) {

@@ -2,17 +2,6 @@ import { API_ENDPOINTS } from '../../connections/snippet/apiEndpoints';
 import { TIZZYGO_API_BASE_URL } from '../../connections/snippet/apiBaseUrl';
 import { apiRequest } from '../../../core/utils/handler/apiClient';
 
-// ============================================================
-// SAFE URL JOINER
-// ============================================================
-
-const apiUrl = (path: string): string => {
-  if (!TIZZYGO_API_BASE_URL) {
-    throw new Error('TIZZYGO_API_BASE_URL is not configured.');
-  }
-  return `${TIZZYGO_API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-};
-
 // ================================
 // TYPES
 // ================================
@@ -50,7 +39,7 @@ export const fetchRatingStats = async (
 ): Promise<RatingStats | null> => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(`${API_ENDPOINTS.RATING_STATS}/${productId}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.RATING_STATS}/${productId}`,
       {
         auth: false,
         retryOnUnauthorized: false,
@@ -82,7 +71,7 @@ export const fetchReviews = async (
 ): Promise<Review[]> => {
   try {
     const data = await apiRequest<any>(
-      apiUrl(`${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`),
+      `${TIZZYGO_API_BASE_URL}${API_ENDPOINTS.PRODUCT_REVIEWS}/${productId}?limit=${limit}`,
       {
         auth: false,
         retryOnUnauthorized: false,

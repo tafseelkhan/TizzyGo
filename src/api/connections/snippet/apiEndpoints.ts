@@ -17,6 +17,9 @@ export const API_ENDPOINTS = {
   REFRESH: '/api/v0/auth/refresh',
   LOGOUT: '/api/v0/auth/logout',
 
+  THEME_COLOR: '/api/v0/auth/theme-color',                // GET
+  UPDATE_THEME_COLOR: '/api/v0/auth/update-theme-color',  // PUT
+
   // Profile endpoints
   GET_PROFILE: '/api/v0/profile/me',
   UPDATE_PROFILE: '/api/v0/profile/update',
